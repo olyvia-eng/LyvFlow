@@ -242,6 +242,11 @@ async function ensureOk(responsePromise: Promise<Response>) {
   }
 }
 
+function dataUrl(entity: string, id?: string) {
+  const query = id ? `?entity=${entity}&id=${id}` : `?entity=${entity}`;
+  return `/api/data${query}`;
+}
+
 // ─── Store definition ─────────────────────────────────────────────────────────
 
 interface AppState {
@@ -312,13 +317,13 @@ export const useStore = create<AppState>()(
           customers: [...s.customers, customer],
         }));
 
-        void ensureOk(fetch('/api/customers', {
+        void ensureOk(fetch(dataUrl('customers'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ customer }),
+          body: JSON.stringify({ data: customer }),
         })).catch(() => {
           set({ customers: previous });
           emitAppToast({ tone: 'error', message: 'Customer could not be saved.' });
@@ -333,7 +338,7 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void ensureOk(fetch(`/api/customers/${id}`, {
+        void ensureOk(fetch(dataUrl('customers', id), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -349,7 +354,7 @@ export const useStore = create<AppState>()(
         const previous = get().customers;
         set((s) => ({ customers: s.customers.filter((c) => c.id !== id) }));
 
-        void ensureOk(fetch(`/api/customers/${id}`, {
+        void ensureOk(fetch(dataUrl('customers', id), {
           method: 'DELETE',
           credentials: 'include',
         })).catch(() => {
@@ -364,13 +369,13 @@ export const useStore = create<AppState>()(
         const estimate = { ...e, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
         set((s) => ({ estimates: [...s.estimates, estimate] }));
 
-        void ensureOk(fetch('/api/estimates', {
+        void ensureOk(fetch(dataUrl('estimates'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ estimate }),
+          body: JSON.stringify({ data: estimate }),
         })).catch(() => {
           set({ estimates: previous });
           emitAppToast({ tone: 'error', message: 'Estimate could not be saved.' });
@@ -385,7 +390,7 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void ensureOk(fetch(`/api/estimates/${id}`, {
+        void ensureOk(fetch(dataUrl('estimates', id), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -401,7 +406,7 @@ export const useStore = create<AppState>()(
         const previous = get().estimates;
         set((s) => ({ estimates: s.estimates.filter((e) => e.id !== id) }));
 
-        void ensureOk(fetch(`/api/estimates/${id}`, {
+        void ensureOk(fetch(dataUrl('estimates', id), {
           method: 'DELETE',
           credentials: 'include',
         })).catch(() => {
@@ -419,7 +424,7 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void ensureOk(fetch(`/api/estimates/${id}`, {
+        void ensureOk(fetch(dataUrl('estimates', id), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -470,15 +475,15 @@ export const useStore = create<AppState>()(
         }));
 
         void Promise.all([
-          ensureOk(fetch('/api/jobs', {
+          ensureOk(fetch(dataUrl('jobs'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             credentials: 'include',
-            body: JSON.stringify({ job: newJob }),
+            body: JSON.stringify({ data: newJob }),
           })),
-          ensureOk(fetch(`/api/estimates/${estimateId}`, {
+          ensureOk(fetch(dataUrl('estimates', estimateId), {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
@@ -500,13 +505,13 @@ export const useStore = create<AppState>()(
           templates: [...s.templates, template],
         }));
 
-        void ensureOk(fetch('/api/templates', {
+        void ensureOk(fetch(dataUrl('templates'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ template }),
+          body: JSON.stringify({ data: template }),
         })).catch(() => {
           set({ templates: previous });
           emitAppToast({ tone: 'error', message: 'Template could not be saved.' });
@@ -520,7 +525,7 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void ensureOk(fetch(`/api/templates/${id}`, {
+        void ensureOk(fetch(dataUrl('templates', id), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -536,7 +541,7 @@ export const useStore = create<AppState>()(
         const previous = get().templates;
         set((s) => ({ templates: s.templates.filter((t) => t.id !== id) }));
 
-        void ensureOk(fetch(`/api/templates/${id}`, {
+        void ensureOk(fetch(dataUrl('templates', id), {
           method: 'DELETE',
           credentials: 'include',
         })).catch(() => {
@@ -553,13 +558,13 @@ export const useStore = create<AppState>()(
           jobs: [...s.jobs, job],
         }));
 
-        void ensureOk(fetch('/api/jobs', {
+        void ensureOk(fetch(dataUrl('jobs'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ job }),
+          body: JSON.stringify({ data: job }),
         })).catch(() => {
           set({ jobs: previous });
           emitAppToast({ tone: 'error', message: 'Job could not be saved.' });
@@ -574,7 +579,7 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void ensureOk(fetch(`/api/jobs/${id}`, {
+        void ensureOk(fetch(dataUrl('jobs', id), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -590,7 +595,7 @@ export const useStore = create<AppState>()(
         const previous = get().jobs;
         set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
 
-        void ensureOk(fetch(`/api/jobs/${id}`, {
+        void ensureOk(fetch(dataUrl('jobs', id), {
           method: 'DELETE',
           credentials: 'include',
         })).catch(() => {
@@ -620,7 +625,7 @@ export const useStore = create<AppState>()(
 
         if (!nextJob) return;
 
-        void ensureOk(fetch(`/api/jobs/${jobId}`, {
+        void ensureOk(fetch(dataUrl('jobs', jobId), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -639,13 +644,13 @@ export const useStore = create<AppState>()(
         const employee = { ...e, id: generateId(), createdAt: nowISO() };
         set((s) => ({ employees: [...s.employees, employee] }));
 
-        void ensureOk(fetch('/api/employees', {
+        void ensureOk(fetch(dataUrl('employees'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ employee }),
+          body: JSON.stringify({ data: employee }),
         })).catch(() => {
           set({ employees: previous });
           emitAppToast({ tone: 'error', message: 'Employee could not be saved.' });
@@ -659,7 +664,7 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void ensureOk(fetch(`/api/employees/${id}`, {
+        void ensureOk(fetch(dataUrl('employees', id), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -675,7 +680,7 @@ export const useStore = create<AppState>()(
         const previous = get().employees;
         set((s) => ({ employees: s.employees.filter((e) => e.id !== id) }));
 
-        void ensureOk(fetch(`/api/employees/${id}`, {
+        void ensureOk(fetch(dataUrl('employees', id), {
           method: 'DELETE',
           credentials: 'include',
         })).catch(() => {
@@ -700,13 +705,13 @@ export const useStore = create<AppState>()(
 
         set((s) => ({ timeEntries: [...s.timeEntries, timeEntry] }));
 
-        void ensureOk(fetch('/api/time-entries', {
+        void ensureOk(fetch(dataUrl('time-entries'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ timeEntry }),
+          body: JSON.stringify({ data: timeEntry }),
         })).catch(() => {
           set({ timeEntries: previous });
           emitAppToast({ tone: 'error', message: 'Clock-in could not be saved.' });
@@ -723,7 +728,7 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void ensureOk(fetch(`/api/time-entries/${entryId}`, {
+        void ensureOk(fetch(dataUrl('time-entries', entryId), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -740,13 +745,13 @@ export const useStore = create<AppState>()(
         const timeEntry: TimeEntry = { ...e, id: generateId() };
         set((s) => ({ timeEntries: [...s.timeEntries, timeEntry] }));
 
-        void ensureOk(fetch('/api/time-entries', {
+        void ensureOk(fetch(dataUrl('time-entries'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ timeEntry }),
+          body: JSON.stringify({ data: timeEntry }),
         })).catch(() => {
           set({ timeEntries: previous });
           emitAppToast({ tone: 'error', message: 'Time entry could not be saved.' });
@@ -756,7 +761,7 @@ export const useStore = create<AppState>()(
         const previous = get().timeEntries;
         set((s) => ({ timeEntries: s.timeEntries.filter((te) => te.id !== id) }));
 
-        void ensureOk(fetch(`/api/time-entries/${id}`, {
+        void ensureOk(fetch(dataUrl('time-entries', id), {
           method: 'DELETE',
           credentials: 'include',
         })).catch(() => {
@@ -771,13 +776,13 @@ export const useStore = create<AppState>()(
         const budgetItem = { ...item, id: generateId() };
         set((s) => ({ budgetItems: [...s.budgetItems, budgetItem] }));
 
-        void ensureOk(fetch('/api/budget', {
+        void ensureOk(fetch(dataUrl('budget'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ budgetItem }),
+          body: JSON.stringify({ data: budgetItem }),
         })).catch(() => {
           set({ budgetItems: previous });
           emitAppToast({ tone: 'error', message: 'Budget item could not be saved.' });
@@ -791,7 +796,7 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void ensureOk(fetch(`/api/budget/${id}`, {
+        void ensureOk(fetch(dataUrl('budget', id), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -807,7 +812,7 @@ export const useStore = create<AppState>()(
         const previous = get().budgetItems;
         set((s) => ({ budgetItems: s.budgetItems.filter((b) => b.id !== id) }));
 
-        void ensureOk(fetch(`/api/budget/${id}`, {
+        void ensureOk(fetch(dataUrl('budget', id), {
           method: 'DELETE',
           credentials: 'include',
         })).catch(() => {

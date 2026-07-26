@@ -94,7 +94,7 @@ export default function App() {
 
   useEffect(() => {
     const loadSession = async () => {
-      const response = await fetch('/api/auth/session', {
+      const response = await fetch('/api/auth?action=session', {
         method: 'GET',
         credentials: 'include',
       });
@@ -157,7 +157,7 @@ export default function App() {
   }, [sessionUser]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    const response = await fetch('/api/auth/login', {
+    const response = await fetch('/api/auth?action=login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -183,7 +183,7 @@ export default function App() {
     email: string;
     password: string;
   }) => {
-    const response = await fetch('/api/auth/signup', {
+    const response = await fetch('/api/auth?action=signup', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -229,7 +229,7 @@ export default function App() {
   };
 
   const updateUser = async (userId: string, data: { role?: 'admin' | 'foreman' | 'crew_member'; active?: boolean }) => {
-    const response = await fetch(`/api/users/${userId}`, {
+    const response = await fetch(`/api/users?id=${userId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -249,7 +249,7 @@ export default function App() {
   };
 
   const deleteUser = async (userId: string) => {
-    const response = await fetch(`/api/users/${userId}`, {
+    const response = await fetch(`/api/users?id=${userId}`, {
       method: 'DELETE',
       credentials: 'include',
     });
@@ -265,7 +265,7 @@ export default function App() {
   };
 
   const logout = async () => {
-    await fetch('/api/auth/logout', {
+    await fetch('/api/auth?action=logout', {
       method: 'POST',
       credentials: 'include',
     });
