@@ -73,19 +73,25 @@ export default function EmployeesPage() {
       return;
     }
 
-    const response = await fetch('/api/users', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        name: form.name,
-        email: form.email,
-        password: newPassword,
-        role: form.role,
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          password: newPassword,
+          role: form.role,
+        }),
+      });
+    } catch {
+      setFormError('Could not reach the API. Run vercel dev for local API routes.');
+      return;
+    }
 
     let apiError = 'Could not create employee login.';
     try {
@@ -96,6 +102,13 @@ export default function EmployeesPage() {
     }
 
     if (!response.ok) {
+      const contentType = response.headers.get('content-type') ?? '';
+      if (
+        apiError === 'Could not create employee login.' &&
+        (response.status === 404 || !contentType.includes('application/json'))
+      ) {
+        apiError = 'API route unavailable. Run vercel dev for local API routes.';
+      }
       setFormError(apiError);
       return;
     }

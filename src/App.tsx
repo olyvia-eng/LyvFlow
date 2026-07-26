@@ -220,6 +220,9 @@ export default function App() {
     const body = await readApiJson<{ ok: boolean; error?: string }>(response);
 
     if (!response.ok || !body?.ok) {
+      if (!body?.error && response.status === 404) {
+        return { ok: false, error: 'API route unavailable. Run vercel dev for local API routes.' };
+      }
       return { ok: false, error: body?.error ?? 'Could not create user.' };
     }
 
