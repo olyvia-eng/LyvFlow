@@ -16,6 +16,10 @@ import LoginPage from './pages/auth/LoginPage';
 import SignupPage from './pages/auth/SignupPage';
 import UserAccessPage from './pages/users/UserAccessPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
+import { useStore } from './store';
+import type { Customer, Job } from './types';
+
+const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
 
 async function readApiJson<T>(response: Response): Promise<T | null> {
   try {
@@ -32,6 +36,29 @@ export default function App() {
 
   const canManageUsers =
     sessionUser?.role === 'owner' || sessionUser?.role === 'admin';
+
+  const loadBusinessData = async () => {
+    if (!sessionUser) return;
+
+    const response = await fetch('/api/bootstrap', {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    const payload = await readApiJson<{
+      ok: boolean;
+      customers?: Customer[];
+      jobs?: Job[];
+    }>(response);
+
+    if (!response.ok || !payload?.ok) return;
+
+    useStore.setState((state) => ({
+      ...state,
+      customers: payload.customers ?? [],
+      jobs: payload.jobs ?? [],
+    }));
+  };
 
   const loadUsers = async () => {
     if (!sessionUser || !canManageUsers) {
@@ -77,6 +104,28 @@ export default function App() {
     void loadUsers();
   }, [sessionUser]);
 
+  useEffect(() => {
+    void loadBusinessData();
+  }, [sessionUser]);
+
+  useEffect(() => {
+    if (!sessionUser) return;
+
+    const previousOwner = localStorage.getItem(STORE_OWNER_KEY);
+    if (previousOwner === sessionUser.businessId) return;
+
+    useStore.setState({
+      customers: [],
+      estimates: [],
+      templates: [],
+      jobs: [],
+      employees: [],
+      timeEntries: [],
+      budgetItems: [],
+    });
+    localStorage.setItem(STORE_OWNER_KEY, sessionUser.businessId);
+  }, [sessionUser]);
+
   const login = async (email: string, password: string): Promise<boolean> => {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
@@ -94,6 +143,7 @@ export default function App() {
 
     setSessionUser(payload.user);
     await loadUsers();
+    await loadBusinessData();
     return true;
   };
 
@@ -119,6 +169,7 @@ export default function App() {
 
     setSessionUser(body.user);
     await loadUsers();
+    await loadBusinessData();
     return { ok: true };
   };
 

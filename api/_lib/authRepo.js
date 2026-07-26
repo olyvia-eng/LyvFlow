@@ -1,7 +1,9 @@
 import bcrypt from 'bcryptjs';
 import {
   GetCommand,
+  PutCommand,
   QueryCommand,
+  DeleteCommand,
   TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { ddb, tableName } from './db.js';
@@ -27,6 +29,14 @@ function businessPk(businessId) {
 
 function userSk(userId) {
   return `USER#${userId}`;
+}
+
+function customerSk(customerId) {
+  return `CUSTOMER#${customerId}`;
+}
+
+function jobSk(jobId) {
+  return `JOB#${jobId}`;
 }
 
 function emailPk(email) {
@@ -257,6 +267,232 @@ export async function createUserForBusiness({ businessId, name, email, password,
     }
     throw error;
   }
+
+  return { ok: true };
+}
+
+export async function listCustomersForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'CUSTOMER#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.customerId,
+    name: item.name,
+    company: item.company,
+    email: item.email,
+    phone: item.phone,
+    address: item.address,
+    status: item.status,
+    notes: item.notes,
+    tags: item.tags ?? [],
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+}
+
+export async function createCustomerForBusiness({ businessId, customer }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: customerSk(customer.id),
+        entityType: 'CUSTOMER',
+        businessId,
+        customerId: customer.id,
+        ...customer,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getCustomerForBusiness(businessId, customerId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: customerSk(customerId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.customerId,
+        name: result.Item.name,
+        company: result.Item.company,
+        email: result.Item.email,
+        phone: result.Item.phone,
+        address: result.Item.address,
+        status: result.Item.status,
+        notes: result.Item.notes,
+        tags: result.Item.tags ?? [],
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateCustomerForBusiness({ businessId, customer }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: customerSk(customer.id),
+        entityType: 'CUSTOMER',
+        businessId,
+        customerId: customer.id,
+        ...customer,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteCustomerForBusiness(businessId, customerId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: customerSk(customerId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listJobsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'JOB#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.jobId,
+    estimateId: item.estimateId,
+    customerId: item.customerId,
+    title: item.title,
+    description: item.description,
+    status: item.status,
+    startDate: item.startDate,
+    endDate: item.endDate,
+    estimatedHours: item.estimatedHours,
+    actualHours: item.actualHours,
+    estimatedCost: item.estimatedCost,
+    actualCosts: item.actualCosts ?? [],
+    contractValue: item.contractValue,
+    assignedEmployeeIds: item.assignedEmployeeIds ?? [],
+    notes: item.notes,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+}
+
+export async function createJobForBusiness({ businessId, job }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: jobSk(job.id),
+        entityType: 'JOB',
+        businessId,
+        jobId: job.id,
+        ...job,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getJobForBusiness(businessId, jobId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: jobSk(jobId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.jobId,
+        estimateId: result.Item.estimateId,
+        customerId: result.Item.customerId,
+        title: result.Item.title,
+        description: result.Item.description,
+        status: result.Item.status,
+        startDate: result.Item.startDate,
+        endDate: result.Item.endDate,
+        estimatedHours: result.Item.estimatedHours,
+        actualHours: result.Item.actualHours,
+        estimatedCost: result.Item.estimatedCost,
+        actualCosts: result.Item.actualCosts ?? [],
+        contractValue: result.Item.contractValue,
+        assignedEmployeeIds: result.Item.assignedEmployeeIds ?? [],
+        notes: result.Item.notes,
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateJobForBusiness({ businessId, job }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: jobSk(job.id),
+        entityType: 'JOB',
+        businessId,
+        jobId: job.id,
+        ...job,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteJobForBusiness(businessId, jobId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: jobSk(jobId),
+      },
+    })
+  );
 
   return { ok: true };
 }

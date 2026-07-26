@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { PageHeader, Button, Card, Badge, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Clock, LogOut } from 'lucide-react';
@@ -29,23 +29,95 @@ export default function EmployeesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [form, setForm] = useState(empty());
+  const [newPassword, setNewPassword] = useState('');
+  const [formError, setFormError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [clockInOpen, setClockInOpen] = useState(false);
   const [clockOutEntry, setClockOutEntry] = useState<string | null>(null);
   const [breakMin, setBreakMin] = useState(0);
 
-  const openNew = () => { setEditing(null); setForm(empty()); setModalOpen(true); };
+  const openNew = () => {
+    setEditing(null);
+    setForm(empty());
+    setNewPassword('');
+    setFormError('');
+    setModalOpen(true);
+  };
   const openEdit = (e: Employee) => {
     setEditing(e);
     setForm({ name: e.name, email: e.email, phone: e.phone, role: e.role, hourlyRate: e.hourlyRate, active: e.active, pin: e.pin });
+    setNewPassword('');
+    setFormError('');
     setModalOpen(true);
   };
-  const handleSave = () => {
-    if (!form.name.trim()) return;
-    if (editing) updateEmployee(editing.id, form);
-    else addEmployee(form);
+
+  const handleSave = async () => {
+    setFormError('');
+
+    if (!form.name.trim()) {
+      setFormError('Full name is required.');
+      return;
+    }
+
+    if (!form.email.trim()) {
+      setFormError('Email is required.');
+      return;
+    }
+
+    if (form.pin.length !== 4) {
+      setFormError('A 4-digit PIN is required for clock in/out.');
+      return;
+    }
+
+    if (editing) {
+      updateEmployee(editing.id, form);
+      setModalOpen(false);
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setFormError('Password must be at least 8 characters for employee login.');
+      return;
+    }
+
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        name: form.name,
+        email: form.email,
+        password: newPassword,
+        role: 'employee',
+      }),
+    });
+
+    let apiError = 'Could not create employee login.';
+    try {
+      const payload = await response.json();
+      if (typeof payload?.error === 'string') apiError = payload.error;
+    } catch {
+      // Ignore JSON parsing errors and use generic message.
+    }
+
+    if (!response.ok) {
+      setFormError(apiError);
+      return;
+    }
+
+    addEmployee(form);
     setModalOpen(false);
   };
+
+  useEffect(() => {
+    if (!modalOpen) {
+      setFormError('');
+      setNewPassword('');
+    }
+  }, [modalOpen]);
+
   const set = (key: keyof typeof form, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
 
   const getActiveEntry = (empId: string) =>
@@ -171,7 +243,7 @@ export default function EmployeesPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Employee' : 'New Employee'}
         footer={<>
           <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-          <Button onClick={handleSave}>Save</Button>
+          <Button onClick={() => void handleSave()}>Save</Button>
         </>}
       >
         <div className="space-y-4">
@@ -189,6 +261,15 @@ export default function EmployeesPage() {
             <Input label="Hourly Rate ($)" type="number" min={0} value={form.hourlyRate} onChange={(e) => set('hourlyRate', Number(e.target.value))} />
             <Input label="4-Digit PIN" type="password" maxLength={4} value={form.pin} onChange={(e) => set('pin', e.target.value.replace(/\D/g, '').slice(0, 4))} />
           </div>
+          {!editing && (
+            <Input
+              label="Employee Login Password *"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          )}
+          {formError && <p className="text-sm text-red-600">{formError}</p>}
           <div className="flex items-center gap-2">
             <input type="checkbox" id="active" checked={form.active} onChange={(e) => set('active', e.target.checked)} />
             <label htmlFor="active" className="text-sm text-gray-700">Active Employee</label>

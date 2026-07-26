@@ -46,10 +46,7 @@ type CalendarItem = {
 
 const TODO_STORAGE_KEY = 'oliveops.dashboard.todos';
 const CALENDAR_STORAGE_KEY = 'oliveops.dashboard.calendarItems';
-const DEFAULT_TODOS: TodoItem[] = [
-  { id: 1, text: 'Review today\'s clock-ins', done: false },
-  { id: 2, text: 'Follow up on pending estimates', done: false },
-];
+const DEFAULT_TODOS: TodoItem[] = [];
 
 function loadStoredTodos(): TodoItem[] {
   const raw = localStorage.getItem(TODO_STORAGE_KEY);
@@ -66,7 +63,7 @@ function loadStoredTodos(): TodoItem[] {
         typeof item?.done === 'boolean'
     );
 
-    return valid.length > 0 ? valid : DEFAULT_TODOS;
+    return valid;
   } catch {
     return DEFAULT_TODOS;
   }

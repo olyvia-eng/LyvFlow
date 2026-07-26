@@ -297,21 +297,46 @@ export const useStore = create<AppState>()(
       budgetItems: SEED_BUDGET,
 
       // ── CRM ──────────────────────────────────────────────────────────────
-      addCustomer: (c) =>
+      addCustomer: (c) => {
+        const customer = { ...c, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
         set((s) => ({
-          customers: [
-            ...s.customers,
-            { ...c, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() },
-          ],
-        })),
-      updateCustomer: (id, data) =>
+          customers: [...s.customers, customer],
+        }));
+
+        void fetch('/api/customers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ customer }),
+        });
+      },
+      updateCustomer: (id, data) => {
+        const updatedAt = nowISO();
         set((s) => ({
           customers: s.customers.map((c) =>
-            c.id === id ? { ...c, ...data, updatedAt: nowISO() } : c
+            c.id === id ? { ...c, ...data, updatedAt } : c
           ),
-        })),
-      deleteCustomer: (id) =>
-        set((s) => ({ customers: s.customers.filter((c) => c.id !== id) })),
+        }));
+
+        void fetch(`/api/customers/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        });
+      },
+      deleteCustomer: (id) => {
+        set((s) => ({ customers: s.customers.filter((c) => c.id !== id) }));
+
+        void fetch(`/api/customers/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+      },
 
       // ── Estimates ─────────────────────────────────────────────────────────
       addEstimate: (e) =>
@@ -390,30 +415,75 @@ export const useStore = create<AppState>()(
         set((s) => ({ templates: s.templates.filter((t) => t.id !== id) })),
 
       // ── Jobs ──────────────────────────────────────────────────────────────
-      addJob: (j) =>
+      addJob: (j) => {
+        const job = { ...j, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
         set((s) => ({
-          jobs: [
-            ...s.jobs,
-            { ...j, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() },
-          ],
-        })),
-      updateJob: (id, data) =>
+          jobs: [...s.jobs, job],
+        }));
+
+        void fetch('/api/jobs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ job }),
+        });
+      },
+      updateJob: (id, data) => {
+        const updatedAt = nowISO();
         set((s) => ({
           jobs: s.jobs.map((j) =>
-            j.id === id ? { ...j, ...data, updatedAt: nowISO() } : j
-          ),
-        })),
-      deleteJob: (id) =>
-        set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) })),
-      addCostEntry: (jobId, entry) => {
-        const id = generateId();
-        set((s) => ({
-          jobs: s.jobs.map((j) =>
-            j.id === jobId
-              ? { ...j, actualCosts: [...j.actualCosts, { ...entry, id }], updatedAt: nowISO() }
-              : j
+            j.id === id ? { ...j, ...data, updatedAt } : j
           ),
         }));
+
+        void fetch(`/api/jobs/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        });
+      },
+      deleteJob: (id) => {
+        set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
+
+        void fetch(`/api/jobs/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+      },
+      addCostEntry: (jobId, entry) => {
+        const id = generateId();
+        const updatedAt = nowISO();
+        let nextJob: Job | null = null;
+
+        set((s) => ({
+          jobs: s.jobs.map((j) => {
+            if (j.id !== jobId) return j;
+
+            nextJob = {
+              ...j,
+              actualCosts: [...j.actualCosts, { ...entry, id }],
+              updatedAt,
+            };
+
+            return nextJob;
+          }),
+        }));
+
+        if (!nextJob) return;
+
+        void fetch(`/api/jobs/${jobId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: nextJob }),
+        });
       },
 
       // ── Employees ─────────────────────────────────────────────────────────
