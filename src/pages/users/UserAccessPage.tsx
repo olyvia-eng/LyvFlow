@@ -72,12 +72,19 @@ export default function UserAccessPage({ users, currentUserRole, onCreateUser, o
     }
 
     setSubmitting(true);
-    const result = await onCreateUser({
-      name,
-      email,
-      password,
-      role,
-    });
+    let result: { ok: boolean; error?: string };
+    try {
+      result = await onCreateUser({
+        name,
+        email,
+        password,
+        role,
+      });
+    } catch {
+      setSubmitting(false);
+      setError('Unexpected error while creating user. Please try again.');
+      return;
+    }
     setSubmitting(false);
 
     if (!result.ok) {
