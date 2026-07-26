@@ -1,0 +1,112 @@
+import { useState } from 'react';
+import { Leaf, UserPlus } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Button, Card, Input } from '../../components/ui';
+
+interface SignupPageProps {
+  onSignup: (payload: {
+    businessName: string;
+    ownerName: string;
+    email: string;
+    password: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+}
+
+export default function SignupPage({ onSignup }: SignupPageProps) {
+  const [businessName, setBusinessName] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+
+    if (!businessName.trim() || !ownerName.trim() || !email.trim() || !password) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setSubmitting(true);
+    const result = await onSignup({ businessName, ownerName, email, password });
+    setSubmitting(false);
+
+    if (!result.ok) {
+      setError(result.error ?? 'Could not create account.');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-green-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg p-6 sm:p-8">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-100 text-brand-700 mb-3">
+            <Leaf size={24} />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Create Business Account</h1>
+          <p className="text-sm text-gray-500 mt-1">Set up your company and become the owner admin.</p>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4">
+          <Input
+            label="Business Name *"
+            value={businessName}
+            onChange={(event) => setBusinessName(event.target.value)}
+          />
+          <Input
+            label="Owner Full Name *"
+            value={ownerName}
+            onChange={(event) => setOwnerName(event.target.value)}
+          />
+          <Input
+            label="Owner Email *"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+          />
+          <Input
+            label="Password *"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="new-password"
+          />
+          <Input
+            label="Confirm Password *"
+            type="password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            autoComplete="new-password"
+          />
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <Button type="submit" className="w-full justify-center py-2.5">
+            <UserPlus size={16} /> {submitting ? 'Creating account...' : 'Create Account'}
+          </Button>
+        </form>
+
+        <div className="mt-5 rounded-lg bg-gray-50 border border-gray-200 p-3">
+          <p className="text-xs text-gray-600">Already have an account?</p>
+          <p className="text-xs text-gray-500 mt-1">
+            <Link to="/login" className="text-brand-600 hover:underline">Sign in here</Link>
+          </p>
+        </div>
+      </Card>
+    </div>
+  );
+}

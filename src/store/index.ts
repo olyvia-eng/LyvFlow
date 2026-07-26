@@ -64,9 +64,9 @@ const SEED_CUSTOMERS: Customer[] = [
 ];
 
 const SEED_EMPLOYEES: Employee[] = [
-  { id: 'e1', name: 'Dan Foreman', email: 'dan@lyvflow.ca', phone: '(613) 555-1001', role: 'foreman', hourlyRate: 45, active: true, pin: '1234', createdAt: '2025-01-01T00:00:00.000Z' },
-  { id: 'e2', name: 'Eva Crew', email: 'eva@lyvflow.ca', phone: '(613) 555-1002', role: 'worker', hourlyRate: 32, active: true, pin: '2345', createdAt: '2025-01-01T00:00:00.000Z' },
-  { id: 'e3', name: 'Frank Worker', email: 'frank@lyvflow.ca', phone: '(613) 555-1003', role: 'worker', hourlyRate: 30, active: true, pin: '3456', createdAt: '2025-01-01T00:00:00.000Z' },
+  { id: 'e1', name: 'Dan Foreman', email: 'dan@oliveops.ca', phone: '(613) 555-1001', role: 'foreman', hourlyRate: 45, active: true, pin: '1234', createdAt: '2025-01-01T00:00:00.000Z' },
+  { id: 'e2', name: 'Eva Crew', email: 'eva@oliveops.ca', phone: '(613) 555-1002', role: 'worker', hourlyRate: 32, active: true, pin: '2345', createdAt: '2025-01-01T00:00:00.000Z' },
+  { id: 'e3', name: 'Frank Worker', email: 'frank@oliveops.ca', phone: '(613) 555-1003', role: 'worker', hourlyRate: 30, active: true, pin: '3456', createdAt: '2025-01-01T00:00:00.000Z' },
 ];
 
 const SEED_TEMPLATES: EstimateTemplate[] = [
@@ -472,6 +472,6 @@ export const useStore = create<AppState>()(
       deleteBudgetItem: (id) =>
         set((s) => ({ budgetItems: s.budgetItems.filter((b) => b.id !== id) })),
     }),
-    { name: 'lyvflow-store' }
+    { name: 'oliveops-store' }
   )
 );

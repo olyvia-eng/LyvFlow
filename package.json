@@ -1,5 +1,5 @@
 {
-  "name": "lyvflow-app",
+  "name": "oliveops-app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,7 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1095.0",
+    "@aws-sdk/lib-dynamodb": "^3.1095.0",
+    "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.27.0",
     "nanoid": "^6.0.0",
     "react": "^19.2.7",

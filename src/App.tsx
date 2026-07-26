@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './pages/Dashboard';
@@ -13,96 +13,175 @@ import DataCenterPage from './pages/datacenter/DataCenterPage';
 import EmployeePortalPage from './pages/employees/EmployeePortalPage';
 import CalendarPage from './pages/calendar/CalendarPage';
 import LoginPage from './pages/auth/LoginPage';
+import SignupPage from './pages/auth/SignupPage';
+import UserAccessPage from './pages/users/UserAccessPage';
+import type { BusinessUserSummary, SessionUser } from './auth/types';
 
-interface AuthUser {
-  name: string;
-}
-
-const AUTH_STORAGE_KEY = 'lyvflow.auth.user';
-const DEV_ADMIN_USERNAME = import.meta.env.VITE_DEV_ADMIN_USERNAME ?? 'admin';
-const DEV_ADMIN_PASSWORD = import.meta.env.VITE_DEV_ADMIN_PASSWORD ?? 'lyvflow123';
-
-function readStoredUser(): AuthUser | null {
-  if (typeof window === 'undefined') return null;
-
-  const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-  if (!raw) return null;
-
+async function readApiJson<T>(response: Response): Promise<T | null> {
   try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.name === 'string') {
-      return { name: parsed.name };
-    }
-    return null;
+    return (await response.json()) as T;
   } catch {
     return null;
   }
 }
 
 export default function App() {
-  const [user, setUser] = useState<AuthUser | null>(readStoredUser);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [users, setUsers] = useState<BusinessUserSummary[]>([]);
+  const [loadingSession, setLoadingSession] = useState(true);
 
-  const useAuthenticatedUser = (name: string) => {
-    const nextUser: AuthUser = { name };
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser));
-    setUser(nextUser);
+  const canManageUsers =
+    sessionUser?.role === 'owner' || sessionUser?.role === 'admin';
+
+  const loadUsers = async () => {
+    if (!sessionUser || !canManageUsers) {
+      setUsers([]);
+      return;
+    }
+
+    const response = await fetch('/api/users', {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const payload = await readApiJson<{ ok: boolean; users?: BusinessUserSummary[] }>(response);
+
+    if (!response.ok || !payload?.ok || !Array.isArray(payload.users)) {
+      setUsers([]);
+      return;
+    }
+
+    setUsers(payload.users);
   };
 
-  const tryDevFallbackLogin = (username: string, password: string): boolean => {
-    if (!import.meta.env.DEV) return false;
+  useEffect(() => {
+    const loadSession = async () => {
+      const response = await fetch('/api/auth/session', {
+        method: 'GET',
+        credentials: 'include',
+      });
 
-    const isValid =
-      username.trim().toLowerCase() === DEV_ADMIN_USERNAME.trim().toLowerCase() &&
-      password === DEV_ADMIN_PASSWORD;
+      const payload = await readApiJson<{ ok: boolean; user?: SessionUser }>(response);
+      if (response.ok && payload?.ok && payload.user) {
+        setSessionUser(payload.user);
+      } else {
+        setSessionUser(null);
+      }
 
-    if (!isValid) return false;
-    useAuthenticatedUser('Admin User (Local)');
+      setLoadingSession(false);
+    };
+
+    void loadSession();
+  }, []);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [sessionUser]);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
+
+    const payload = await readApiJson<{ ok: boolean; user?: SessionUser }>(response);
+    if (!response.ok || !payload?.ok || !payload.user) {
+      return false;
+    }
+
+    setSessionUser(payload.user);
+    await loadUsers();
     return true;
   };
 
-  const login = async (username: string, password: string): Promise<boolean> => {
-    try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
+  const signup = async (payload: {
+    businessName: string;
+    ownerName: string;
+    email: string;
+    password: string;
+  }) => {
+    const response = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
 
-      if (!response.ok) {
-        if (response.status === 404 || response.status >= 500) {
-          return tryDevFallbackLogin(username, password);
-        }
-        return false;
-      }
-
-      const payload = await response.json();
-      if (!payload?.ok || typeof payload?.user?.name !== 'string') {
-        return false;
-      }
-
-      useAuthenticatedUser(payload.user.name);
-      return true;
-    } catch {
-      return tryDevFallbackLogin(username, password);
+    const body = await readApiJson<{ ok: boolean; user?: SessionUser; error?: string }>(response);
+    if (!response.ok || !body?.ok || !body.user) {
+      return { ok: false, error: body?.error ?? 'Could not create account.' };
     }
+
+    setSessionUser(body.user);
+    await loadUsers();
+    return { ok: true };
   };
 
-  const logout = () => {
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    setUser(null);
+  const createUser = async (payload: {
+    name: string;
+    email: string;
+    password: string;
+    role: 'admin' | 'employee';
+  }) => {
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const body = await readApiJson<{ ok: boolean; error?: string }>(response);
+
+    if (!response.ok || !body?.ok) {
+      return { ok: false, error: body?.error ?? 'Could not create user.' };
+    }
+
+    await loadUsers();
+    return { ok: true };
   };
+
+  const logout = async () => {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+    setSessionUser(null);
+    setUsers([]);
+  };
+
+  if (loadingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>
       <Routes>
         <Route path="employee-login" element={<EmployeePortalPage />} />
 
-        {user ? (
+        {sessionUser ? (
           <>
             <Route path="login" element={<Navigate to="/" replace />} />
-            <Route element={<AppLayout userName={user.name} onLogout={logout} />}>
+            <Route path="signup" element={<Navigate to="/" replace />} />
+            <Route
+              element={
+                <AppLayout
+                  userName={sessionUser.name}
+                  businessName={sessionUser.businessName}
+                  userRole={sessionUser.role}
+                  onLogout={logout}
+                />
+              }
+            >
               <Route index element={<Dashboard />} />
               <Route path="crm" element={<CRMPage />} />
               <Route path="estimates" element={<EstimatesPage />} />
@@ -113,12 +192,27 @@ export default function App() {
               <Route path="budget" element={<BudgetPage />} />
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="data-center" element={<DataCenterPage />} />
+              <Route
+                path="user-access"
+                element={
+                  canManageUsers ? (
+                    <UserAccessPage
+                      users={users}
+                      currentUserRole={sessionUser.role}
+                      onCreateUser={createUser}
+                    />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         ) : (
           <>
             <Route path="login" element={<LoginPage onLogin={login} />} />
+            <Route path="signup" element={<SignupPage onSignup={signup} />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         )}

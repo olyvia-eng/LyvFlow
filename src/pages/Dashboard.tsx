@@ -44,8 +44,8 @@ type CalendarItem = {
   title: string;
 };
 
-const TODO_STORAGE_KEY = 'lyvflow.dashboard.todos';
-const CALENDAR_STORAGE_KEY = 'lyvflow.dashboard.calendarItems';
+const TODO_STORAGE_KEY = 'oliveops.dashboard.todos';
+const CALENDAR_STORAGE_KEY = 'oliveops.dashboard.calendarItems';
 const DEFAULT_TODOS: TodoItem[] = [
   { id: 1, text: 'Review today\'s clock-ins', done: false },
   { id: 2, text: 'Follow up on pending estimates', done: false },

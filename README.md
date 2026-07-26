@@ -31,35 +31,80 @@ If you are developing a production application, we recommend enabling type-aware
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
 
-## Vercel Login Configuration
+## Multi-User Accounts
 
-The admin login now validates credentials server-side using a Vercel Serverless Function at `api/login.js`.
+This app now supports business-level user accounts in-app:
 
-Set these environment variables in your Vercel project:
+- A business owner signs up from `/signup`.
+- The owner is created with role `owner`.
+- Owner/admin users can create additional `employee` and `admin` users from **User Access**.
+- Users sign in through `/login`.
 
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD`
+### Roles
 
-### Vercel steps
+- `owner`: business creator, full access.
+- `admin`: secondary admin, can create users.
+- `employee`: standard user.
 
-1. Open your Vercel project.
-2. Go to **Settings → Environment Variables**.
-3. Add `ADMIN_USERNAME` and `ADMIN_PASSWORD` for Production (and Preview if needed).
-4. Redeploy.
+## DynamoDB Setup (Your Side)
 
-### Local testing note
+The app now stores auth data in DynamoDB through Vercel serverless APIs.
 
-When running `npm run dev` (Vite only), `/api/login` is not served.
-Use `vercel dev` to test the login API locally, or deploy to Vercel to test full auth flow.
+### 1. Create the table
 
-For convenience, this project includes a dev-only fallback login when `/api/login` is unavailable.
+In AWS DynamoDB, create one table:
 
-- `VITE_DEV_ADMIN_USERNAME` (default: `admin`)
-- `VITE_DEV_ADMIN_PASSWORD` (default: `lyvflow123`)
+- Table name: `OliveOpsAuth` (or your choice)
+- Partition key: `PK` (String)
+- Sort key: `SK` (String)
+- Billing: On-demand (recommended to start)
 
-Create a `.env.local` file for custom local credentials:
+No GSI is required for this current implementation.
 
-```env
-VITE_DEV_ADMIN_USERNAME=admin
-VITE_DEV_ADMIN_PASSWORD=lyvflow123
-```
+### 2. Create AWS credentials for Vercel
+
+Create an IAM user with programmatic access and permissions limited to this table.
+
+Minimum policy actions:
+
+- `dynamodb:GetItem`
+- `dynamodb:PutItem`
+- `dynamodb:Query`
+- `dynamodb:TransactWriteItems`
+
+Scope these to your table ARN.
+
+### 3. Add Vercel environment variables
+
+In your Vercel project, go to Settings -> Environment Variables and add:
+
+- `AWS_REGION`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `DDB_TABLE_NAME` (example: `OliveOpsAuth`)
+- `JWT_SECRET` (long random string)
+
+Add them for Production (and Preview/Development if needed), then redeploy.
+
+### 4. Local development notes
+
+The auth APIs are in `api/` and are served by Vercel runtime.
+
+- `npm run dev` starts Vite only (frontend)
+- Use `vercel dev` to run frontend + API together locally
+
+### 5. Data model used in the table
+
+Examples of stored items:
+
+- Business profile
+  - `PK = BUSINESS#<businessId>`
+  - `SK = PROFILE`
+- User record
+  - `PK = BUSINESS#<businessId>`
+  - `SK = USER#<userId>`
+- Global email lookup
+  - `PK = EMAIL#<normalizedEmail>`
+  - `SK = USER`
+
+This model enforces unique email and supports listing users by business.

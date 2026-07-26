@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Lock, Leaf } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button, Card, Input } from '../../components/ui';
 
 interface LoginPageProps {
-  onLogin: (username: string, password: string) => Promise<boolean>;
+  onLogin: (email: string, password: string) => Promise<boolean>;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -18,11 +19,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setSubmitting(true);
     setError('');
 
-    const ok = await onLogin(username, password);
+    const ok = await onLogin(email, password);
     setSubmitting(false);
 
     if (!ok) {
-      setError('Invalid username or password, or login service is unavailable.');
+      setError('Invalid email or password, or login service is unavailable.');
       return;
     }
   };
@@ -34,16 +35,17 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-100 text-brand-700 mb-3">
             <Leaf size={24} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">LyvFlow Login</h1>
+          <h1 className="text-2xl font-bold text-gray-900">OliveOps Login</h1>
           <p className="text-sm text-gray-500 mt-1">Sign in to access your dashboard.</p>
         </div>
 
         <form onSubmit={submit} className="space-y-4">
           <Input
-            label="Username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            autoComplete="username"
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
           />
           <Input
             label="Password"
@@ -61,8 +63,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </form>
 
         <div className="mt-5 rounded-lg bg-gray-50 border border-gray-200 p-3">
-          <p className="text-xs text-gray-600">Credentials are validated server-side.</p>
-          <p className="text-xs text-gray-500 mt-1">Set ADMIN_USERNAME and ADMIN_PASSWORD in Vercel Environment Variables.</p>
+          <p className="text-xs text-gray-600">Need a new business account?</p>
+          <p className="text-xs text-gray-500 mt-1">
+            <Link to="/signup" className="text-brand-600 hover:underline">Create your business owner account</Link>
+          </p>
         </div>
       </Card>
     </div>

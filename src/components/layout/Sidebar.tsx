@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
+  Shield,
   FileText,
   Briefcase,
   Wallet,
@@ -14,8 +15,9 @@ import {
   Leaf,
 } from 'lucide-react';
 import { useState } from 'react';
+import type { BusinessUserRole } from '../../auth/types';
 
-const NAV_ITEMS = [
+const BASE_NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/crm', label: 'CRM', icon: Users },
   { to: '/estimates', label: 'Estimates', icon: FileText },
@@ -29,13 +31,19 @@ const NAV_ITEMS = [
 
 interface SidebarProps {
   userName: string;
-  onLogout: () => void;
+  businessName: string;
+  userRole: BusinessUserRole;
+  onLogout: () => void | Promise<void>;
 }
 
-export default function Sidebar({ userName, onLogout }: SidebarProps) {
+export default function Sidebar({ userName, businessName, userRole, onLogout }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navItems =
+    userRole === 'owner' || userRole === 'admin'
+      ? [...BASE_NAV_ITEMS, { to: '/user-access', label: 'User Access', icon: Shield }]
+      : BASE_NAV_ITEMS;
 
-  const navLink = (item: typeof NAV_ITEMS[0]) => (
+  const navLink = (item: typeof BASE_NAV_ITEMS[0]) => (
     <NavLink
       key={item.to}
       to={item.to}
@@ -60,7 +68,7 @@ export default function Sidebar({ userName, onLogout }: SidebarProps) {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 flex items-center justify-between px-4 h-14">
         <div className="flex items-center gap-2 font-bold text-brand-700">
           <Leaf size={22} />
-          LyvFlow
+          OliveOps
         </div>
         <button
           onClick={() => setMobileOpen((v) => !v)}
@@ -84,8 +92,9 @@ export default function Sidebar({ userName, onLogout }: SidebarProps) {
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex-1">{NAV_ITEMS.map(navLink)}</div>
+        <div className="flex-1">{navItems.map(navLink)}</div>
         <div className="pt-3 border-t border-gray-200 mt-3">
+          <p className="text-xs text-gray-500 mb-1 px-1">{businessName}</p>
           <p className="text-xs text-gray-500 mb-2 px-1">Signed in as {userName}</p>
           <button
             onClick={() => {
@@ -103,10 +112,11 @@ export default function Sidebar({ userName, onLogout }: SidebarProps) {
       <aside className="hidden lg:flex flex-col w-60 min-h-screen bg-white border-r border-gray-200 p-5 gap-1 fixed top-0 left-0 bottom-0">
         <div className="flex items-center gap-2 font-bold text-brand-700 text-lg mb-6 px-1">
           <Leaf size={24} />
-          LyvFlow
+          OliveOps
         </div>
-        <div className="flex-1">{NAV_ITEMS.map(navLink)}</div>
+        <div className="flex-1">{navItems.map(navLink)}</div>
         <div className="pt-3 border-t border-gray-200">
+          <p className="text-xs text-gray-500 mb-1 px-1">{businessName}</p>
           <p className="text-xs text-gray-500 mb-2 px-1">Signed in as {userName}</p>
           <button
             onClick={onLogout}
