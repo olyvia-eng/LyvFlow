@@ -5,19 +5,27 @@ import { useStore } from '../../store';
 import { Button, Card, Input, Select } from '../../components/ui';
 import { durationHours, formatDateTime } from '../../utils';
 
-export default function EmployeePortalPage() {
+interface EmployeePortalPageProps {
+  sessionEmployeeEmail?: string;
+  onLogout?: () => void | Promise<void>;
+}
+
+export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: EmployeePortalPageProps) {
   const { employees, jobs, timeEntries, clockIn, clockOut } = useStore();
 
-  const [pin, setPin] = useState('');
-  const [pinError, setPinError] = useState('');
-  const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState('');
   const [breakMinutes, setBreakMinutes] = useState(0);
 
-  const employee = useMemo(
-    () => employees.find((item) => item.id === employeeId) ?? null,
-    [employees, employeeId]
-  );
+  const sessionEmployee = useMemo(() => {
+    if (!sessionEmployeeEmail) return null;
+    return (
+      employees.find(
+        (item) => item.active && item.email.toLowerCase() === sessionEmployeeEmail.toLowerCase()
+      ) ?? null
+    );
+  }, [employees, sessionEmployeeEmail]);
+
+  const employee = sessionEmployee;
 
   const activeEntry = useMemo(() => {
     if (!employee) return null;
@@ -32,36 +40,14 @@ export default function EmployeePortalPage() {
     (job) => job.status === 'in_progress' || job.status === 'scheduled'
   );
 
-  const handleLogin = (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const cleanPin = pin.replace(/\D/g, '').slice(0, 4);
-    if (cleanPin.length !== 4) {
-      setPinError('Enter your 4-digit PIN.');
-      return;
-    }
-
-    const foundEmployee = employees.find(
-      (item) => item.active && item.pin === cleanPin
-    );
-
-    if (!foundEmployee) {
-      setPinError('Invalid PIN. Please try again.');
-      return;
-    }
-
-    setPinError('');
-    setPin('');
-    setSelectedJobId('');
-    setEmployeeId(foundEmployee.id);
-  };
-
   const handleLogout = () => {
-    setEmployeeId(null);
+    if (sessionEmployeeEmail && onLogout) {
+      void onLogout();
+      return;
+    }
+
     setSelectedJobId('');
     setBreakMinutes(0);
-    setPin('');
-    setPinError('');
   };
 
   const handleClockIn = () => {
@@ -91,24 +77,9 @@ export default function EmployeePortalPage() {
           </div>
 
           {!employee ? (
-            <form className="space-y-4" onSubmit={handleLogin}>
-              <Input
-                label="4-Digit PIN"
-                type="password"
-                value={pin}
-                maxLength={4}
-                autoComplete="off"
-                inputMode="numeric"
-                onChange={(event) => {
-                  setPin(event.target.value.replace(/\D/g, '').slice(0, 4));
-                  if (pinError) setPinError('');
-                }}
-                error={pinError || undefined}
-              />
-              <Button type="submit" className="w-full justify-center py-2.5">
-                <Clock size={16} /> Log In
-              </Button>
-            </form>
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+              Your employee profile could not be found for this account. Ask an admin to create or reconnect your employee record.
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">

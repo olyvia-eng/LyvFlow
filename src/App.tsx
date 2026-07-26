@@ -17,7 +17,8 @@ import SignupPage from './pages/auth/SignupPage';
 import UserAccessPage from './pages/users/UserAccessPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { Customer, Job } from './types';
+import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Job, TimeEntry } from './types';
+import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
 
@@ -33,6 +34,7 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [users, setUsers] = useState<BusinessUserSummary[]>([]);
   const [loadingSession, setLoadingSession] = useState(true);
+  const [toasts, setToasts] = useState<Array<AppToastDetail & { id: number }>>([]);
 
   const canManageUsers =
     sessionUser?.role === 'owner' || sessionUser?.role === 'admin';
@@ -49,6 +51,11 @@ export default function App() {
       ok: boolean;
       customers?: Customer[];
       jobs?: Job[];
+      estimates?: Estimate[];
+      templates?: EstimateTemplate[];
+      budgetItems?: BudgetItem[];
+      employees?: Employee[];
+      timeEntries?: TimeEntry[];
     }>(response);
 
     if (!response.ok || !payload?.ok) return;
@@ -57,6 +64,11 @@ export default function App() {
       ...state,
       customers: payload.customers ?? [],
       jobs: payload.jobs ?? [],
+      estimates: payload.estimates ?? [],
+      templates: payload.templates ?? [],
+      budgetItems: payload.budgetItems ?? [],
+      employees: payload.employees ?? [],
+      timeEntries: payload.timeEntries ?? [],
     }));
   };
 
@@ -98,6 +110,24 @@ export default function App() {
     };
 
     void loadSession();
+  }, []);
+
+  useEffect(() => {
+    const handleToast = (event: Event) => {
+      const custom = event as CustomEvent<AppToastDetail>;
+      const detail = custom.detail;
+      if (!detail?.message) return;
+
+      const id = Date.now() + Math.floor(Math.random() * 1000);
+      setToasts((current) => [...current, { id, tone: 'error', ...detail }]);
+
+      window.setTimeout(() => {
+        setToasts((current) => current.filter((toast) => toast.id !== id));
+      }, 3500);
+    };
+
+    window.addEventListener(APP_TOAST_EVENT, handleToast as EventListener);
+    return () => window.removeEventListener(APP_TOAST_EVENT, handleToast as EventListener);
   }, []);
 
   useEffect(() => {
@@ -177,7 +207,7 @@ export default function App() {
     name: string;
     email: string;
     password: string;
-    role: 'admin' | 'employee';
+    role: 'admin' | 'foreman' | 'crew_member';
   }) => {
     const response = await fetch('/api/users', {
       method: 'POST',
@@ -194,6 +224,43 @@ export default function App() {
     }
 
     await loadUsers();
+    emitAppToast({ tone: 'success', message: 'User created successfully.' });
+    return { ok: true };
+  };
+
+  const updateUser = async (userId: string, data: { role?: 'admin' | 'foreman' | 'crew_member'; active?: boolean }) => {
+    const response = await fetch(`/api/users/${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ data }),
+    });
+    const body = await readApiJson<{ ok: boolean; error?: string }>(response);
+
+    if (!response.ok || !body?.ok) {
+      return { ok: false, error: body?.error ?? 'Could not update user.' };
+    }
+
+    await loadUsers();
+    emitAppToast({ tone: 'success', message: 'User updated successfully.' });
+    return { ok: true };
+  };
+
+  const deleteUser = async (userId: string) => {
+    const response = await fetch(`/api/users/${userId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    const body = await readApiJson<{ ok: boolean; error?: string }>(response);
+
+    if (!response.ok || !body?.ok) {
+      return { ok: false, error: body?.error ?? 'Could not delete user.' };
+    }
+
+    await loadUsers();
+    emitAppToast({ tone: 'success', message: 'User deleted successfully.' });
     return { ok: true };
   };
 
@@ -215,11 +282,45 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
+    <>
+      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`min-w-64 max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${
+              toast.tone === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-red-200 bg-red-50 text-red-800'
+            }`}
+          >
+            {toast.message}
+          </div>
+        ))}
+      </div>
+      <BrowserRouter>
       <Routes>
-        <Route path="employee-login" element={<EmployeePortalPage />} />
+        <Route
+          path="employee-login"
+          element={
+            sessionUser?.role === 'crew_member' || sessionUser?.role === 'foreman' ? (
+              <EmployeePortalPage
+                sessionEmployeeEmail={sessionUser.email}
+                onLogout={logout}
+              />
+            ) : (
+              <Navigate to={sessionUser ? '/' : '/login'} replace />
+            )
+          }
+        />
 
         {sessionUser ? (
+          sessionUser.role === 'crew_member' || sessionUser.role === 'foreman' ? (
+            <>
+              <Route path="login" element={<Navigate to="/employee-login" replace />} />
+              <Route path="signup" element={<Navigate to="/employee-login" replace />} />
+              <Route path="*" element={<Navigate to="/employee-login" replace />} />
+            </>
+          ) : (
           <>
             <Route path="login" element={<Navigate to="/" replace />} />
             <Route path="signup" element={<Navigate to="/" replace />} />
@@ -251,6 +352,8 @@ export default function App() {
                       users={users}
                       currentUserRole={sessionUser.role}
                       onCreateUser={createUser}
+                      onUpdateUser={updateUser}
+                      onDeleteUser={deleteUser}
                     />
                   ) : (
                     <Navigate to="/" replace />
@@ -260,6 +363,7 @@ export default function App() {
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
+          )
         ) : (
           <>
             <Route path="login" element={<LoginPage onLogin={login} />} />
@@ -269,5 +373,6 @@ export default function App() {
         )}
       </Routes>
     </BrowserRouter>
+    </>
   );
 }

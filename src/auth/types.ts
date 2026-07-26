@@ -1,4 +1,4 @@
-export type BusinessUserRole = 'owner' | 'admin' | 'employee';
+export type BusinessUserRole = 'owner' | 'admin' | 'foreman' | 'crew_member';
 
 export interface AuthBusiness {
   id: string;

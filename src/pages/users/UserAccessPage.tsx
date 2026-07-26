@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PageHeader, Card, Input, Select, Button, Badge } from '../../components/ui';
 import type { BusinessUserRole, BusinessUserSummary } from '../../auth/types';
+import { Trash2 } from 'lucide-react';
 
 interface UserAccessPageProps {
   users: BusinessUserSummary[];
@@ -9,27 +10,31 @@ interface UserAccessPageProps {
     name: string;
     email: string;
     password: string;
-    role: 'admin' | 'employee';
+    role: 'admin' | 'foreman' | 'crew_member';
   }) => Promise<{ ok: boolean; error?: string }>;
+  onUpdateUser: (userId: string, data: { role?: 'admin' | 'foreman' | 'crew_member'; active?: boolean }) => Promise<{ ok: boolean; error?: string }>;
+  onDeleteUser: (userId: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const roleLabel: Record<BusinessUserRole, string> = {
   owner: 'Owner',
   admin: 'Admin',
-  employee: 'Employee',
+  foreman: 'Foreman',
+  crew_member: 'Crew Member',
 };
 
 const roleColor: Record<BusinessUserRole, string> = {
   owner: 'bg-indigo-100 text-indigo-700',
   admin: 'bg-blue-100 text-blue-700',
-  employee: 'bg-emerald-100 text-emerald-700',
+  foreman: 'bg-amber-100 text-amber-700',
+  crew_member: 'bg-emerald-100 text-emerald-700',
 };
 
-export default function UserAccessPage({ users, currentUserRole, onCreateUser }: UserAccessPageProps) {
+export default function UserAccessPage({ users, currentUserRole, onCreateUser, onUpdateUser, onDeleteUser }: UserAccessPageProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<BusinessUserRole>('employee');
+  const [role, setRole] = useState<BusinessUserRole>('crew_member');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -38,6 +43,8 @@ export default function UserAccessPage({ users, currentUserRole, onCreateUser }:
     () => currentUserRole === 'owner' || currentUserRole === 'admin',
     [currentUserRole]
   );
+
+  const canManageRow = (user: BusinessUserSummary) => user.role !== 'owner';
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -81,8 +88,31 @@ export default function UserAccessPage({ users, currentUserRole, onCreateUser }:
     setName('');
     setEmail('');
     setPassword('');
-    setRole('employee');
+    setRole('crew_member');
     setSuccess('User created successfully.');
+  };
+
+  const handleRoleChange = async (user: BusinessUserSummary, nextRole: 'admin' | 'foreman' | 'crew_member') => {
+    setError('');
+    setSuccess('');
+
+    const result = await onUpdateUser(user.id, { role: nextRole });
+    if (!result.ok) {
+      setError(result.error ?? 'Could not update user.');
+    }
+  };
+
+  const handleDelete = async (user: BusinessUserSummary) => {
+    setError('');
+    setSuccess('');
+
+    const confirmed = window.confirm(`Delete ${user.name}'s login?`);
+    if (!confirmed) return;
+
+    const result = await onDeleteUser(user.id);
+    if (!result.ok) {
+      setError(result.error ?? 'Could not delete user.');
+    }
   };
 
   return (
@@ -109,8 +139,9 @@ export default function UserAccessPage({ users, currentUserRole, onCreateUser }:
               value={role}
               onChange={(event) => setRole(event.target.value as BusinessUserRole)}
             >
-              <option value="employee">Employee</option>
-              <option value="admin" disabled={!canCreateAdmins}>Secondary Admin</option>
+              <option value="crew_member">Crew Member</option>
+              <option value="foreman">Foreman</option>
+              <option value="admin" disabled={!canCreateAdmins}>Admin</option>
             </Select>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -138,6 +169,7 @@ export default function UserAccessPage({ users, currentUserRole, onCreateUser }:
                     <th className="py-2 font-medium">Role</th>
                     <th className="py-2 font-medium">Status</th>
                     <th className="py-2 font-medium">Created</th>
+                    <th className="py-2 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -146,10 +178,31 @@ export default function UserAccessPage({ users, currentUserRole, onCreateUser }:
                       <td className="px-4 py-2 font-medium text-gray-800">{user.name}</td>
                       <td className="py-2 text-gray-600">{user.email}</td>
                       <td className="py-2">
-                        <Badge label={roleLabel[user.role]} className={roleColor[user.role]} />
+                        {canManageRow(user) ? (
+                          <select
+                            value={user.role}
+                            onChange={(event) => void handleRoleChange(user, event.target.value as 'admin' | 'foreman' | 'crew_member')}
+                            className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white"
+                          >
+                            <option value="crew_member">Crew Member</option>
+                            <option value="foreman">Foreman</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        ) : (
+                          <Badge label={roleLabel[user.role]} className={roleColor[user.role]} />
+                        )}
                       </td>
                       <td className="py-2 text-gray-600">{user.active ? 'Active' : 'Inactive'}</td>
                       <td className="py-2 text-gray-500">{new Date(user.createdAt).toLocaleDateString()}</td>
+                      <td className="py-2">
+                        {canManageRow(user) ? (
+                          <Button variant="ghost" size="sm" onClick={() => void handleDelete(user)}>
+                            <Trash2 size={13} className="text-red-500" />
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-gray-400">Protected</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

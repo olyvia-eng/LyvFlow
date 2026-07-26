@@ -6,22 +6,20 @@ import { formatCurrency, formatDateTime, durationHours } from '../../utils';
 import type { Employee, EmployeeRole } from '../../types';
 import ClockInModal from './ClockInModal';
 
-const ROLES: EmployeeRole[] = ['admin', 'foreman', 'worker', 'subcontractor'];
+const ROLES: EmployeeRole[] = ['admin', 'foreman', 'crew_member'];
 const roleColor: Record<EmployeeRole, string> = {
   admin: 'bg-purple-100 text-purple-700',
   foreman: 'bg-blue-100 text-blue-700',
-  worker: 'bg-green-100 text-green-700',
-  subcontractor: 'bg-orange-100 text-orange-700',
+  crew_member: 'bg-green-100 text-green-700',
 };
 
 const empty = (): Omit<Employee, 'id' | 'createdAt'> => ({
   name: '',
   email: '',
   phone: '',
-  role: 'worker',
+  role: 'crew_member',
   hourlyRate: 30,
   active: true,
-  pin: '',
 });
 
 export default function EmployeesPage() {
@@ -45,7 +43,7 @@ export default function EmployeesPage() {
   };
   const openEdit = (e: Employee) => {
     setEditing(e);
-    setForm({ name: e.name, email: e.email, phone: e.phone, role: e.role, hourlyRate: e.hourlyRate, active: e.active, pin: e.pin });
+    setForm({ name: e.name, email: e.email, phone: e.phone, role: e.role, hourlyRate: e.hourlyRate, active: e.active });
     setNewPassword('');
     setFormError('');
     setModalOpen(true);
@@ -61,11 +59,6 @@ export default function EmployeesPage() {
 
     if (!form.email.trim()) {
       setFormError('Email is required.');
-      return;
-    }
-
-    if (form.pin.length !== 4) {
-      setFormError('A 4-digit PIN is required for clock in/out.');
       return;
     }
 
@@ -90,7 +83,7 @@ export default function EmployeesPage() {
         name: form.name,
         email: form.email,
         password: newPassword,
-        role: 'employee',
+        role: form.role,
       }),
     });
 
@@ -257,10 +250,7 @@ export default function EmployeesPage() {
             <Input label="Email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
             <Input label="Phone" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Hourly Rate ($)" type="number" min={0} value={form.hourlyRate} onChange={(e) => set('hourlyRate', Number(e.target.value))} />
-            <Input label="4-Digit PIN" type="password" maxLength={4} value={form.pin} onChange={(e) => set('pin', e.target.value.replace(/\D/g, '').slice(0, 4))} />
-          </div>
+          <Input label="Hourly Rate ($)" type="number" min={0} value={form.hourlyRate} onChange={(e) => set('hourlyRate', Number(e.target.value))} />
           {!editing && (
             <Input
               label="Employee Login Password *"

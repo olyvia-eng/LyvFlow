@@ -108,7 +108,7 @@ export interface Job {
 
 // ─── Employees & Time Tracking ───────────────────────────────────────────────
 
-export type EmployeeRole = 'admin' | 'foreman' | 'worker' | 'subcontractor';
+export type EmployeeRole = 'admin' | 'foreman' | 'crew_member';
 
 export interface Employee {
   id: ID;
@@ -118,7 +118,6 @@ export interface Employee {
   role: EmployeeRole;
   hourlyRate: number;
   active: boolean;
-  pin: string; // 4-digit PIN for clock-in
   createdAt: string;
 }
 

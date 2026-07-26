@@ -26,7 +26,7 @@ export default async function handler(req, res) {
       typeof name !== 'string' ||
       typeof email !== 'string' ||
       typeof password !== 'string' ||
-      (role !== 'admin' && role !== 'employee')
+      (role !== 'admin' && role !== 'foreman' && role !== 'crew_member')
     ) {
       return res.status(400).json({ ok: false, error: 'Invalid payload' });
     }

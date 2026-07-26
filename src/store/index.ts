@@ -18,6 +18,7 @@ import {
   calcLineItemTotal,
   calcEstimateSubtotal,
 } from '../utils';
+import { emitAppToast } from '../toast';
 
 // ─── Seed data helpers ────────────────────────────────────────────────────────
 
@@ -64,9 +65,9 @@ const SEED_CUSTOMERS: Customer[] = [
 ];
 
 const SEED_EMPLOYEES: Employee[] = [
-  { id: 'e1', name: 'Dan Foreman', email: 'dan@oliveops.ca', phone: '(613) 555-1001', role: 'foreman', hourlyRate: 45, active: true, pin: '1234', createdAt: '2025-01-01T00:00:00.000Z' },
-  { id: 'e2', name: 'Eva Crew', email: 'eva@oliveops.ca', phone: '(613) 555-1002', role: 'worker', hourlyRate: 32, active: true, pin: '2345', createdAt: '2025-01-01T00:00:00.000Z' },
-  { id: 'e3', name: 'Frank Worker', email: 'frank@oliveops.ca', phone: '(613) 555-1003', role: 'worker', hourlyRate: 30, active: true, pin: '3456', createdAt: '2025-01-01T00:00:00.000Z' },
+  { id: 'e1', name: 'Dan Foreman', email: 'dan@oliveops.ca', phone: '(613) 555-1001', role: 'foreman', hourlyRate: 45, active: true, createdAt: '2025-01-01T00:00:00.000Z' },
+  { id: 'e2', name: 'Eva Crew', email: 'eva@oliveops.ca', phone: '(613) 555-1002', role: 'crew_member', hourlyRate: 32, active: true, createdAt: '2025-01-01T00:00:00.000Z' },
+  { id: 'e3', name: 'Frank Worker', email: 'frank@oliveops.ca', phone: '(613) 555-1003', role: 'crew_member', hourlyRate: 30, active: true, createdAt: '2025-01-01T00:00:00.000Z' },
 ];
 
 const SEED_TEMPLATES: EstimateTemplate[] = [
@@ -234,6 +235,13 @@ const SEED_BUDGET: BudgetItem[] = [
   { id: 'b8', category: 'marketing', description: 'Marketing & Advertising', budgeted: 2000, actual: 900, period: '2025-05' },
 ];
 
+async function ensureOk(responsePromise: Promise<Response>) {
+  const response = await responsePromise;
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+}
+
 // ─── Store definition ─────────────────────────────────────────────────────────
 
 interface AppState {
@@ -298,21 +306,26 @@ export const useStore = create<AppState>()(
 
       // ── CRM ──────────────────────────────────────────────────────────────
       addCustomer: (c) => {
+        const previous = get().customers;
         const customer = { ...c, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
         set((s) => ({
           customers: [...s.customers, customer],
         }));
 
-        void fetch('/api/customers', {
+        void ensureOk(fetch('/api/customers', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
           body: JSON.stringify({ customer }),
+        })).catch(() => {
+          set({ customers: previous });
+          emitAppToast({ tone: 'error', message: 'Customer could not be saved.' });
         });
       },
       updateCustomer: (id, data) => {
+        const previous = get().customers;
         const updatedAt = nowISO();
         set((s) => ({
           customers: s.customers.map((c) =>
@@ -320,48 +333,108 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void fetch(`/api/customers/${id}`, {
+        void ensureOk(fetch(`/api/customers/${id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
           body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch(() => {
+          set({ customers: previous });
+          emitAppToast({ tone: 'error', message: 'Customer changes could not be saved.' });
         });
       },
       deleteCustomer: (id) => {
+        const previous = get().customers;
         set((s) => ({ customers: s.customers.filter((c) => c.id !== id) }));
 
-        void fetch(`/api/customers/${id}`, {
+        void ensureOk(fetch(`/api/customers/${id}`, {
           method: 'DELETE',
           credentials: 'include',
+        })).catch(() => {
+          set({ customers: previous });
+          emitAppToast({ tone: 'error', message: 'Customer could not be deleted.' });
         });
       },
 
       // ── Estimates ─────────────────────────────────────────────────────────
-      addEstimate: (e) =>
-        set((s) => ({
-          estimates: [
-            ...s.estimates,
-            { ...e, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() },
-          ],
-        })),
-      updateEstimate: (id, data) =>
+      addEstimate: (e) => {
+        const previous = get().estimates;
+        const estimate = { ...e, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
+        set((s) => ({ estimates: [...s.estimates, estimate] }));
+
+        void ensureOk(fetch('/api/estimates', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ estimate }),
+        })).catch(() => {
+          set({ estimates: previous });
+          emitAppToast({ tone: 'error', message: 'Estimate could not be saved.' });
+        });
+      },
+      updateEstimate: (id, data) => {
+        const previous = get().estimates;
+        const updatedAt = nowISO();
         set((s) => ({
           estimates: s.estimates.map((e) =>
-            e.id === id ? { ...e, ...data, updatedAt: nowISO() } : e
+            e.id === id ? { ...e, ...data, updatedAt } : e
           ),
-        })),
-      deleteEstimate: (id) =>
-        set((s) => ({ estimates: s.estimates.filter((e) => e.id !== id) })),
-      sendEstimate: (id) =>
+        }));
+
+        void ensureOk(fetch(`/api/estimates/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch(() => {
+          set({ estimates: previous });
+          emitAppToast({ tone: 'error', message: 'Estimate changes could not be saved.' });
+        });
+      },
+      deleteEstimate: (id) => {
+        const previous = get().estimates;
+        set((s) => ({ estimates: s.estimates.filter((e) => e.id !== id) }));
+
+        void ensureOk(fetch(`/api/estimates/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch(() => {
+          set({ estimates: previous });
+          emitAppToast({ tone: 'error', message: 'Estimate could not be deleted.' });
+        });
+      },
+      sendEstimate: (id) => {
+        const previous = get().estimates;
+        const sentAt = nowISO();
+        const updatedAt = sentAt;
         set((s) => ({
           estimates: s.estimates.map((e) =>
-            e.id === id ? { ...e, status: 'sent', sentAt: nowISO(), updatedAt: nowISO() } : e
+            e.id === id ? { ...e, status: 'sent', sentAt, updatedAt } : e
           ),
-        })),
+        }));
+
+        void ensureOk(fetch(`/api/estimates/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { status: 'sent', sentAt, updatedAt } }),
+        })).catch(() => {
+          set({ estimates: previous });
+          emitAppToast({ tone: 'error', message: 'Estimate status could not be updated.' });
+        });
+      },
       convertEstimateToJob: (estimateId) => {
         const { estimates } = get();
+        const previousEstimates = estimates;
+        const previousJobs = get().jobs;
         const est = estimates.find((e) => e.id === estimateId);
         if (!est) return;
         const subtotal = est.lineItems.reduce((s, li) => s + li.total, 0);
@@ -395,42 +468,105 @@ export const useStore = create<AppState>()(
               : e
           ),
         }));
+
+        void Promise.all([
+          ensureOk(fetch('/api/jobs', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ job: newJob }),
+          })),
+          ensureOk(fetch(`/api/estimates/${estimateId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ data: { status: 'converted', updatedAt: nowISO() } }),
+          })),
+        ]).catch(() => {
+          set({ estimates: previousEstimates, jobs: previousJobs });
+          emitAppToast({ tone: 'error', message: 'Estimate could not be converted to a job.' });
+        });
       },
 
       // ── Templates ─────────────────────────────────────────────────────────
-      addTemplate: (t) =>
+      addTemplate: (t) => {
+        const previous = get().templates;
+        const template = { ...t, id: generateId(), createdAt: nowISO() };
         set((s) => ({
-          templates: [
-            ...s.templates,
-            { ...t, id: generateId(), createdAt: nowISO() },
-          ],
-        })),
-      updateTemplate: (id, data) =>
+          templates: [...s.templates, template],
+        }));
+
+        void ensureOk(fetch('/api/templates', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ template }),
+        })).catch(() => {
+          set({ templates: previous });
+          emitAppToast({ tone: 'error', message: 'Template could not be saved.' });
+        });
+      },
+      updateTemplate: (id, data) => {
+        const previous = get().templates;
         set((s) => ({
           templates: s.templates.map((t) =>
             t.id === id ? { ...t, ...data } : t
           ),
-        })),
-      deleteTemplate: (id) =>
-        set((s) => ({ templates: s.templates.filter((t) => t.id !== id) })),
+        }));
+
+        void ensureOk(fetch(`/api/templates/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data }),
+        })).catch(() => {
+          set({ templates: previous });
+          emitAppToast({ tone: 'error', message: 'Template changes could not be saved.' });
+        });
+      },
+      deleteTemplate: (id) => {
+        const previous = get().templates;
+        set((s) => ({ templates: s.templates.filter((t) => t.id !== id) }));
+
+        void ensureOk(fetch(`/api/templates/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch(() => {
+          set({ templates: previous });
+          emitAppToast({ tone: 'error', message: 'Template could not be deleted.' });
+        });
+      },
 
       // ── Jobs ──────────────────────────────────────────────────────────────
       addJob: (j) => {
+        const previous = get().jobs;
         const job = { ...j, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
         set((s) => ({
           jobs: [...s.jobs, job],
         }));
 
-        void fetch('/api/jobs', {
+        void ensureOk(fetch('/api/jobs', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
           body: JSON.stringify({ job }),
+        })).catch(() => {
+          set({ jobs: previous });
+          emitAppToast({ tone: 'error', message: 'Job could not be saved.' });
         });
       },
       updateJob: (id, data) => {
+        const previous = get().jobs;
         const updatedAt = nowISO();
         set((s) => ({
           jobs: s.jobs.map((j) =>
@@ -438,24 +574,32 @@ export const useStore = create<AppState>()(
           ),
         }));
 
-        void fetch(`/api/jobs/${id}`, {
+        void ensureOk(fetch(`/api/jobs/${id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
           body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch(() => {
+          set({ jobs: previous });
+          emitAppToast({ tone: 'error', message: 'Job changes could not be saved.' });
         });
       },
       deleteJob: (id) => {
+        const previous = get().jobs;
         set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
 
-        void fetch(`/api/jobs/${id}`, {
+        void ensureOk(fetch(`/api/jobs/${id}`, {
           method: 'DELETE',
           credentials: 'include',
+        })).catch(() => {
+          set({ jobs: previous });
+          emitAppToast({ tone: 'error', message: 'Job could not be deleted.' });
         });
       },
       addCostEntry: (jobId, entry) => {
+        const previous = get().jobs;
         const id = generateId();
         const updatedAt = nowISO();
         let nextJob: Job | null = null;
@@ -476,71 +620,201 @@ export const useStore = create<AppState>()(
 
         if (!nextJob) return;
 
-        void fetch(`/api/jobs/${jobId}`, {
+        void ensureOk(fetch(`/api/jobs/${jobId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
           body: JSON.stringify({ data: nextJob }),
+        })).catch(() => {
+          set({ jobs: previous });
+          emitAppToast({ tone: 'error', message: 'Cost entry could not be saved.' });
         });
       },
 
       // ── Employees ─────────────────────────────────────────────────────────
-      addEmployee: (e) =>
-        set((s) => ({
-          employees: [...s.employees, { ...e, id: generateId(), createdAt: nowISO() }],
-        })),
-      updateEmployee: (id, data) =>
+      addEmployee: (e) => {
+        const previous = get().employees;
+        const employee = { ...e, id: generateId(), createdAt: nowISO() };
+        set((s) => ({ employees: [...s.employees, employee] }));
+
+        void ensureOk(fetch('/api/employees', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ employee }),
+        })).catch(() => {
+          set({ employees: previous });
+          emitAppToast({ tone: 'error', message: 'Employee could not be saved.' });
+        });
+      },
+      updateEmployee: (id, data) => {
+        const previous = get().employees;
         set((s) => ({
           employees: s.employees.map((e) =>
             e.id === id ? { ...e, ...data } : e
           ),
-        })),
-      deleteEmployee: (id) =>
-        set((s) => ({ employees: s.employees.filter((e) => e.id !== id) })),
+        }));
+
+        void ensureOk(fetch(`/api/employees/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data }),
+        })).catch(() => {
+          set({ employees: previous });
+          emitAppToast({ tone: 'error', message: 'Employee changes could not be saved.' });
+        });
+      },
+      deleteEmployee: (id) => {
+        const previous = get().employees;
+        set((s) => ({ employees: s.employees.filter((e) => e.id !== id) }));
+
+        void ensureOk(fetch(`/api/employees/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch(() => {
+          set({ employees: previous });
+          emitAppToast({ tone: 'error', message: 'Employee could not be deleted.' });
+        });
+      },
 
       // ── Time Entries ──────────────────────────────────────────────────────
-      clockIn: (employeeId, jobId) =>
-        set((s) => ({
-          timeEntries: [
-            ...s.timeEntries,
-            {
-              id: generateId(),
-              employeeId,
-              jobId,
-              clockIn: nowISO(),
-              clockOut: undefined,
-              breakMinutes: 0,
-              notes: '',
-              status: 'clocked_in',
-            },
-          ],
-        })),
-      clockOut: (entryId, breakMinutes = 0, notes = '') =>
+      clockIn: (employeeId, jobId) => {
+        const previous = get().timeEntries;
+        const timeEntry: TimeEntry = {
+          id: generateId(),
+          employeeId,
+          jobId,
+          clockIn: nowISO(),
+          clockOut: undefined,
+          breakMinutes: 0,
+          notes: '',
+          status: 'clocked_in',
+        };
+
+        set((s) => ({ timeEntries: [...s.timeEntries, timeEntry] }));
+
+        void ensureOk(fetch('/api/time-entries', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ timeEntry }),
+        })).catch(() => {
+          set({ timeEntries: previous });
+          emitAppToast({ tone: 'error', message: 'Clock-in could not be saved.' });
+        });
+      },
+      clockOut: (entryId, breakMinutes = 0, notes = '') => {
+        const previous = get().timeEntries;
+        const clockOutAt = nowISO();
         set((s) => ({
           timeEntries: s.timeEntries.map((te) =>
             te.id === entryId
-              ? { ...te, clockOut: nowISO(), breakMinutes, notes, status: 'clocked_out' }
+              ? { ...te, clockOut: clockOutAt, breakMinutes, notes, status: 'clocked_out' }
               : te
           ),
-        })),
-      addTimeEntry: (e) =>
-        set((s) => ({ timeEntries: [...s.timeEntries, { ...e, id: generateId() }] })),
-      deleteTimeEntry: (id) =>
-        set((s) => ({ timeEntries: s.timeEntries.filter((te) => te.id !== id) })),
+        }));
+
+        void ensureOk(fetch(`/api/time-entries/${entryId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { clockOut: clockOutAt, breakMinutes, notes, status: 'clocked_out' } }),
+        })).catch(() => {
+          set({ timeEntries: previous });
+          emitAppToast({ tone: 'error', message: 'Clock-out could not be saved.' });
+        });
+      },
+      addTimeEntry: (e) => {
+        const previous = get().timeEntries;
+        const timeEntry: TimeEntry = { ...e, id: generateId() };
+        set((s) => ({ timeEntries: [...s.timeEntries, timeEntry] }));
+
+        void ensureOk(fetch('/api/time-entries', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ timeEntry }),
+        })).catch(() => {
+          set({ timeEntries: previous });
+          emitAppToast({ tone: 'error', message: 'Time entry could not be saved.' });
+        });
+      },
+      deleteTimeEntry: (id) => {
+        const previous = get().timeEntries;
+        set((s) => ({ timeEntries: s.timeEntries.filter((te) => te.id !== id) }));
+
+        void ensureOk(fetch(`/api/time-entries/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch(() => {
+          set({ timeEntries: previous });
+          emitAppToast({ tone: 'error', message: 'Time entry could not be deleted.' });
+        });
+      },
 
       // ── Budget ────────────────────────────────────────────────────────────
-      addBudgetItem: (item) =>
-        set((s) => ({ budgetItems: [...s.budgetItems, { ...item, id: generateId() }] })),
-      updateBudgetItem: (id, data) =>
+      addBudgetItem: (item) => {
+        const previous = get().budgetItems;
+        const budgetItem = { ...item, id: generateId() };
+        set((s) => ({ budgetItems: [...s.budgetItems, budgetItem] }));
+
+        void ensureOk(fetch('/api/budget', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ budgetItem }),
+        })).catch(() => {
+          set({ budgetItems: previous });
+          emitAppToast({ tone: 'error', message: 'Budget item could not be saved.' });
+        });
+      },
+      updateBudgetItem: (id, data) => {
+        const previous = get().budgetItems;
         set((s) => ({
           budgetItems: s.budgetItems.map((b) =>
             b.id === id ? { ...b, ...data } : b
           ),
-        })),
-      deleteBudgetItem: (id) =>
-        set((s) => ({ budgetItems: s.budgetItems.filter((b) => b.id !== id) })),
+        }));
+
+        void ensureOk(fetch(`/api/budget/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data }),
+        })).catch(() => {
+          set({ budgetItems: previous });
+          emitAppToast({ tone: 'error', message: 'Budget changes could not be saved.' });
+        });
+      },
+      deleteBudgetItem: (id) => {
+        const previous = get().budgetItems;
+        set((s) => ({ budgetItems: s.budgetItems.filter((b) => b.id !== id) }));
+
+        void ensureOk(fetch(`/api/budget/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch(() => {
+          set({ budgetItems: previous });
+          emitAppToast({ tone: 'error', message: 'Budget item could not be deleted.' });
+        });
+      },
     }),
     { name: 'oliveops-store' }
   )

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useStore } from '../../store';
 import { Button, Modal } from '../../components/ui';
-import { Clock, LogOut } from 'lucide-react';
+import { Clock, LogOut, UserRound } from 'lucide-react';
 import { formatDateTime, durationHours } from '../../utils';
 
-type Step = 'pin' | 'select_job' | 'clocked_in';
+type Step = 'select_employee' | 'select_job' | 'clocked_in';
 
 interface Props {
   open: boolean;
@@ -13,35 +13,19 @@ interface Props {
 
 export default function ClockInModal({ open, onClose }: Props) {
   const { employees, jobs, timeEntries, clockIn, clockOut } = useStore();
-  const [step, setStep] = useState<Step>('pin');
-  const [pin, setPin] = useState('');
-  const [pinError, setPinError] = useState('');
+  const [step, setStep] = useState<Step>('select_employee');
   const [foundEmployee, setFoundEmployee] = useState<typeof employees[0] | null>(null);
   const [selectedJob, setSelectedJob] = useState('');
   const [breakMin, setBreakMin] = useState(0);
 
   const reset = () => {
-    setStep('pin');
-    setPin('');
-    setPinError('');
+    setStep('select_employee');
     setFoundEmployee(null);
     setSelectedJob('');
     setBreakMin(0);
   };
 
   const handleClose = () => { reset(); onClose(); };
-
-  const tryPin = (nextPin: string) => {
-    const emp = employees.find((e) => e.pin === nextPin && e.active);
-    if (!emp) {
-      setPinError('Invalid PIN. Try again.');
-      setPin('');
-      return;
-    }
-    setPinError('');
-    setFoundEmployee(emp);
-    setStep('select_job');
-  };
 
   const activeEntry = foundEmployee
     ? timeEntries.find((te) => te.employeeId === foundEmployee.id && te.status === 'clocked_in')
@@ -61,50 +45,50 @@ export default function ClockInModal({ open, onClose }: Props) {
   };
 
   const activeJobs = jobs.filter((j) => j.status === 'in_progress' || j.status === 'scheduled');
+  const activeEmployees = employees.filter((employee) => employee.active);
 
   return (
     <Modal open={open} onClose={handleClose} title="Employee Clock In / Out">
-      {/* PIN entry */}
-      {step === 'pin' && (
-        <div className="flex flex-col items-center gap-6 py-4">
-          <Clock size={48} className="text-brand-500" />
-          <p className="text-gray-600 text-center">Enter your 4-digit PIN to clock in or out.</p>
-          <div className="flex gap-3">
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-bold transition-colors ${
-                  pin.length > i ? 'border-brand-600 bg-brand-600 text-white' : 'border-gray-300 bg-gray-50'
-                }`}
-              >
-                {pin.length > i ? '●' : ''}
-              </div>
-            ))}
+      {step === 'select_employee' && (
+        <div className="flex flex-col gap-6 py-4">
+          <div className="flex flex-col items-center gap-3">
+            <UserRound size={44} className="text-brand-500" />
+            <div className="text-center">
+              <p className="font-semibold text-gray-900 text-lg">Choose Employee</p>
+              <p className="text-sm text-gray-500">Select a team member to clock in or out.</p>
+            </div>
           </div>
-          {pinError && <p className="text-red-500 text-sm">{pinError}</p>}
-          {/* Number pad */}
-          <div className="grid grid-cols-3 gap-3">
-            {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((d, idx) => (
-              <button
-                key={idx}
-                disabled={d === ''}
-                onClick={() => {
-                  if (d === '⌫') { setPin((p) => p.slice(0, -1)); return; }
-                  if (typeof d === 'number' && pin.length < 4) {
-                    const next = pin + d;
-                    setPin(next);
-                    if (next.length === 4) {
-                      tryPin(next);
-                    }
-                  }
-                }}
-                className={`w-16 h-16 rounded-full text-xl font-semibold transition-colors
-                  ${d === '' ? 'invisible' : 'bg-gray-100 hover:bg-brand-100 active:bg-brand-200 text-gray-800'}
-                `}
-              >
-                {d}
-              </button>
-            ))}
+
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {activeEmployees.map((employee) => {
+              const isClockedIn = timeEntries.some(
+                (entry) => entry.employeeId === employee.id && entry.status === 'clocked_in'
+              );
+
+              return (
+                <button
+                  key={employee.id}
+                  onClick={() => {
+                    setFoundEmployee(employee);
+                    setStep('select_job');
+                  }}
+                  className="w-full text-left border border-gray-200 rounded-lg p-3 hover:border-brand-300 hover:bg-brand-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-gray-900">{employee.name}</p>
+                      <p className="text-sm text-gray-500">{employee.email}</p>
+                    </div>
+                    <span className={`text-xs font-semibold ${isClockedIn ? 'text-green-600' : 'text-gray-400'}`}>
+                      {isClockedIn ? 'Clocked In' : 'Available'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+            {activeEmployees.length === 0 && (
+              <p className="text-gray-400 text-sm text-center py-4">No active employees.</p>
+            )}
           </div>
         </div>
       )}
