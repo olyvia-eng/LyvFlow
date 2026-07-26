@@ -8,6 +8,7 @@ import {
   UserCheck,
   CalendarDays,
   BarChart3,
+  LogOut,
   Menu,
   X,
   Leaf,
@@ -26,7 +27,12 @@ const NAV_ITEMS = [
   { to: '/data-center', label: 'Data Center', icon: BarChart3 },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  userName: string;
+  onLogout: () => void;
+}
+
+export default function Sidebar({ userName, onLogout }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLink = (item: typeof NAV_ITEMS[0]) => (
@@ -78,7 +84,19 @@ export default function Sidebar() {
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {NAV_ITEMS.map(navLink)}
+        <div className="flex-1">{NAV_ITEMS.map(navLink)}</div>
+        <div className="pt-3 border-t border-gray-200 mt-3">
+          <p className="text-xs text-gray-500 mb-2 px-1">Signed in as {userName}</p>
+          <button
+            onClick={() => {
+              setMobileOpen(false);
+              onLogout();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
+          >
+            <LogOut size={16} /> Log Out
+          </button>
+        </div>
       </aside>
 
       {/* Desktop sidebar */}
@@ -87,7 +105,16 @@ export default function Sidebar() {
           <Leaf size={24} />
           LyvFlow
         </div>
-        {NAV_ITEMS.map(navLink)}
+        <div className="flex-1">{NAV_ITEMS.map(navLink)}</div>
+        <div className="pt-3 border-t border-gray-200">
+          <p className="text-xs text-gray-500 mb-2 px-1">Signed in as {userName}</p>
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
+          >
+            <LogOut size={16} /> Log Out
+          </button>
+        </div>
       </aside>
     </>
   );
