@@ -7,6 +7,36 @@ import {
 } from './_lib/authRepo.js';
 import { requireSession } from './_lib/session.js';
 
+function mapCreateUserError(error) {
+  const name = error?.name;
+
+  if (name === 'AccessDeniedException') {
+    return {
+      status: 500,
+      message: 'DynamoDB access denied. Check IAM policy for GetItem, PutItem, Query, and TransactWriteItems on this table.',
+    };
+  }
+
+  if (name === 'ResourceNotFoundException') {
+    return {
+      status: 500,
+      message: 'DynamoDB table not found. Verify DDB_TABLE_NAME and AWS_REGION environment variables.',
+    };
+  }
+
+  if (name === 'UnrecognizedClientException' || name === 'InvalidSignatureException') {
+    return {
+      status: 500,
+      message: 'Invalid AWS credentials or region configuration.',
+    };
+  }
+
+  return {
+    status: 500,
+    message: 'Could not create user',
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     const session = requireSession(req, res, ['owner', 'admin']);
@@ -52,8 +82,14 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({ ok: true });
-    } catch {
-      return res.status(500).json({ ok: false, error: 'Could not create user' });
+    } catch (error) {
+      console.error('POST /api/users failed', {
+        name: error?.name,
+        message: error?.message,
+      });
+
+      const mapped = mapCreateUserError(error);
+      return res.status(mapped.status).json({ ok: false, error: mapped.message });
     }
   }
 
