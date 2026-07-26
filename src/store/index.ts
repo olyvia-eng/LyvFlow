@@ -336,7 +336,7 @@ export const useStore = create<AppState>()(
           ),
         })),
       convertEstimateToJob: (estimateId) => {
-        const { estimates, customers } = get();
+        const { estimates } = get();
         const est = estimates.find((e) => e.id === estimateId);
         if (!est) return;
         const subtotal = est.lineItems.reduce((s, li) => s + li.total, 0);
