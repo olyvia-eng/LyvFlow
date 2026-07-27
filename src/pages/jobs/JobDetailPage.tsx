@@ -150,6 +150,7 @@ export default function JobDetailPage() {
                     <div>
                       <p className="font-medium">{emp?.name ?? '—'}</p>
                       <p className="text-xs text-gray-400">{formatDateTime(te.clockIn)} → {te.clockOut ? formatDateTime(te.clockOut) : 'Active'}</p>
+                      <p className="text-xs text-gray-500">Notes: {te.notes?.trim() ? te.notes : '—'}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-brand-600">{hrs.toFixed(2)}h</span>

@@ -220,6 +220,7 @@ export default function EmployeesPage() {
                     <th className="py-2 font-medium">Job</th>
                     <th className="py-2 font-medium">Clock In</th>
                     <th className="py-2 font-medium">Clock Out</th>
+                    <th className="py-2 font-medium">Job Notes</th>
                     <th className="py-2 font-medium text-right">Hours</th>
                   </tr>
                 </thead>
@@ -234,6 +235,7 @@ export default function EmployeesPage() {
                         <td className="py-2 text-gray-600 truncate max-w-xs">{job?.title ?? '—'}</td>
                         <td className="py-2 text-gray-500 text-xs">{formatDateTime(te.clockIn)}</td>
                         <td className="py-2 text-gray-500 text-xs">{te.clockOut ? formatDateTime(te.clockOut) : <span className="text-green-600 font-medium">Active</span>}</td>
+                        <td className="py-2 text-gray-600 max-w-xs truncate">{te.notes?.trim() ? te.notes : '—'}</td>
                         <td className="py-2 text-right font-semibold text-brand-600">{hrs.toFixed(2)}</td>
                       </tr>
                     );
