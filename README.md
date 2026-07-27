@@ -90,8 +90,9 @@ Add them for Production (and Preview/Development if needed), then redeploy.
 
 The auth APIs are in `api/` and are served by Vercel runtime.
 
-- `npm run dev` starts Vite only (frontend)
-- Use `vercel dev` to run frontend + API together locally
+- `npm run dev` starts Vite only on `http://localhost:5174`
+- `npm run dev:full` starts the app plus API routes on `http://localhost:5173`
+- If you see stale port conflicts, stop the extra Node processes first or rerun `npm run dev:full` in a clean terminal session
 
 ### 5. Data model used in the table
 
