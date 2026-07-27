@@ -238,8 +238,31 @@ const SEED_BUDGET: BudgetItem[] = [
 async function ensureOk(responsePromise: Promise<Response>) {
   const response = await responsePromise;
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    let detail = '';
+    try {
+      const payload = (await response.json()) as { error?: unknown };
+      if (typeof payload?.error === 'string') {
+        detail = payload.error;
+      }
+    } catch {
+      // Ignore response parse errors; use status fallback.
+    }
+
+    if (!detail) {
+      if (response.status === 401) detail = 'Unauthorized. Please log in again.';
+      else if (response.status === 403) detail = 'Forbidden. Only owner/admin can change customer data.';
+      else detail = `Request failed with status ${response.status}`;
+    }
+
+    throw new Error(detail);
   }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
 }
 
 function dataUrl(entity: string, id?: string) {
@@ -324,9 +347,9 @@ export const useStore = create<AppState>()(
           },
           credentials: 'include',
           body: JSON.stringify({ data: customer }),
-        })).catch(() => {
+        })).catch((error: unknown) => {
           set({ customers: previous });
-          emitAppToast({ tone: 'error', message: 'Customer could not be saved.' });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Customer could not be saved.') });
         });
       },
       updateCustomer: (id, data) => {
@@ -345,9 +368,9 @@ export const useStore = create<AppState>()(
           },
           credentials: 'include',
           body: JSON.stringify({ data: { ...data, updatedAt } }),
-        })).catch(() => {
+        })).catch((error: unknown) => {
           set({ customers: previous });
-          emitAppToast({ tone: 'error', message: 'Customer changes could not be saved.' });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Customer changes could not be saved.') });
         });
       },
       deleteCustomer: (id) => {
@@ -357,9 +380,9 @@ export const useStore = create<AppState>()(
         void ensureOk(fetch(dataUrl('customers', id), {
           method: 'DELETE',
           credentials: 'include',
-        })).catch(() => {
+        })).catch((error: unknown) => {
           set({ customers: previous });
-          emitAppToast({ tone: 'error', message: 'Customer could not be deleted.' });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Customer could not be deleted.') });
         });
       },
 
