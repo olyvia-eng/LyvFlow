@@ -16,13 +16,13 @@ export default function ClockInModal({ open, onClose }: Props) {
   const [step, setStep] = useState<Step>('select_employee');
   const [foundEmployee, setFoundEmployee] = useState<typeof employees[0] | null>(null);
   const [selectedJob, setSelectedJob] = useState('');
-  const [breakMin, setBreakMin] = useState(0);
+  const [jobNotes, setJobNotes] = useState('');
 
   const reset = () => {
     setStep('select_employee');
     setFoundEmployee(null);
     setSelectedJob('');
-    setBreakMin(0);
+    setJobNotes('');
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -39,7 +39,7 @@ export default function ClockInModal({ open, onClose }: Props) {
 
   const handleClockOut = () => {
     if (!activeEntry) return;
-    clockOut(activeEntry.id, breakMin, '');
+    clockOut(activeEntry.id, 0, jobNotes.trim());
     reset();
     onClose();
   };
@@ -107,12 +107,12 @@ export default function ClockInModal({ open, onClose }: Props) {
             </p>
           </div>
           <div className="w-full space-y-2">
-            <label className="text-sm font-medium text-gray-700">Break time (minutes)</label>
+            <label className="text-sm font-medium text-gray-700">Job Notes</label>
             <input
-              type="number"
-              min={0}
-              value={breakMin}
-              onChange={(e) => setBreakMin(Number(e.target.value))}
+              type="text"
+              value={jobNotes}
+              onChange={(e) => setJobNotes(e.target.value)}
+              placeholder="What was completed on this job?"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>

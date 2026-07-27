@@ -14,7 +14,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const { employees, jobs, timeEntries, clockIn, clockOut } = useStore();
 
   const [selectedJobId, setSelectedJobId] = useState('');
-  const [breakMinutes, setBreakMinutes] = useState(0);
+  const [jobNotes, setJobNotes] = useState('');
 
   const sessionEmployee = useMemo(() => {
     if (!sessionEmployeeEmail) return null;
@@ -47,7 +47,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
     }
 
     setSelectedJobId('');
-    setBreakMinutes(0);
+    setJobNotes('');
   };
 
   const handleClockIn = () => {
@@ -58,8 +58,8 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
 
   const handleClockOut = () => {
     if (!activeEntry) return;
-    clockOut(activeEntry.id, breakMinutes, '');
-    setBreakMinutes(0);
+    clockOut(activeEntry.id, 0, jobNotes.trim());
+    setJobNotes('');
   };
 
   return (
@@ -97,11 +97,9 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                     Hours so far: {durationHours(activeEntry.clockIn).toFixed(2)}
                   </p>
                   <Input
-                    label="Break (minutes)"
-                    type="number"
-                    min={0}
-                    value={breakMinutes}
-                    onChange={(event) => setBreakMinutes(Number(event.target.value) || 0)}
+                    label="Job Notes"
+                    value={jobNotes}
+                    onChange={(event) => setJobNotes(event.target.value)}
                   />
                   <Button
                     variant="danger"

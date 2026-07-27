@@ -32,7 +32,7 @@ export default function EmployeesPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [clockInOpen, setClockInOpen] = useState(false);
   const [clockOutEntry, setClockOutEntry] = useState<string | null>(null);
-  const [breakMin, setBreakMin] = useState(0);
+  const [jobNotes, setJobNotes] = useState('');
 
   const openNew = () => {
     setEditing(null);
@@ -131,9 +131,9 @@ export default function EmployeesPage() {
 
   const handleClockOut = () => {
     if (!clockOutEntry) return;
-    clockOut(clockOutEntry, breakMin, '');
+    clockOut(clockOutEntry, 0, jobNotes.trim());
     setClockOutEntry(null);
-    setBreakMin(0);
+    setJobNotes('');
   };
 
   return (
@@ -298,8 +298,8 @@ export default function EmployeesPage() {
         </>}
       >
         <div className="space-y-4">
-          <p className="text-gray-600">Record a break before clocking out?</p>
-          <Input label="Break (minutes)" type="number" min={0} value={breakMin} onChange={(e) => setBreakMin(Number(e.target.value))} />
+          <p className="text-gray-600">Add job notes before clocking out.</p>
+          <Input label="Job Notes" value={jobNotes} onChange={(e) => setJobNotes(e.target.value)} />
         </div>
       </Modal>
 
