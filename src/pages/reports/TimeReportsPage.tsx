@@ -12,6 +12,7 @@ interface TimeReportsPageProps {
 }
 
 type WorkTypeFilter = 'all' | TimeEntryWorkType;
+type JobFilter = 'all' | string;
 
 function normalizeWorkType(entry: Partial<TimeEntry>): TimeEntryWorkType {
   if (entry.workType === 'drive_time' || entry.workType === 'non_billable') return entry.workType;
@@ -56,11 +57,14 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [workTypeFilter, setWorkTypeFilter] = useState<WorkTypeFilter>('all');
   const [employeeSearch, setEmployeeSearch] = useState('');
+  const [jobFilter, setJobFilter] = useState<JobFilter>('all');
   const [backfillRunning, setBackfillRunning] = useState(false);
 
   const employeeSearchValue = employeeSearch.trim().toLowerCase();
+  const jobsSorted = useMemo(() => [...jobs].sort((a, b) => a.title.localeCompare(b.title)), [jobs]);
 
   const getEmployeeName = (employeeId: string) => employees.find((employee) => employee.id === employeeId)?.name ?? 'Unknown';
+  const getJobTitle = (jobId: string) => jobs.find((job) => job.id === jobId)?.title ?? 'Unknown job';
 
   const filteredEntries = useMemo(() => {
     const start = new Date(`${startDate}T00:00:00`);
@@ -77,12 +81,20 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
           if (!employeeName.includes(employeeSearchValue)) return false;
         }
 
+        if (jobFilter !== 'all') {
+          const workType = normalizeWorkType(entry);
+          if (workType !== 'job') return false;
+
+          const entryJobIds = normalizeJobIds(entry);
+          if (!entryJobIds.includes(jobFilter)) return false;
+        }
+
         const workType = normalizeWorkType(entry);
         if (workTypeFilter !== 'all' && workType !== workTypeFilter) return false;
         return true;
       })
       .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-  }, [employeeSearchValue, endDate, getEmployeeName, startDate, timeEntries, workTypeFilter]);
+  }, [employeeSearchValue, endDate, getEmployeeName, jobFilter, startDate, timeEntries, workTypeFilter]);
 
   const totalsByType = useMemo(() => {
     const totals: Record<TimeEntryWorkType, number> = {
@@ -209,6 +221,29 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
   }, [filteredEntries]);
 
   const handleExportSummaryCsv = () => {
+    const selectedWorkTypeLabel =
+      workTypeFilter === 'all'
+        ? 'All Types'
+        : workTypeFilter === 'job'
+          ? 'Job Work'
+          : workTypeFilter === 'drive_time'
+            ? 'Drive Time'
+            : 'Non-Billable Work';
+    const selectedJobLabel = jobFilter === 'all' ? 'All Jobs' : getJobTitle(jobFilter);
+    const employeeFilterLabel = employeeSearch.trim() ? employeeSearch.trim() : 'All Employees';
+
+    const filterRows = [
+      ['Report', 'Bookkeeper Time Summary'],
+      ['Generated At', new Date().toISOString()],
+      ['Start Date', startDate],
+      ['End Date', endDate],
+      ['Work Type', selectedWorkTypeLabel],
+      ['Job', selectedJobLabel],
+      ['Employee Search', employeeFilterLabel],
+      ['Matching Entries', String(filteredEntries.length)],
+      [],
+    ];
+
     const header = ['Employee', 'Total Hours', 'Job Hours', 'Drive Time Hours', 'Non-Billable Hours'];
 
     const rows = employeeSummaryRows.map((row) => [
@@ -219,7 +254,7 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
       row.non_billable.toFixed(2),
     ]);
 
-    const csv = [header, ...rows]
+    const csv = [...filterRows, header, ...rows]
       .map((row) => row.map((value) => escapeCsvValue(value)).join(','))
       .join('\r\n');
 
@@ -227,7 +262,13 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `time-summary-${startDate}-to-${endDate}.csv`;
+    const jobSegment = jobFilter === 'all'
+      ? 'all-jobs'
+      : getJobTitle(jobFilter)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') || 'selected-job';
+    anchor.download = `time-summary-${jobSegment}-${startDate}-to-${endDate}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -247,7 +288,7 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
       </div>
 
       <Card className="p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <label className="text-sm text-gray-600">
             <span className="block mb-1 font-medium text-gray-700">Start Date</span>
             <input
@@ -272,6 +313,14 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
               <option value="job">Job Work</option>
               <option value="drive_time">Drive Time</option>
               <option value="non_billable">Non-Billable Work</option>
+            </Select>
+          </div>
+          <div>
+            <Select label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value as JobFilter)}>
+              <option value="all">All Jobs</option>
+              {jobsSorted.map((job) => (
+                <option key={job.id} value={job.id}>{job.title}</option>
+              ))}
             </Select>
           </div>
           <div>

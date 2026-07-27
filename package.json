@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5174 --strictPort",
+    "dev:clean": "node scripts/dev-clean.mjs",
+    "dev:health": "node scripts/dev-health.mjs",
     "dev:full": "vercel dev --listen 5173",
+    "dev:full:clean": "npm run dev:clean && npm run dev:full",
     "dev:vite": "vite --port 5174 --strictPort",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

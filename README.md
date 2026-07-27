@@ -92,7 +92,9 @@ The auth APIs are in `api/` and are served by Vercel runtime.
 
 - `npm run dev` starts Vite only on `http://localhost:5174`
 - `npm run dev:full` starts the app plus API routes on `http://localhost:5173`
-- If you see stale port conflicts, stop the extra Node processes first or rerun `npm run dev:full` in a clean terminal session
+- `npm run dev:clean` clears stale listeners on common local dev ports
+- `npm run dev:health` checks required env keys, local port collisions, and auth endpoint reachability
+- `npm run dev:full:clean` runs cleanup first, then starts full stack
 
 ### 5. Data model used in the table
 
