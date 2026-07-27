@@ -12,6 +12,7 @@ interface TimeReportsPageProps {
 }
 
 type WorkTypeFilter = 'all' | TimeEntryWorkType;
+type EmployeeFilter = 'all' | string;
 
 function normalizeWorkType(entry: Partial<TimeEntry>): TimeEntryWorkType {
   if (entry.workType === 'drive_time' || entry.workType === 'non_billable') return entry.workType;
@@ -46,6 +47,7 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
   const [startDate, setStartDate] = useState(format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [workTypeFilter, setWorkTypeFilter] = useState<WorkTypeFilter>('all');
+  const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>('all');
   const [backfillRunning, setBackfillRunning] = useState(false);
 
   const filteredEntries = useMemo(() => {
@@ -58,12 +60,14 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
         if (Number.isNaN(clockInDate.getTime())) return false;
         if (clockInDate < start || clockInDate > end) return false;
 
+            if (employeeFilter !== 'all' && entry.employeeId !== employeeFilter) return false;
+
         const workType = normalizeWorkType(entry);
         if (workTypeFilter !== 'all' && workType !== workTypeFilter) return false;
         return true;
       })
       .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-  }, [endDate, startDate, timeEntries, workTypeFilter]);
+  }, [employeeFilter, endDate, startDate, timeEntries, workTypeFilter]);
 
   const totalsByType = useMemo(() => {
     const totals: Record<TimeEntryWorkType, number> = {
@@ -177,7 +181,7 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
       </div>
 
       <Card className="p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <label className="text-sm text-gray-600">
             <span className="block mb-1 font-medium text-gray-700">Start Date</span>
             <input
@@ -202,6 +206,16 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
               <option value="job">Job Work</option>
               <option value="drive_time">Drive Time</option>
               <option value="non_billable">Non-Billable Work</option>
+            </Select>
+          </div>
+          <div>
+            <Select label="Employee" value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value as EmployeeFilter)}>
+              <option value="all">All Employees</option>
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.name}
+                </option>
+              ))}
             </Select>
           </div>
           <div className="flex items-end">
