@@ -300,6 +300,95 @@ export async function createUserForBusiness({ businessId, name, email, password,
   return { ok: true };
 }
 
+export async function getBusinessUserById(businessId, userId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: userSk(userId),
+      },
+    })
+  );
+
+  if (!result.Item) return null;
+
+  return {
+    id: result.Item.userId,
+    businessId: result.Item.businessId,
+    name: result.Item.name,
+    email: result.Item.email,
+    role: normalizeBusinessRole(result.Item.role),
+    active: result.Item.active,
+    createdAt: result.Item.createdAt,
+    passwordHash: result.Item.passwordHash,
+  };
+}
+
+export async function updateBusinessUser({ businessId, user }) {
+  const normalizedEmail = normalizeEmail(user.email);
+
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: userSk(user.id),
+        entityType: 'USER',
+        userId: user.id,
+        businessId,
+        name: user.name,
+        email: normalizedEmail,
+        role: user.role,
+        active: user.active,
+        passwordHash: user.passwordHash,
+        createdAt: user.createdAt,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteBusinessUser(businessId, userId) {
+  const existing = await getBusinessUserById(businessId, userId);
+  if (!existing) {
+    return { ok: false, error: 'User not found' };
+  }
+
+  if (existing.role === 'owner') {
+    return { ok: false, error: 'Owner account cannot be deleted.' };
+  }
+
+  await ddb.send(
+    new TransactWriteCommand({
+      TransactItems: [
+        {
+          Delete: {
+            TableName: tableName,
+            Key: {
+              PK: businessPk(businessId),
+              SK: userSk(userId),
+            },
+          },
+        },
+        {
+          Delete: {
+            TableName: tableName,
+            Key: {
+              PK: emailPk(existing.email),
+              SK: 'USER',
+            },
+          },
+        },
+      ],
+    })
+  );
+
+  return { ok: true };
+}
+
 export async function deleteAuthUserForBusinessByEmail(businessId, email) {
   const normalizedEmail = normalizeEmail(email);
 
