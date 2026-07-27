@@ -220,14 +220,14 @@ export default function App() {
         body: JSON.stringify(payload),
       });
     } catch {
-      return { ok: false, error: 'Could not reach the API. Run vercel dev for local API routes.' };
+      return { ok: false, error: 'Could not reach the API. Run npm run dev:full for local API routes.' };
     }
 
     const body = await readApiJson<{ ok: boolean; error?: string }>(response);
 
     if (!response.ok || !body?.ok) {
       if (!body?.error && response.status === 404) {
-        return { ok: false, error: 'API route unavailable. Run vercel dev for local API routes.' };
+        return { ok: false, error: 'API route unavailable. Run npm run dev:full for local API routes.' };
       }
       if (!body?.error && response.status === 401) {
         return { ok: false, error: 'Your session expired. Please log in again.' };

@@ -1,0 +1,4 @@
+{
+  "framework": "vite",
+  "devCommand": "npm run dev:vite"
+}

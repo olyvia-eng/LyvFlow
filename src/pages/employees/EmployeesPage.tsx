@@ -89,7 +89,7 @@ export default function EmployeesPage() {
         }),
       });
     } catch {
-      setFormError('Could not reach the API. Run vercel dev for local API routes.');
+      setFormError('Could not reach the API. Run npm run dev:full for local API routes.');
       return;
     }
 
@@ -107,7 +107,7 @@ export default function EmployeesPage() {
         apiError === 'Could not create employee login.' &&
         (response.status === 404 || !contentType.includes('application/json'))
       ) {
-        apiError = 'API route unavailable. Run vercel dev for local API routes.';
+        apiError = 'API route unavailable. Run npm run dev:full for local API routes.';
       }
       setFormError(apiError);
       return;
