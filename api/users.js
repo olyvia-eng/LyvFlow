@@ -9,6 +9,7 @@ import { requireSession } from './_lib/session.js';
 
 function mapCreateUserError(error) {
   const name = error?.name;
+  const rawMessage = typeof error?.message === 'string' ? error.message.trim() : '';
 
   if (name === 'AccessDeniedException') {
     return {
@@ -31,9 +32,30 @@ function mapCreateUserError(error) {
     };
   }
 
+  if (name === 'ExpiredTokenException') {
+    return {
+      status: 500,
+      message: 'AWS credentials are expired. Rotate AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in Vercel env vars.',
+    };
+  }
+
+  if (name === 'ValidationException') {
+    return {
+      status: 500,
+      message: 'DynamoDB validation failed. Verify OliveOpsAuth table key schema uses PK (string) and SK (string).',
+    };
+  }
+
+  if (name === 'ThrottlingException' || name === 'ProvisionedThroughputExceededException') {
+    return {
+      status: 503,
+      message: 'DynamoDB is throttling requests. Retry shortly or switch table billing to on-demand.',
+    };
+  }
+
   return {
     status: 500,
-    message: 'Could not create user',
+    message: `Could not create user (${name ?? 'UnknownError'}${rawMessage ? `: ${rawMessage}` : ''})`,
   };
 }
 
