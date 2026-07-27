@@ -1101,11 +1101,14 @@ export async function listTimeEntriesForBusiness(businessId) {
   return (result.Items ?? []).map((item) => ({
     id: item.entryId,
     employeeId: item.employeeId,
-    jobId: item.jobId,
+    jobId: item.jobId ?? (Array.isArray(item.jobIds) ? item.jobIds[0] : undefined),
+    jobIds: Array.isArray(item.jobIds)
+      ? item.jobIds
+      : (item.jobId ? [item.jobId] : []),
+    workType: item.workType ?? 'job',
     clockIn: item.clockIn,
-    role: normalizeEmployeeRole(item.role),
-    breakMinutes: item.breakMinutes,
-    notes: item.notes,
+    breakMinutes: item.breakMinutes ?? 0,
+    notes: item.notes ?? '',
     status: item.status,
   }));
 }
@@ -1144,11 +1147,15 @@ export async function getTimeEntryForBusiness(businessId, entryId) {
     ? {
         id: result.Item.entryId,
         employeeId: result.Item.employeeId,
-        jobId: result.Item.jobId,
+        jobId: result.Item.jobId ?? (Array.isArray(result.Item.jobIds) ? result.Item.jobIds[0] : undefined),
+        jobIds: Array.isArray(result.Item.jobIds)
+          ? result.Item.jobIds
+          : (result.Item.jobId ? [result.Item.jobId] : []),
+        workType: result.Item.workType ?? 'job',
         clockIn: result.Item.clockIn,
         clockOut: result.Item.clockOut,
-        breakMinutes: result.Item.breakMinutes,
-        notes: result.Item.notes,
+        breakMinutes: result.Item.breakMinutes ?? 0,
+        notes: result.Item.notes ?? '',
         status: result.Item.status,
       }
     : null;

@@ -3,6 +3,7 @@ import { useStore } from '../../store';
 import { Button, Modal } from '../../components/ui';
 import { Clock, LogOut, UserRound } from 'lucide-react';
 import { formatDateTime, durationHours } from '../../utils';
+import type { TimeEntryWorkType } from '../../types';
 
 type Step = 'select_employee' | 'select_job' | 'clocked_in';
 
@@ -15,13 +16,15 @@ export default function ClockInModal({ open, onClose }: Props) {
   const { employees, jobs, timeEntries, clockIn, clockOut } = useStore();
   const [step, setStep] = useState<Step>('select_employee');
   const [foundEmployee, setFoundEmployee] = useState<typeof employees[0] | null>(null);
-  const [selectedJob, setSelectedJob] = useState('');
+  const [clockType, setClockType] = useState<TimeEntryWorkType>('job');
+  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [jobNotes, setJobNotes] = useState('');
 
   const reset = () => {
     setStep('select_employee');
     setFoundEmployee(null);
-    setSelectedJob('');
+    setClockType('job');
+    setSelectedJobIds([]);
     setJobNotes('');
   };
 
@@ -32,8 +35,13 @@ export default function ClockInModal({ open, onClose }: Props) {
     : null;
 
   const handleClockIn = () => {
-    if (!foundEmployee || !selectedJob) return;
-    clockIn(foundEmployee.id, selectedJob);
+    if (!foundEmployee) return;
+    if (clockType === 'job' && selectedJobIds.length === 0) return;
+
+    clockIn(foundEmployee.id, {
+      workType: clockType,
+      jobIds: clockType === 'job' ? selectedJobIds : [],
+    });
     setStep('clocked_in');
   };
 
@@ -46,6 +54,14 @@ export default function ClockInModal({ open, onClose }: Props) {
 
   const activeJobs = jobs.filter((j) => j.status === 'in_progress' || j.status === 'scheduled');
   const activeEmployees = employees.filter((employee) => employee.active);
+
+  const toggleJobSelection = (jobId: string) => {
+    setSelectedJobIds((current) =>
+      current.includes(jobId)
+        ? current.filter((id) => id !== jobId)
+        : [...current, jobId]
+    );
+  };
 
   return (
     <Modal open={open} onClose={handleClose} title="Employee Clock In / Out">
@@ -128,27 +144,42 @@ export default function ClockInModal({ open, onClose }: Props) {
         <div className="flex flex-col gap-6 py-4">
           <div className="text-center">
             <p className="font-semibold text-gray-900 text-lg">{foundEmployee.name}</p>
-            <p className="text-gray-500 text-sm">Select a job to clock in to</p>
+            <p className="text-gray-500 text-sm">Choose clock-in type</p>
           </div>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {activeJobs.map((j) => (
-              <button
-                key={j.id}
-                onClick={() => setSelectedJob(j.id)}
-                className={`w-full text-left border rounded-lg p-3 text-sm transition-colors ${
-                  selectedJob === j.id
-                    ? 'border-brand-600 bg-brand-50 text-brand-800'
-                    : 'border-gray-200 hover:border-brand-300'
-                }`}
-              >
-                <p className="font-medium">{j.title}</p>
-              </button>
-            ))}
-            {activeJobs.length === 0 && (
-              <p className="text-gray-400 text-sm text-center py-4">No active or scheduled jobs.</p>
+          <div className="space-y-3">
+            <select
+              value={clockType}
+              onChange={(e) => {
+                const next = e.target.value as TimeEntryWorkType;
+                setClockType(next);
+                if (next !== 'job') setSelectedJobIds([]);
+              }}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="job">Job Work</option>
+              <option value="drive_time">Drive Time</option>
+              <option value="non_billable">Non-Billable Work</option>
+            </select>
+
+            {clockType === 'job' && (
+              <div className="space-y-2 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+                {activeJobs.map((job) => (
+                  <label key={job.id} className="flex items-center gap-2 px-2 py-1 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedJobIds.includes(job.id)}
+                      onChange={() => toggleJobSelection(job.id)}
+                    />
+                    <span>{job.title}</span>
+                  </label>
+                ))}
+                {activeJobs.length === 0 && (
+                  <p className="text-gray-400 text-sm text-center py-2">No active or scheduled jobs.</p>
+                )}
+              </div>
             )}
           </div>
-          <Button disabled={!selectedJob} className="w-full justify-center py-3 text-base" onClick={handleClockIn}>
+          <Button disabled={clockType === 'job' && selectedJobIds.length === 0} className="w-full justify-center py-3 text-base" onClick={handleClockIn}>
             <Clock size={18} /> Clock In
           </Button>
           <button onClick={reset} className="text-sm text-gray-400 hover:text-gray-600 text-center">← Back</button>

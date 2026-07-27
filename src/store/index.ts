@@ -7,6 +7,7 @@ import type {
   Job,
   Employee,
   TimeEntry,
+  TimeEntryWorkType,
   BudgetItem,
   LineItem,
   CostEntry,
@@ -217,11 +218,11 @@ const SEED_JOBS: Job[] = [
 ];
 
 const SEED_TIME_ENTRIES: TimeEntry[] = [
-  { id: 'te1', employeeId: 'e1', jobId: 'j1', clockIn: '2025-04-05T08:00:00.000Z', clockOut: '2025-04-05T16:30:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
-  { id: 'te2', employeeId: 'e2', jobId: 'j1', clockIn: '2025-04-05T08:00:00.000Z', clockOut: '2025-04-05T16:00:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
-  { id: 'te3', employeeId: 'e1', jobId: 'j2', clockIn: '2025-05-12T07:00:00.000Z', clockOut: '2025-05-12T15:00:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
-  { id: 'te4', employeeId: 'e2', jobId: 'j2', clockIn: '2025-05-12T07:00:00.000Z', clockOut: '2025-05-12T15:00:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
-  { id: 'te5', employeeId: 'e3', jobId: 'j2', clockIn: '2025-05-12T07:00:00.000Z', clockOut: '2025-05-12T14:30:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
+  { id: 'te1', employeeId: 'e1', jobId: 'j1', jobIds: ['j1'], workType: 'job', clockIn: '2025-04-05T08:00:00.000Z', clockOut: '2025-04-05T16:30:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
+  { id: 'te2', employeeId: 'e2', jobId: 'j1', jobIds: ['j1'], workType: 'job', clockIn: '2025-04-05T08:00:00.000Z', clockOut: '2025-04-05T16:00:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
+  { id: 'te3', employeeId: 'e1', jobId: 'j2', jobIds: ['j2'], workType: 'job', clockIn: '2025-05-12T07:00:00.000Z', clockOut: '2025-05-12T15:00:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
+  { id: 'te4', employeeId: 'e2', jobId: 'j2', jobIds: ['j2'], workType: 'job', clockIn: '2025-05-12T07:00:00.000Z', clockOut: '2025-05-12T15:00:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
+  { id: 'te5', employeeId: 'e3', jobId: 'j2', jobIds: ['j2'], workType: 'job', clockIn: '2025-05-12T07:00:00.000Z', clockOut: '2025-05-12T14:30:00.000Z', breakMinutes: 30, notes: '', status: 'clocked_out' },
 ];
 
 const SEED_BUDGET: BudgetItem[] = [
@@ -310,7 +311,7 @@ interface AppState {
   deleteEmployee: (id: ID) => void;
 
   // Time Entries
-  clockIn: (employeeId: ID, jobId: ID) => void;
+  clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[] }) => void;
   clockOut: (entryId: ID, breakMinutes?: number, notes?: string) => void;
   addTimeEntry: (e: Omit<TimeEntry, 'id'>) => void;
   deleteTimeEntry: (id: ID) => void;
@@ -713,12 +714,24 @@ export const useStore = create<AppState>()(
       },
 
       // ── Time Entries ──────────────────────────────────────────────────────
-      clockIn: (employeeId, jobId) => {
+      clockIn: (employeeId, options) => {
         const previous = get().timeEntries;
+        const workType = options.workType;
+        const selectedJobIds = Array.isArray(options.jobIds)
+          ? options.jobIds.filter((value, index, all) => !!value && all.indexOf(value) === index)
+          : [];
+
+        if (workType === 'job' && selectedJobIds.length === 0) {
+          emitAppToast({ tone: 'error', message: 'Select at least one job to clock in.' });
+          return;
+        }
+
         const timeEntry: TimeEntry = {
           id: generateId(),
           employeeId,
-          jobId,
+          jobId: workType === 'job' ? selectedJobIds[0] : undefined,
+          jobIds: workType === 'job' ? selectedJobIds : [],
+          workType,
           clockIn: nowISO(),
           clockOut: undefined,
           breakMinutes: 0,

@@ -423,13 +423,25 @@ export default function Dashboard() {
             <ul className="divide-y divide-gray-100">
               {activeClockedIn.map((te) => {
                 const emp = employees.find((e) => e.id === te.employeeId);
-                const job = jobs.find((j) => j.id === te.jobId);
+                const workLabel = te.workType === 'drive_time'
+                  ? 'Drive Time'
+                  : te.workType === 'non_billable'
+                    ? 'Non-Billable Work'
+                    : (() => {
+                        const ids = Array.isArray(te.jobIds) && te.jobIds.length > 0
+                          ? te.jobIds
+                          : (te.jobId ? [te.jobId] : []);
+                        const titles = ids
+                          .map((id) => jobs.find((job) => job.id === id)?.title)
+                          .filter((value): value is string => Boolean(value));
+                        return titles.length > 0 ? titles.join(', ') : 'Job Work';
+                      })();
                 const hrs = durationHours(te.clockIn, te.clockOut, te.breakMinutes);
                 return (
                   <li key={te.id} className="p-4 flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-800">{emp?.name ?? 'Unknown'}</p>
-                      <p className="text-xs text-gray-500">{job?.title ?? '—'}</p>
+                      <p className="text-xs text-gray-500">{workLabel}</p>
                     </div>
                     <span className="text-sm font-semibold text-brand-600">{hrs.toFixed(1)} hrs</span>
                   </li>

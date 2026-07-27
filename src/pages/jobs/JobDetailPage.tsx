@@ -18,7 +18,12 @@ export default function JobDetailPage() {
 
   const customer = customers.find((c) => c.id === job.customerId);
   const assignedEmployees = employees.filter((e) => job.assignedEmployeeIds.includes(e.id));
-  const jobTimeEntries = timeEntries.filter((te) => te.jobId === id);
+  const jobTimeEntries = timeEntries.filter((te) => {
+    const ids = Array.isArray(te.jobIds) && te.jobIds.length > 0
+      ? te.jobIds
+      : (te.jobId ? [te.jobId] : []);
+    return ids.includes(id);
+  });
 
   const actualCostTotal = job.actualCosts.reduce((s, c) => s + c.total, 0);
   const profit = job.contractValue - actualCostTotal;

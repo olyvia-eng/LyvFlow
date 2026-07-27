@@ -129,6 +129,19 @@ export default function EmployeesPage() {
   const getActiveEntry = (empId: string) =>
     timeEntries.find((te) => te.employeeId === empId && te.status === 'clocked_in');
 
+  const entryWorkLabel = (entry: { workType?: string; jobId?: string; jobIds?: string[] }) => {
+    if (entry.workType === 'drive_time') return 'Drive Time';
+    if (entry.workType === 'non_billable') return 'Non-Billable Work';
+
+    const ids = Array.isArray(entry.jobIds) && entry.jobIds.length > 0
+      ? entry.jobIds
+      : (entry.jobId ? [entry.jobId] : []);
+    const titles = ids
+      .map((id) => jobs.find((job) => job.id === id)?.title)
+      .filter((value): value is string => Boolean(value));
+    return titles.length > 0 ? titles.join(', ') : 'Job Work';
+  };
+
   const handleClockOut = () => {
     if (!clockOutEntry) return;
     clockOut(clockOutEntry, 0, jobNotes.trim());
@@ -155,7 +168,7 @@ export default function EmployeesPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {employees.map((emp) => {
             const activeEntry = getActiveEntry(emp.id);
-            const activeJob = activeEntry ? jobs.find((j) => j.id === activeEntry.jobId) : null;
+            const activeWorkLabel = activeEntry ? entryWorkLabel(activeEntry) : null;
             const todayEntries = timeEntries.filter(
               (te) => te.employeeId === emp.id && te.clockIn.startsWith(new Date().toISOString().slice(0, 10))
             );
@@ -182,7 +195,7 @@ export default function EmployeesPage() {
                 {activeEntry ? (
                   <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-2 text-xs">
                     <p className="font-semibold text-green-700">🟢 Clocked In</p>
-                    <p className="text-green-600">{activeJob?.title ?? '—'}</p>
+                    <p className="text-green-600">{activeWorkLabel}</p>
                     <p className="text-green-500">Since {formatDateTime(activeEntry.clockIn)}</p>
                     <button
                       onClick={() => setClockOutEntry(activeEntry.id)}
@@ -217,7 +230,7 @@ export default function EmployeesPage() {
                 <thead>
                   <tr className="border-b border-gray-100 text-gray-500 text-left text-xs">
                     <th className="px-4 py-2 font-medium">Employee</th>
-                    <th className="py-2 font-medium">Job</th>
+                    <th className="py-2 font-medium">Work Type</th>
                     <th className="py-2 font-medium">Clock In</th>
                     <th className="py-2 font-medium">Clock Out</th>
                     <th className="py-2 font-medium">Job Notes</th>
@@ -227,12 +240,11 @@ export default function EmployeesPage() {
                 <tbody className="divide-y divide-gray-50">
                   {[...timeEntries].reverse().slice(0, 20).map((te) => {
                     const emp = employees.find((e) => e.id === te.employeeId);
-                    const job = jobs.find((j) => j.id === te.jobId);
                     const hrs = durationHours(te.clockIn, te.clockOut, te.breakMinutes);
                     return (
                       <tr key={te.id} className="hover:bg-gray-50">
                         <td className="px-4 py-2 font-medium">{emp?.name ?? '—'}</td>
-                        <td className="py-2 text-gray-600 truncate max-w-xs">{job?.title ?? '—'}</td>
+                        <td className="py-2 text-gray-600 truncate max-w-xs">{entryWorkLabel(te)}</td>
                         <td className="py-2 text-gray-500 text-xs">{formatDateTime(te.clockIn)}</td>
                         <td className="py-2 text-gray-500 text-xs">{te.clockOut ? formatDateTime(te.clockOut) : <span className="text-green-600 font-medium">Active</span>}</td>
                         <td className="py-2 text-gray-600 max-w-xs truncate">{te.notes?.trim() ? te.notes : '—'}</td>

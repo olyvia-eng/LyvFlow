@@ -4,6 +4,7 @@ import { Clock, LogOut, ShieldCheck } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Card, Input, Select } from '../../components/ui';
 import { durationHours, formatDateTime } from '../../utils';
+import type { TimeEntryWorkType } from '../../types';
 
 interface EmployeePortalPageProps {
   sessionEmployeeEmail?: string;
@@ -13,7 +14,8 @@ interface EmployeePortalPageProps {
 export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: EmployeePortalPageProps) {
   const { employees, jobs, timeEntries, clockIn, clockOut } = useStore();
 
-  const [selectedJobId, setSelectedJobId] = useState('');
+  const [clockType, setClockType] = useState<TimeEntryWorkType>('job');
+  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [jobNotes, setJobNotes] = useState('');
 
   const sessionEmployee = useMemo(() => {
@@ -46,20 +48,48 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
       return;
     }
 
-    setSelectedJobId('');
+    setClockType('job');
+    setSelectedJobIds([]);
     setJobNotes('');
   };
 
   const handleClockIn = () => {
-    if (!employee || !selectedJobId) return;
-    clockIn(employee.id, selectedJobId);
-    setSelectedJobId('');
+    if (!employee) return;
+    if (clockType === 'job' && selectedJobIds.length === 0) return;
+
+    clockIn(employee.id, {
+      workType: clockType,
+      jobIds: clockType === 'job' ? selectedJobIds : [],
+    });
+    setSelectedJobIds([]);
   };
 
   const handleClockOut = () => {
     if (!activeEntry) return;
     clockOut(activeEntry.id, 0, jobNotes.trim());
     setJobNotes('');
+  };
+
+  const activeEntryJobTitle = useMemo(() => {
+    if (!activeEntry) return '—';
+    if (activeEntry.workType === 'drive_time') return 'Drive Time';
+    if (activeEntry.workType === 'non_billable') return 'Non-Billable Work';
+
+    const ids = Array.isArray(activeEntry.jobIds) && activeEntry.jobIds.length > 0
+      ? activeEntry.jobIds
+      : (activeEntry.jobId ? [activeEntry.jobId] : []);
+    const titles = ids
+      .map((id) => jobs.find((job) => job.id === id)?.title)
+      .filter((value): value is string => Boolean(value));
+    return titles.length > 0 ? titles.join(', ') : 'Job Work';
+  }, [activeEntry, jobs]);
+
+  const toggleJobSelection = (jobId: string) => {
+    setSelectedJobIds((current) =>
+      current.includes(jobId)
+        ? current.filter((id) => id !== jobId)
+        : [...current, jobId]
+    );
   };
 
   return (
@@ -93,6 +123,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                   <p className="text-sm text-green-700">
                     Since {formatDateTime(activeEntry.clockIn)}
                   </p>
+                  <p className="text-sm text-green-700">{activeEntryJobTitle}</p>
                   <p className="text-sm text-green-700">
                     Hours so far: {durationHours(activeEntry.clockIn).toFixed(2)}
                   </p>
@@ -111,28 +142,48 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                 </div>
               ) : (
                 <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                  <p className="font-semibold text-blue-800">Select a job to clock in</p>
+                  <p className="font-semibold text-blue-800">Choose clock-in type</p>
                   <Select
-                    value={selectedJobId}
-                    onChange={(event) => setSelectedJobId(event.target.value)}
+                    value={clockType}
+                    onChange={(event) => {
+                      const next = event.target.value as TimeEntryWorkType;
+                      setClockType(next);
+                      if (next !== 'job') setSelectedJobIds([]);
+                    }}
                   >
-                    <option value="">Choose a job</option>
-                    {activeJobs.map((job) => (
-                      <option key={job.id} value={job.id}>
-                        {job.title}
-                      </option>
-                    ))}
+                    <option value="job">Job Work</option>
+                    <option value="drive_time">Drive Time</option>
+                    <option value="non_billable">Non-Billable Work</option>
                   </Select>
+
+                  {clockType === 'job' && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-blue-800">Select one or more jobs</p>
+                      <div className="max-h-44 overflow-y-auto rounded-lg border border-blue-200 bg-white p-2">
+                        {activeJobs.map((job) => (
+                          <label key={job.id} className="flex items-center gap-2 px-2 py-1 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={selectedJobIds.includes(job.id)}
+                              onChange={() => toggleJobSelection(job.id)}
+                            />
+                            <span>{job.title}</span>
+                          </label>
+                        ))}
+                        {activeJobs.length === 0 && (
+                          <p className="text-sm text-blue-700 px-2 py-1">No active or scheduled jobs are available.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <Button
                     onClick={handleClockIn}
-                    disabled={!selectedJobId}
+                    disabled={clockType === 'job' && selectedJobIds.length === 0}
                     className="w-full justify-center"
                   >
                     <Clock size={16} /> Clock In
                   </Button>
-                  {activeJobs.length === 0 && (
-                    <p className="text-sm text-blue-700">No active or scheduled jobs are available.</p>
-                  )}
                 </div>
               )}
 

@@ -122,11 +122,14 @@ export interface Employee {
 }
 
 export type ClockStatus = 'clocked_in' | 'clocked_out';
+export type TimeEntryWorkType = 'job' | 'drive_time' | 'non_billable';
 
 export interface TimeEntry {
   id: ID;
   employeeId: ID;
-  jobId: ID;
+  jobId?: ID;
+  jobIds?: ID[];
+  workType: TimeEntryWorkType;
   clockIn: string;
   clockOut?: string;
   breakMinutes: number;
