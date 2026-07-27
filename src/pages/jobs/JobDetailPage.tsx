@@ -30,6 +30,16 @@ export default function JobDetailPage() {
   const marginPct = job.contractValue > 0 ? (profit / job.contractValue) * 100 : 0;
   const hoursPct = job.estimatedHours > 0 ? Math.min(100, (job.actualHours / job.estimatedHours) * 100) : 0;
 
+  const timeEntryTypeMeta = (entry: { workType?: string }) => {
+    if (entry.workType === 'drive_time') {
+      return { label: 'Drive Time', className: 'bg-amber-100 text-amber-700' };
+    }
+    if (entry.workType === 'non_billable') {
+      return { label: 'Non-Billable', className: 'bg-slate-100 text-slate-700' };
+    }
+    return { label: 'Job Work', className: 'bg-blue-100 text-blue-700' };
+  };
+
   const [costModal, setCostModal] = useState(false);
   const [costForm, setCostForm] = useState<Omit<CostEntry, 'id'>>({
     category: 'labour', description: '', quantity: 1, unit: 'hr', unitCost: 0, total: 0, date: new Date().toISOString().slice(0, 10),
@@ -150,10 +160,16 @@ export default function JobDetailPage() {
               {jobTimeEntries.map((te) => {
                 const emp = employees.find((e) => e.id === te.employeeId);
                 const hrs = durationHours(te.clockIn, te.clockOut, te.breakMinutes);
+                const typeMeta = timeEntryTypeMeta(te);
                 return (
                   <li key={te.id} className="px-4 py-2 flex items-center justify-between text-sm">
                     <div>
-                      <p className="font-medium">{emp?.name ?? '—'}</p>
+                      <p className="font-medium flex items-center gap-2">
+                        <span>{emp?.name ?? '—'}</span>
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${typeMeta.className}`}>
+                          {typeMeta.label}
+                        </span>
+                      </p>
                       <p className="text-xs text-gray-400">{formatDateTime(te.clockIn)} → {te.clockOut ? formatDateTime(te.clockOut) : 'Active'}</p>
                       <p className="text-xs text-gray-500">Notes: {te.notes?.trim() ? te.notes : '—'}</p>
                     </div>

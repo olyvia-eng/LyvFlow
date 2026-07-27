@@ -129,6 +129,16 @@ export default function EmployeesPage() {
   const getActiveEntry = (empId: string) =>
     timeEntries.find((te) => te.employeeId === empId && te.status === 'clocked_in');
 
+  const entryTypeMeta = (entry: { workType?: string }) => {
+    if (entry.workType === 'drive_time') {
+      return { label: 'Drive Time', className: 'bg-amber-100 text-amber-700' };
+    }
+    if (entry.workType === 'non_billable') {
+      return { label: 'Non-Billable', className: 'bg-slate-100 text-slate-700' };
+    }
+    return { label: 'Job Work', className: 'bg-blue-100 text-blue-700' };
+  };
+
   const entryWorkLabel = (entry: { workType?: string; jobId?: string; jobIds?: string[] }) => {
     if (entry.workType === 'drive_time') return 'Drive Time';
     if (entry.workType === 'non_billable') return 'Non-Billable Work';
@@ -241,10 +251,16 @@ export default function EmployeesPage() {
                   {[...timeEntries].reverse().slice(0, 20).map((te) => {
                     const emp = employees.find((e) => e.id === te.employeeId);
                     const hrs = durationHours(te.clockIn, te.clockOut, te.breakMinutes);
+                    const typeMeta = entryTypeMeta(te);
                     return (
                       <tr key={te.id} className="hover:bg-gray-50">
                         <td className="px-4 py-2 font-medium">{emp?.name ?? '—'}</td>
-                        <td className="py-2 text-gray-600 truncate max-w-xs">{entryWorkLabel(te)}</td>
+                        <td className="py-2 text-gray-600 max-w-xs">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${typeMeta.className}`}>
+                            {typeMeta.label}
+                          </span>
+                          <p className="text-xs text-gray-500 truncate mt-1">{entryWorkLabel(te)}</p>
+                        </td>
                         <td className="py-2 text-gray-500 text-xs">{formatDateTime(te.clockIn)}</td>
                         <td className="py-2 text-gray-500 text-xs">{te.clockOut ? formatDateTime(te.clockOut) : <span className="text-green-600 font-medium">Active</span>}</td>
                         <td className="py-2 text-gray-600 max-w-xs truncate">{te.notes?.trim() ? te.notes : '—'}</td>

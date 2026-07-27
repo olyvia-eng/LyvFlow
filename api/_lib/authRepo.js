@@ -4,6 +4,7 @@ import {
   PutCommand,
   QueryCommand,
   DeleteCommand,
+  ScanCommand,
   TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { ddb, tableName } from './db.js';
@@ -173,13 +174,31 @@ export async function authenticateUser(email, password) {
     })
   );
 
-  if (!lookup.Item) {
+  let lookupItem = lookup.Item ?? null;
+
+  if (!lookupItem) {
+    const legacyLookup = await ddb.send(
+      new ScanCommand({
+        TableName: tableName,
+        FilterExpression: 'entityType = :entityType AND email = :email AND active = :active',
+        ExpressionAttributeValues: {
+          ':entityType': 'USER',
+          ':email': normalizedEmail,
+          ':active': true,
+        },
+      })
+    );
+
+    lookupItem = legacyLookup.Items?.[0] ?? null;
+  }
+
+  if (!lookupItem) {
     return { ok: false, error: 'Invalid email or password.' };
   }
 
   const userKey = {
-    PK: businessPk(lookup.Item.businessId),
-    SK: userSk(lookup.Item.userId),
+    PK: businessPk(lookupItem.businessId),
+    SK: userSk(lookupItem.userId),
   };
 
   const userRes = await ddb.send(
@@ -210,6 +229,27 @@ export async function authenticateUser(email, password) {
 
   if (!businessRes.Item) {
     return { ok: false, error: 'Business account not found.' };
+  }
+
+  if (!lookup.Item) {
+    try {
+      await ddb.send(
+        new PutCommand({
+          TableName: tableName,
+          Item: {
+            PK: emailPk(normalizedEmail),
+            SK: 'USER',
+            entityType: 'EMAIL_LOOKUP',
+            businessId: userRes.Item.businessId,
+            userId: userRes.Item.userId,
+            createdAt: nowIso(),
+          },
+          ConditionExpression: 'attribute_not_exists(PK)',
+        })
+      );
+    } catch {
+      // Ignore backfill errors; login already succeeded.
+    }
   }
 
   return {
