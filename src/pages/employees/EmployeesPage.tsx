@@ -154,6 +154,7 @@ export default function EmployeesPage() {
 
   const handleClockOut = () => {
     if (!clockOutEntry) return;
+    if (!jobNotes.trim()) return;
     clockOut(clockOutEntry, 0, jobNotes.trim());
     setClockOutEntry(null);
     setJobNotes('');
@@ -329,7 +330,8 @@ export default function EmployeesPage() {
       >
         <div className="space-y-4">
           <p className="text-gray-600">Add job notes before clocking out.</p>
-          <Input label="Job Notes" value={jobNotes} onChange={(e) => setJobNotes(e.target.value)} />
+          <Input label="Job Notes" value={jobNotes} onChange={(e) => setJobNotes(e.target.value)} placeholder="Required before clocking out" />
+          {!jobNotes.trim() && <p className="text-xs text-red-600">Job notes are required before clocking out.</p>}
         </div>
       </Modal>
 

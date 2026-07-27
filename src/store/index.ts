@@ -314,6 +314,7 @@ interface AppState {
   clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[] }) => void;
   clockOut: (entryId: ID, breakMinutes?: number, notes?: string) => void;
   addTimeEntry: (e: Omit<TimeEntry, 'id'>) => void;
+  updateTimeEntry: (id: ID, data: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: ID) => void;
 
   // Budget
@@ -791,6 +792,26 @@ export const useStore = create<AppState>()(
         })).catch(() => {
           set({ timeEntries: previous });
           emitAppToast({ tone: 'error', message: 'Time entry could not be saved.' });
+        });
+      },
+      updateTimeEntry: (id, data) => {
+        const previous = get().timeEntries;
+        set((s) => ({
+          timeEntries: s.timeEntries.map((te) =>
+            te.id === id ? { ...te, ...data } : te
+          ),
+        }));
+
+        void ensureOk(fetch(dataUrl('time-entries', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data }),
+        })).catch(() => {
+          set({ timeEntries: previous });
+          emitAppToast({ tone: 'error', message: 'Time entry could not be updated.' });
         });
       },
       deleteTimeEntry: (id) => {

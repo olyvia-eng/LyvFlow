@@ -47,6 +47,7 @@ export default function ClockInModal({ open, onClose }: Props) {
 
   const handleClockOut = () => {
     if (!activeEntry) return;
+    if (!jobNotes.trim()) return;
     clockOut(activeEntry.id, 0, jobNotes.trim());
     reset();
     onClose();
@@ -131,10 +132,12 @@ export default function ClockInModal({ open, onClose }: Props) {
               placeholder="What was completed on this job?"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
+            <p className="text-xs text-gray-500">Required before clocking out.</p>
           </div>
-          <Button variant="danger" className="w-full justify-center py-3 text-base" onClick={handleClockOut}>
+          <Button variant="danger" className="w-full justify-center py-3 text-base" onClick={handleClockOut} disabled={!jobNotes.trim()}>
             <LogOut size={18} /> Clock Out
           </Button>
+          {!jobNotes.trim() && <p className="text-xs text-red-600">Job notes are required before clocking out.</p>}
           <button onClick={reset} className="text-sm text-gray-400 hover:text-gray-600">← Back</button>
         </div>
       )}

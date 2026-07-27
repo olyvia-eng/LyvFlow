@@ -66,6 +66,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
 
   const handleClockOut = () => {
     if (!activeEntry) return;
+    if (!jobNotes.trim()) return;
     clockOut(activeEntry.id, 0, jobNotes.trim());
     setJobNotes('');
   };
@@ -132,14 +133,19 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                     label="Job Notes"
                     value={jobNotes}
                     onChange={(event) => setJobNotes(event.target.value)}
+                    placeholder="Required before clocking out"
                   />
                   <Button
                     variant="danger"
                     onClick={handleClockOut}
+                    disabled={!jobNotes.trim()}
                     className="w-full justify-center"
                   >
                     <LogOut size={16} /> Clock Out
                   </Button>
+                  {!jobNotes.trim() && (
+                    <p className="text-xs text-red-600">Job notes are required before clocking out.</p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">

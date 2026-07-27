@@ -9,6 +9,7 @@ import {
   UserCheck,
   CalendarDays,
   BarChart3,
+  Clock,
   LogOut,
   Menu,
   X,
@@ -40,7 +41,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems =
     userRole === 'owner' || userRole === 'admin'
-      ? [...BASE_NAV_ITEMS, { to: '/user-access', label: 'User Access', icon: Shield }]
+      ? [...BASE_NAV_ITEMS, { to: '/time-reports', label: 'Time Reports', icon: Clock }, { to: '/user-access', label: 'User Access', icon: Shield }]
       : BASE_NAV_ITEMS;
 
   const navLink = (item: typeof BASE_NAV_ITEMS[0]) => (

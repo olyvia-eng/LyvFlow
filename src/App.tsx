@@ -10,6 +10,7 @@ import JobDetailPage from './pages/jobs/JobDetailPage';
 import BudgetPage from './pages/budget/BudgetPage';
 import EmployeesPage from './pages/employees/EmployeesPage';
 import DataCenterPage from './pages/datacenter/DataCenterPage';
+import TimeReportsPage from './pages/reports/TimeReportsPage';
 import EmployeePortalPage from './pages/employees/EmployeePortalPage';
 import CalendarPage from './pages/calendar/CalendarPage';
 import LoginPage from './pages/auth/LoginPage';
@@ -38,6 +39,7 @@ export default function App() {
 
   const canManageUsers =
     sessionUser?.role === 'owner' || sessionUser?.role === 'admin';
+  const canViewReports = sessionUser?.role === 'owner' || sessionUser?.role === 'admin';
 
   const loadBusinessData = async () => {
     if (!sessionUser) return;
@@ -362,6 +364,16 @@ export default function App() {
               <Route path="budget" element={<BudgetPage />} />
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="data-center" element={<DataCenterPage />} />
+              <Route
+                path="time-reports"
+                element={
+                  canViewReports ? (
+                    <TimeReportsPage currentUserRole={sessionUser.role} />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
               <Route
                 path="user-access"
                 element={
