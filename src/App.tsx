@@ -235,7 +235,10 @@ export default function App() {
       if (!body?.error && response.status === 403) {
         return { ok: false, error: 'You do not have permission to create users.' };
       }
-      return { ok: false, error: body?.error ?? 'Could not create user.' };
+      if (!body?.error) {
+        return { ok: false, error: `Could not create user (HTTP ${response.status}).` };
+      }
+      return { ok: false, error: body.error };
     }
 
     await loadUsers();
