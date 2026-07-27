@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { useStore } from '../../store';
-import { Card, PageHeader, StatCard, Button, Select } from '../../components/ui';
+import { Card, PageHeader, StatCard, Button, Select, Input } from '../../components/ui';
 import { durationHours, formatDateTime } from '../../utils';
 import type { BusinessUserRole } from '../../auth/types';
 import type { TimeEntry, TimeEntryWorkType } from '../../types';
@@ -12,7 +12,6 @@ interface TimeReportsPageProps {
 }
 
 type WorkTypeFilter = 'all' | TimeEntryWorkType;
-type EmployeeFilter = 'all' | string;
 
 function normalizeWorkType(entry: Partial<TimeEntry>): TimeEntryWorkType {
   if (entry.workType === 'drive_time' || entry.workType === 'non_billable') return entry.workType;
@@ -42,13 +41,26 @@ function entryLabel(entry: Partial<TimeEntry>, jobs: Array<{ id: string; title: 
   return titles.length > 0 ? titles.join(', ') : 'Job Work';
 }
 
+function escapeCsvValue(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return '';
+  const text = String(value);
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`;
+  }
+  return text;
+}
+
 export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProps) {
   const { timeEntries, jobs, employees, updateTimeEntry } = useStore();
   const [startDate, setStartDate] = useState(format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [workTypeFilter, setWorkTypeFilter] = useState<WorkTypeFilter>('all');
-  const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>('all');
+  const [employeeSearch, setEmployeeSearch] = useState('');
   const [backfillRunning, setBackfillRunning] = useState(false);
+
+  const employeeSearchValue = employeeSearch.trim().toLowerCase();
+
+  const getEmployeeName = (employeeId: string) => employees.find((employee) => employee.id === employeeId)?.name ?? 'Unknown';
 
   const filteredEntries = useMemo(() => {
     const start = new Date(`${startDate}T00:00:00`);
@@ -60,14 +72,17 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
         if (Number.isNaN(clockInDate.getTime())) return false;
         if (clockInDate < start || clockInDate > end) return false;
 
-            if (employeeFilter !== 'all' && entry.employeeId !== employeeFilter) return false;
+        if (employeeSearchValue) {
+          const employeeName = getEmployeeName(entry.employeeId).toLowerCase();
+          if (!employeeName.includes(employeeSearchValue)) return false;
+        }
 
         const workType = normalizeWorkType(entry);
         if (workTypeFilter !== 'all' && workType !== workTypeFilter) return false;
         return true;
       })
       .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-  }, [employeeFilter, endDate, startDate, timeEntries, workTypeFilter]);
+  }, [employeeSearchValue, endDate, getEmployeeName, startDate, timeEntries, workTypeFilter]);
 
   const totalsByType = useMemo(() => {
     const totals: Record<TimeEntryWorkType, number> = {
@@ -166,6 +181,57 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
 
   const totalHours = filteredEntries.reduce((sum, entry) => sum + durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes), 0);
 
+  const employeeSummaryRows = useMemo(() => {
+    const map = new Map<string, { total: number; job: number; drive_time: number; non_billable: number }>();
+
+    filteredEntries.forEach((entry) => {
+      const hours = durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes);
+      const workType = normalizeWorkType(entry);
+      const current = map.get(entry.employeeId) ?? {
+        total: 0,
+        job: 0,
+        drive_time: 0,
+        non_billable: 0,
+      };
+
+      current.total += hours;
+      current[workType] += hours;
+      map.set(entry.employeeId, current);
+    });
+
+    return [...map.entries()]
+      .map(([employeeId, totals]) => ({
+        employeeId,
+        employeeName: getEmployeeName(employeeId),
+        ...totals,
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [filteredEntries]);
+
+  const handleExportSummaryCsv = () => {
+    const header = ['Employee', 'Total Hours', 'Job Hours', 'Drive Time Hours', 'Non-Billable Hours'];
+
+    const rows = employeeSummaryRows.map((row) => [
+      row.employeeName,
+      row.total.toFixed(2),
+      row.job.toFixed(2),
+      row.drive_time.toFixed(2),
+      row.non_billable.toFixed(2),
+    ]);
+
+    const csv = [header, ...rows]
+      .map((row) => row.map((value) => escapeCsvValue(value)).join(','))
+      .join('\r\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `time-summary-${startDate}-to-${endDate}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
       <PageHeader
@@ -181,7 +247,7 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
       </div>
 
       <Card className="p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <label className="text-sm text-gray-600">
             <span className="block mb-1 font-medium text-gray-700">Start Date</span>
             <input
@@ -209,14 +275,12 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
             </Select>
           </div>
           <div>
-            <Select label="Employee" value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value as EmployeeFilter)}>
-              <option value="all">All Employees</option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name}
-                </option>
-              ))}
-            </Select>
+            <Input
+              label="Employee Search"
+              value={employeeSearch}
+              onChange={(event) => setEmployeeSearch(event.target.value)}
+              placeholder="Search by employee name"
+            />
           </div>
           <div className="flex items-end">
             <p className="text-sm text-gray-500">Showing {filteredEntries.length} entries</p>
@@ -284,14 +348,19 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
             <h2 className="font-semibold text-gray-800">Time Entry Detail</h2>
             <p className="text-xs text-gray-500">Job totals split evenly across selected jobs.</p>
           </div>
-          {currentUserRole === 'admin' && (
-            <div className="flex items-center gap-3">
-              <p className="text-xs text-gray-500">Legacy entries needing backfill: {legacyEntries.length}</p>
-              <Button onClick={() => void backfillLegacyEntries()} disabled={backfillRunning || legacyEntries.length === 0}>
-                {backfillRunning ? 'Backfilling...' : 'Backfill Legacy Entries'}
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <Button onClick={handleExportSummaryCsv} disabled={filteredEntries.length === 0}>
+              Bookkeeper Export
+            </Button>
+            {currentUserRole === 'admin' && (
+              <>
+                <p className="text-xs text-gray-500">Legacy entries needing backfill: {legacyEntries.length}</p>
+                <Button onClick={() => void backfillLegacyEntries()} disabled={backfillRunning || legacyEntries.length === 0}>
+                  {backfillRunning ? 'Backfilling...' : 'Backfill Legacy Entries'}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -310,12 +379,11 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
               {filteredEntries.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-6 text-gray-400">No entries match these filters.</td></tr>
               ) : filteredEntries.map((entry) => {
-                const employee = employees.find((item) => item.id === entry.employeeId);
                 const workType = normalizeWorkType(entry);
                 const hours = durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes);
                 return (
                   <tr key={entry.id} className="hover:bg-gray-50 align-top">
-                    <td className="px-4 py-2 font-medium text-gray-800">{employee?.name ?? 'Unknown'}</td>
+                    <td className="px-4 py-2 font-medium text-gray-800">{getEmployeeName(entry.employeeId)}</td>
                     <td className="py-2 capitalize text-gray-600">{workType.replace('_', ' ')}</td>
                     <td className="py-2 text-gray-600 max-w-xs truncate">{entryLabel(entry, jobs)}</td>
                     <td className="py-2 text-gray-500 text-xs">{formatDateTime(entry.clockIn)}</td>
