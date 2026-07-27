@@ -137,6 +137,17 @@ export interface TimeEntry {
   status: ClockStatus;
 }
 
+export interface AuditEvent {
+  id: ID;
+  action: 'backfill_time_entries' | string;
+  actorUserId: ID;
+  actorName: string;
+  actorEmail: string;
+  affectedEntryCount: number;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+}
+
 // ─── Budget ──────────────────────────────────────────────────────────────────
 
 export type BudgetCategory =

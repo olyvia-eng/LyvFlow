@@ -1,14 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { useStore } from '../../store';
 import { Card, PageHeader, StatCard, Button, Select, Input } from '../../components/ui';
-import { durationHours, formatDateTime } from '../../utils';
+import { durationHours, formatDateTime, generateId, nowISO } from '../../utils';
 import type { BusinessUserRole } from '../../auth/types';
-import type { TimeEntry, TimeEntryWorkType } from '../../types';
+import type { AuditEvent, TimeEntry, TimeEntryWorkType } from '../../types';
 import { emitAppToast } from '../../toast';
 
 interface TimeReportsPageProps {
   currentUserRole: BusinessUserRole;
+  currentUserId: string;
+  currentUserName: string;
+  currentUserEmail: string;
 }
 
 type WorkTypeFilter = 'all' | TimeEntryWorkType;
@@ -51,7 +54,12 @@ function escapeCsvValue(value: string | number | null | undefined) {
   return text;
 }
 
-export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProps) {
+export default function TimeReportsPage({
+  currentUserRole,
+  currentUserId,
+  currentUserName,
+  currentUserEmail,
+}: TimeReportsPageProps) {
   const { timeEntries, jobs, employees, updateTimeEntry } = useStore();
   const [startDate, setStartDate] = useState(format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -59,12 +67,50 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [jobFilter, setJobFilter] = useState<JobFilter>('all');
   const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillAuditEvents, setBackfillAuditEvents] = useState<AuditEvent[]>([]);
+  const [loadingBackfillAudits, setLoadingBackfillAudits] = useState(false);
 
   const employeeSearchValue = employeeSearch.trim().toLowerCase();
   const jobsSorted = useMemo(() => [...jobs].sort((a, b) => a.title.localeCompare(b.title)), [jobs]);
 
   const getEmployeeName = (employeeId: string) => employees.find((employee) => employee.id === employeeId)?.name ?? 'Unknown';
   const getJobTitle = (jobId: string) => jobs.find((job) => job.id === jobId)?.title ?? 'Unknown job';
+
+  useEffect(() => {
+    if (currentUserRole !== 'admin' && currentUserRole !== 'owner') {
+      setBackfillAuditEvents([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadBackfillAuditEvents = async () => {
+      setLoadingBackfillAudits(true);
+      try {
+        const response = await fetch('/api/data?entity=audit-events', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { ok?: boolean; items?: AuditEvent[] };
+        if (!payload.ok || !Array.isArray(payload.items)) return;
+
+        const events = payload.items
+          .filter((item) => item.action === 'backfill_time_entries')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 8);
+
+        if (!cancelled) setBackfillAuditEvents(events);
+      } finally {
+        if (!cancelled) setLoadingBackfillAudits(false);
+      }
+    };
+
+    void loadBackfillAuditEvents();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserRole]);
 
   const filteredEntries = useMemo(() => {
     const start = new Date(`${startDate}T00:00:00`);
@@ -183,6 +229,38 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
           clockOut: entry.clockOut,
           employeeId: entry.employeeId,
         });
+      }
+
+      const auditEvent: AuditEvent = {
+        id: generateId(),
+        action: 'backfill_time_entries',
+        actorUserId: currentUserId,
+        actorName: currentUserName,
+        actorEmail: currentUserEmail,
+        affectedEntryCount: legacyEntries.length,
+        createdAt: nowISO(),
+        metadata: {
+          filters: {
+            startDate,
+            endDate,
+            workTypeFilter,
+            jobFilter,
+            employeeSearch: employeeSearch.trim(),
+          },
+        },
+      };
+
+      const auditResponse = await fetch('/api/data?entity=audit-events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ data: auditEvent }),
+      });
+
+      if (auditResponse.ok) {
+        setBackfillAuditEvents((current) => [auditEvent, ...current].slice(0, 8));
       }
 
       emitAppToast({ tone: 'success', message: 'Legacy time entries backfilled successfully.' });
@@ -446,6 +524,41 @@ export default function TimeReportsPage({ currentUserRole }: TimeReportsPageProp
           </table>
         </div>
       </Card>
+
+      {(currentUserRole === 'admin' || currentUserRole === 'owner') && (
+        <Card className="mt-6 overflow-hidden">
+          <div className="p-4 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-800">Recent Backfill Activity</h2>
+            <p className="text-xs text-gray-500 mt-1">Tracks who ran legacy backfill and how many entries were affected.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-left text-xs">
+                  <th className="px-4 py-2 font-medium">When</th>
+                  <th className="py-2 font-medium">User</th>
+                  <th className="py-2 font-medium">Email</th>
+                  <th className="py-2 font-medium text-right">Entries</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {loadingBackfillAudits ? (
+                  <tr><td colSpan={4} className="px-4 py-4 text-sm text-gray-400">Loading backfill activity...</td></tr>
+                ) : backfillAuditEvents.length === 0 ? (
+                  <tr><td colSpan={4} className="px-4 py-4 text-sm text-gray-400">No backfill activity recorded yet.</td></tr>
+                ) : backfillAuditEvents.map((event) => (
+                  <tr key={event.id}>
+                    <td className="px-4 py-2 text-gray-600 text-xs">{formatDateTime(event.createdAt)}</td>
+                    <td className="py-2 text-gray-700">{event.actorName}</td>
+                    <td className="py-2 text-gray-500">{event.actorEmail}</td>
+                    <td className="py-2 text-right font-semibold text-gray-800">{event.affectedEntryCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {currentUserRole !== 'admin' && (
         <p className="mt-4 text-xs text-gray-500">Backfill tools are restricted to admin users.</p>

@@ -368,7 +368,12 @@ export default function App() {
                 path="time-reports"
                 element={
                   canViewReports ? (
-                    <TimeReportsPage currentUserRole={sessionUser.role} />
+                    <TimeReportsPage
+                      currentUserRole={sessionUser.role}
+                      currentUserId={sessionUser.id}
+                      currentUserName={sessionUser.name}
+                      currentUserEmail={sessionUser.email}
+                    />
                   ) : (
                     <Navigate to="/" replace />
                   )

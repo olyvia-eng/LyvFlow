@@ -60,6 +60,10 @@ function timeEntrySk(entryId) {
   return `TIME#${entryId}`;
 }
 
+function auditEventSk(eventId) {
+  return `AUDIT#${eventId}`;
+}
+
 function emailPk(email) {
   return `EMAIL#${normalizeEmail(email)}`;
 }
@@ -1226,6 +1230,109 @@ export async function deleteTimeEntryForBusiness(businessId, entryId) {
       Key: {
         PK: businessPk(businessId),
         SK: timeEntrySk(entryId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listAuditEventsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'AUDIT#',
+      },
+    })
+  );
+
+  return (result.Items ?? [])
+    .map((item) => ({
+      id: item.eventId,
+      action: item.action,
+      actorUserId: item.actorUserId,
+      actorName: item.actorName,
+      actorEmail: item.actorEmail,
+      affectedEntryCount: item.affectedEntryCount,
+      createdAt: item.createdAt,
+      metadata: item.metadata ?? {},
+    }))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function createAuditEventForBusiness({ businessId, auditEvent }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: auditEventSk(auditEvent.id),
+        entityType: 'AUDIT_EVENT',
+        businessId,
+        eventId: auditEvent.id,
+        ...auditEvent,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getAuditEventForBusiness(businessId, eventId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: auditEventSk(eventId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.eventId,
+        action: result.Item.action,
+        actorUserId: result.Item.actorUserId,
+        actorName: result.Item.actorName,
+        actorEmail: result.Item.actorEmail,
+        affectedEntryCount: result.Item.affectedEntryCount,
+        createdAt: result.Item.createdAt,
+        metadata: result.Item.metadata ?? {},
+      }
+    : null;
+}
+
+export async function updateAuditEventForBusiness({ businessId, auditEvent }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: auditEventSk(auditEvent.id),
+        entityType: 'AUDIT_EVENT',
+        businessId,
+        eventId: auditEvent.id,
+        ...auditEvent,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteAuditEventForBusiness(businessId, eventId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: auditEventSk(eventId),
       },
     })
   );
