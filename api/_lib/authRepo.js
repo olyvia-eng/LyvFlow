@@ -180,11 +180,10 @@ export async function authenticateUser(email, password) {
     const legacyLookup = await ddb.send(
       new ScanCommand({
         TableName: tableName,
-        FilterExpression: 'entityType = :entityType AND email = :email AND active = :active',
+        FilterExpression: 'entityType = :entityType AND email = :email',
         ExpressionAttributeValues: {
           ':entityType': 'USER',
           ':email': normalizedEmail,
-          ':active': true,
         },
       })
     );
@@ -208,7 +207,7 @@ export async function authenticateUser(email, password) {
     })
   );
 
-  if (!userRes.Item || !userRes.Item.active) {
+  if (!userRes.Item || userRes.Item.active === false) {
     return { ok: false, error: 'Invalid email or password.' };
   }
 
