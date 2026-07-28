@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PageHeader, Button, Card, Badge, Modal, Input, Select, TextArea, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Search, ChevronRight } from 'lucide-react';
-import { statusColor, formatCurrency, formatDate } from '../../utils';
+import { statusColor, formatCurrency, formatDate, durationHours } from '../../utils';
 import type { Job, JobStatus } from '../../types';
+import { HIGH_LABOR_VARIANCE_THRESHOLD_PCT, LOW_MARGIN_THRESHOLD_PCT } from '../../config/profitability';
 
 const STATUSES: JobStatus[] = ['scheduled', 'in_progress', 'on_hold', 'completed', 'cancelled'];
+type RiskFilter = 'all' | 'at_risk' | 'over_hours' | 'low_margin' | 'labor_variance';
 
 const empty = (customers: { id: string }[]): Omit<Job, 'id' | 'createdAt' | 'updatedAt'> => ({
   customerId: customers[0]?.id ?? '',
@@ -24,13 +26,75 @@ const empty = (customers: { id: string }[]): Omit<Job, 'id' | 'createdAt' | 'upd
 });
 
 export default function JobsPage() {
-  const { jobs, customers, employees, addJob, updateJob, deleteJob } = useStore();
+  const { jobs, customers, employees, timeEntries, addJob, updateJob, deleteJob } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
   const [form, setForm] = useState(empty(customers));
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const entryJobIds = (entry: { jobIds?: string[]; jobId?: string }) =>
+    Array.isArray(entry.jobIds) && entry.jobIds.length > 0
+      ? entry.jobIds
+      : (entry.jobId ? [entry.jobId] : []);
+
+  const jobRiskById = useMemo(() => {
+    const map = new Map<string, {
+      overHours: boolean;
+      lowMargin: boolean;
+      laborVarianceHigh: boolean;
+      atRisk: boolean;
+      warningBadges: Array<{ label: string; className: string }>;
+    }>();
+
+    jobs.forEach((job) => {
+      const jobEntries = timeEntries.filter((entry) => entryJobIds(entry).includes(job.id));
+
+      let trackedLaborCost = 0;
+      for (const entry of jobEntries) {
+        const ids = entryJobIds(entry);
+        const divisor = ids.length > 0 ? ids.length : 1;
+        const sharedHours = durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes) / divisor;
+        const rate = employees.find((employee) => employee.id === entry.employeeId)?.hourlyRate ?? 0;
+        trackedLaborCost += sharedHours * rate;
+      }
+
+      const recordedLaborCosts = job.actualCosts
+        .filter((cost) => cost.category === 'labour')
+        .reduce((sum, cost) => sum + cost.total, 0);
+      const recordedNonLaborCosts = job.actualCosts
+        .filter((cost) => cost.category !== 'labour')
+        .reduce((sum, cost) => sum + cost.total, 0);
+
+      const projectedCostFromTracking = trackedLaborCost + recordedNonLaborCosts;
+      const projectedProfitFromTracking = job.contractValue - projectedCostFromTracking;
+      const projectedMarginFromTracking =
+        job.contractValue > 0 ? (projectedProfitFromTracking / job.contractValue) * 100 : 0;
+      const laborVariancePct =
+        trackedLaborCost > 0 ? ((recordedLaborCosts - trackedLaborCost) / trackedLaborCost) * 100 : 0;
+
+      const overHours = job.estimatedHours > 0 && job.actualHours > job.estimatedHours;
+      const lowMargin = projectedMarginFromTracking < LOW_MARGIN_THRESHOLD_PCT;
+      const laborVarianceHigh = Math.abs(laborVariancePct) > HIGH_LABOR_VARIANCE_THRESHOLD_PCT;
+
+      const warningBadges: Array<{ label: string; className: string }> = [];
+      if (overHours) warningBadges.push({ label: 'Over Hours', className: 'bg-red-100 text-red-700' });
+      if (lowMargin) warningBadges.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-amber-100 text-amber-700' });
+      if (laborVarianceHigh) warningBadges.push({ label: `Labor Variance (>${HIGH_LABOR_VARIANCE_THRESHOLD_PCT}%)`, className: 'bg-indigo-100 text-indigo-700' });
+
+      map.set(job.id, {
+        overHours,
+        lowMargin,
+        laborVarianceHigh,
+        atRisk: overHours || lowMargin || laborVarianceHigh,
+        warningBadges,
+      });
+    });
+
+    return map;
+  }, [employees, jobs, timeEntries]);
 
   const filtered = jobs.filter((j) => {
     const c = customers.find((c) => c.id === j.customerId);
@@ -38,7 +102,14 @@ export default function JobsPage() {
       j.title.toLowerCase().includes(search.toLowerCase()) ||
       (c?.name ?? '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || j.status === statusFilter;
-    return matchSearch && matchStatus;
+    const risk = jobRiskById.get(j.id);
+    const matchRisk =
+      riskFilter === 'all' ||
+      (riskFilter === 'at_risk' && Boolean(risk?.atRisk)) ||
+      (riskFilter === 'over_hours' && Boolean(risk?.overHours)) ||
+      (riskFilter === 'low_margin' && Boolean(risk?.lowMargin)) ||
+      (riskFilter === 'labor_variance' && Boolean(risk?.laborVarianceHigh));
+    return matchSearch && matchStatus && matchRisk;
   });
 
   const openNew = () => {
@@ -106,6 +177,17 @@ export default function JobsPage() {
           <option value="all">All Statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
         </select>
+        <select
+          value={riskFilter}
+          onChange={(e) => setRiskFilter(e.target.value as RiskFilter)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+        >
+          <option value="all">All Risk Levels</option>
+          <option value="at_risk">At Risk Jobs</option>
+          <option value="over_hours">Over Hours</option>
+          <option value="low_margin">Low Margin</option>
+          <option value="labor_variance">Labor Variance High</option>
+        </select>
       </div>
 
       {filtered.length === 0 ? (
@@ -117,16 +199,25 @@ export default function JobsPage() {
             const actualCostTotal = job.actualCosts.reduce((s, c) => s + c.total, 0);
             const pct = job.estimatedHours > 0 ? Math.min(100, (job.actualHours / job.estimatedHours) * 100) : 0;
             const profit = job.contractValue - actualCostTotal;
+            const risk = jobRiskById.get(job.id);
             return (
               <Card key={job.id} className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge label={job.status} className={statusColor[job.status]} />
+                      {risk?.atRisk && <Badge label="At Risk" className="bg-rose-100 text-rose-700" />}
                       <Link to={`/jobs/${job.id}`} className="font-semibold text-gray-900 hover:text-brand-600 truncate">
                         {job.title}
                       </Link>
                     </div>
+                    {risk && risk.warningBadges.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {risk.warningBadges.map((warning) => (
+                          <Badge key={warning.label} label={warning.label} className={warning.className} />
+                        ))}
+                      </div>
+                    )}
                     <p className="text-sm text-gray-500">{customer?.name ?? '—'} · Started {formatDate(job.startDate)}</p>
                     {/* Hours bar */}
                     <div className="flex items-center gap-2 mt-2">

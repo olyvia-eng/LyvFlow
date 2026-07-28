@@ -35,47 +35,69 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [users, setUsers] = useState<BusinessUserSummary[]>([]);
   const [loadingSession, setLoadingSession] = useState(true);
+  const [loadingBusinessData, setLoadingBusinessData] = useState(false);
+  const [hasLoadedBusinessData, setHasLoadedBusinessData] = useState(false);
+  const [businessDataError, setBusinessDataError] = useState('');
   const [toasts, setToasts] = useState<Array<AppToastDetail & { id: number }>>([]);
 
   const canManageUsers =
     sessionUser?.role === 'owner' || sessionUser?.role === 'admin';
   const canViewReports = sessionUser?.role === 'owner' || sessionUser?.role === 'admin';
 
-  const loadBusinessData = async () => {
-    if (!sessionUser) return;
+  const loadBusinessData = async (user: SessionUser | null = sessionUser) => {
+    if (!user) {
+      setHasLoadedBusinessData(false);
+      setBusinessDataError('');
+      return;
+    }
 
-    const response = await fetch('/api/bootstrap', {
-      method: 'GET',
-      credentials: 'include',
-    });
+    setLoadingBusinessData(true);
+    setBusinessDataError('');
 
-    const payload = await readApiJson<{
-      ok: boolean;
-      customers?: Customer[];
-      jobs?: Job[];
-      estimates?: Estimate[];
-      templates?: EstimateTemplate[];
-      budgetItems?: BudgetItem[];
-      employees?: Employee[];
-      timeEntries?: TimeEntry[];
-    }>(response);
+    try {
+      const response = await fetch('/api/bootstrap', {
+        method: 'GET',
+        credentials: 'include',
+      });
 
-    if (!response.ok || !payload?.ok) return;
+      const payload = await readApiJson<{
+        ok: boolean;
+        customers?: Customer[];
+        jobs?: Job[];
+        estimates?: Estimate[];
+        templates?: EstimateTemplate[];
+        budgetItems?: BudgetItem[];
+        employees?: Employee[];
+        timeEntries?: TimeEntry[];
+      }>(response);
 
-    useStore.setState((state) => ({
-      ...state,
-      customers: payload.customers ?? [],
-      jobs: payload.jobs ?? [],
-      estimates: payload.estimates ?? [],
-      templates: payload.templates ?? [],
-      budgetItems: payload.budgetItems ?? [],
-      employees: payload.employees ?? [],
-      timeEntries: payload.timeEntries ?? [],
-    }));
+      if (!response.ok || !payload?.ok) {
+        setBusinessDataError('Could not load business data. Please retry.');
+        return;
+      }
+
+      useStore.setState((state) => ({
+        ...state,
+        customers: payload.customers ?? [],
+        jobs: payload.jobs ?? [],
+        estimates: payload.estimates ?? [],
+        templates: payload.templates ?? [],
+        budgetItems: payload.budgetItems ?? [],
+        employees: payload.employees ?? [],
+        timeEntries: payload.timeEntries ?? [],
+      }));
+      setBusinessDataError('');
+    } catch {
+      setBusinessDataError('Could not load business data. Please retry.');
+    } finally {
+      setLoadingBusinessData(false);
+      setHasLoadedBusinessData(true);
+    }
   };
 
-  const loadUsers = async () => {
-    if (!sessionUser || !canManageUsers) {
+  const loadUsers = async (user: SessionUser | null = sessionUser) => {
+    const canManage = user?.role === 'owner' || user?.role === 'admin';
+    if (!user || !canManage) {
       setUsers([]);
       return;
     }
@@ -133,11 +155,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void loadUsers();
-  }, [sessionUser]);
+    if (!sessionUser) {
+      setUsers([]);
+      setHasLoadedBusinessData(false);
+      return;
+    }
 
-  useEffect(() => {
-    void loadBusinessData();
+    setHasLoadedBusinessData(false);
+    void loadUsers(sessionUser);
+    void loadBusinessData(sessionUser);
   }, [sessionUser]);
 
   useEffect(() => {
@@ -174,8 +200,8 @@ export default function App() {
     }
 
     setSessionUser(payload.user);
-    await loadUsers();
-    await loadBusinessData();
+    await loadUsers(payload.user);
+    await loadBusinessData(payload.user);
     return true;
   };
 
@@ -200,8 +226,8 @@ export default function App() {
     }
 
     setSessionUser(body.user);
-    await loadUsers();
-    await loadBusinessData();
+    await loadUsers(body.user);
+    await loadBusinessData(body.user);
     return { ok: true };
   };
 
@@ -290,13 +316,17 @@ export default function App() {
       credentials: 'include',
     });
     setSessionUser(null);
+    setHasLoadedBusinessData(false);
+    setBusinessDataError('');
     setUsers([]);
   };
 
-  if (loadingSession) {
+  const showBusinessDataLoading = Boolean(sessionUser) && (loadingBusinessData || !hasLoadedBusinessData);
+
+  if (loadingSession || showBusinessDataLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
-        Loading...
+        Loading business data...
       </div>
     );
   }
@@ -317,6 +347,24 @@ export default function App() {
           </div>
         ))}
       </div>
+      {sessionUser && businessDataError && (
+        <div className="fixed top-4 left-4 right-4 z-[90] sm:left-auto sm:right-4 sm:max-w-md">
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg">
+            <p className="font-medium">Business data could not be loaded.</p>
+            <p className="mt-1 text-amber-800">{businessDataError}</p>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => void loadBusinessData(sessionUser)}
+                className="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={loadingBusinessData}
+              >
+                {loadingBusinessData ? 'Retrying...' : 'Retry'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <BrowserRouter>
       <Routes>
         <Route
