@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Card, Button, Badge, Modal, Input, Select } from '../../components/ui';
 import { statusColor, formatCurrency, formatDate, formatDateTime, durationHours } from '../../utils';
+import { HIGH_LABOR_VARIANCE_THRESHOLD_PCT, LOW_MARGIN_THRESHOLD_PCT } from '../../config/profitability';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { CostEntry, LineItemCategory, JobStatus } from '../../types';
 
@@ -77,6 +78,24 @@ export default function JobDetailPage() {
       laborVariancePct,
     };
   }, [employees, job.actualCosts, job.contractValue, jobTimeEntries]);
+
+  const profitabilityWarnings = useMemo(() => {
+    const warnings: Array<{ label: string; className: string }> = [];
+
+    if (job.estimatedHours > 0 && job.actualHours > job.estimatedHours) {
+      warnings.push({ label: 'Over Hours', className: 'bg-red-100 text-red-700' });
+    }
+
+    if (profitability.projectedMarginFromTracking < LOW_MARGIN_THRESHOLD_PCT) {
+      warnings.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-amber-100 text-amber-700' });
+    }
+
+    if (Math.abs(profitability.laborVariancePct) > HIGH_LABOR_VARIANCE_THRESHOLD_PCT) {
+      warnings.push({ label: `Labor Variance High (>${HIGH_LABOR_VARIANCE_THRESHOLD_PCT}%)`, className: 'bg-indigo-100 text-indigo-700' });
+    }
+
+    return warnings;
+  }, [job.actualHours, job.estimatedHours, profitability.laborVariancePct, profitability.projectedMarginFromTracking]);
 
   const timeEntryTypeMeta = (entry: { workType?: string }) => {
     if (entry.workType === 'drive_time') {
@@ -158,8 +177,17 @@ export default function JobDetailPage() {
       </div>
 
       <Card className="p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-gray-900">Job Profitability (Tracked)</h2>
+        <div className="flex items-center justify-between mb-3 gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-900">Job Profitability (Tracked)</h2>
+            {profitabilityWarnings.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {profitabilityWarnings.map((warning) => (
+                  <Badge key={warning.label} label={warning.label} className={warning.className} />
+                ))}
+              </div>
+            )}
+          </div>
           <span className="text-xs text-gray-500">Uses shared hours for multi-job time entries</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
