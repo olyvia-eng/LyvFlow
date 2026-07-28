@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Card, Button, Badge, Modal, Input, Select } from '../../components/ui';
@@ -18,17 +18,65 @@ export default function JobDetailPage() {
 
   const customer = customers.find((c) => c.id === job.customerId);
   const assignedEmployees = employees.filter((e) => job.assignedEmployeeIds.includes(e.id));
-  const jobTimeEntries = timeEntries.filter((te) => {
-    const ids = Array.isArray(te.jobIds) && te.jobIds.length > 0
-      ? te.jobIds
-      : (te.jobId ? [te.jobId] : []);
-    return ids.includes(id);
-  });
+  const entryJobIds = (entry: { jobIds?: string[]; jobId?: string }) =>
+    Array.isArray(entry.jobIds) && entry.jobIds.length > 0
+      ? entry.jobIds
+      : (entry.jobId ? [entry.jobId] : []);
+
+  const jobTimeEntries = timeEntries.filter((te) => entryJobIds(te).includes(id));
 
   const actualCostTotal = job.actualCosts.reduce((s, c) => s + c.total, 0);
   const profit = job.contractValue - actualCostTotal;
   const marginPct = job.contractValue > 0 ? (profit / job.contractValue) * 100 : 0;
   const hoursPct = job.estimatedHours > 0 ? Math.min(100, (job.actualHours / job.estimatedHours) * 100) : 0;
+
+  const profitability = useMemo(() => {
+    let trackedHours = 0;
+    let trackedBillableHours = 0;
+    let trackedNonBillableHours = 0;
+    let trackedLaborCost = 0;
+
+    for (const entry of jobTimeEntries) {
+      const ids = entryJobIds(entry);
+      const divisor = ids.length > 0 ? ids.length : 1;
+      const sharedHours = durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes) / divisor;
+
+      trackedHours += sharedHours;
+      if (entry.workType === 'non_billable') trackedNonBillableHours += sharedHours;
+      else trackedBillableHours += sharedHours;
+
+      const rate = employees.find((employee) => employee.id === entry.employeeId)?.hourlyRate ?? 0;
+      trackedLaborCost += sharedHours * rate;
+    }
+
+    const recordedLaborCosts = job.actualCosts
+      .filter((cost) => cost.category === 'labour')
+      .reduce((sum, cost) => sum + cost.total, 0);
+    const recordedNonLaborCosts = job.actualCosts
+      .filter((cost) => cost.category !== 'labour')
+      .reduce((sum, cost) => sum + cost.total, 0);
+
+    const projectedCostFromTracking = trackedLaborCost + recordedNonLaborCosts;
+    const projectedProfitFromTracking = job.contractValue - projectedCostFromTracking;
+    const projectedMarginFromTracking =
+      job.contractValue > 0 ? (projectedProfitFromTracking / job.contractValue) * 100 : 0;
+    const laborVariance = recordedLaborCosts - trackedLaborCost;
+    const laborVariancePct = trackedLaborCost > 0 ? (laborVariance / trackedLaborCost) * 100 : 0;
+
+    return {
+      trackedHours,
+      trackedBillableHours,
+      trackedNonBillableHours,
+      trackedLaborCost,
+      recordedLaborCosts,
+      recordedNonLaborCosts,
+      projectedCostFromTracking,
+      projectedProfitFromTracking,
+      projectedMarginFromTracking,
+      laborVariance,
+      laborVariancePct,
+    };
+  }, [employees, job.actualCosts, job.contractValue, jobTimeEntries]);
 
   const timeEntryTypeMeta = (entry: { workType?: string }) => {
     if (entry.workType === 'drive_time') {
@@ -108,6 +156,40 @@ export default function JobDetailPage() {
           </div>
         </Card>
       </div>
+
+      <Card className="p-4 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-gray-900">Job Profitability (Tracked)</h2>
+          <span className="text-xs text-gray-500">Uses shared hours for multi-job time entries</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
+          <div>
+            <p className="text-gray-500">Tracked Hours</p>
+            <p className="font-semibold text-gray-900">{profitability.trackedHours.toFixed(2)}h</p>
+            <p className="text-xs text-gray-400">Billable {profitability.trackedBillableHours.toFixed(2)}h · Non-billable {profitability.trackedNonBillableHours.toFixed(2)}h</p>
+          </div>
+          <div>
+            <p className="text-gray-500">Tracked Labor Cost</p>
+            <p className="font-semibold text-gray-900">{formatCurrency(profitability.trackedLaborCost)}</p>
+            <p className="text-xs text-gray-400">Recorded labor costs: {formatCurrency(profitability.recordedLaborCosts)}</p>
+            <p className={`text-xs mt-1 ${profitability.laborVariance >= 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+              Variance: {formatCurrency(profitability.laborVariance)} ({profitability.laborVariancePct.toFixed(1)}%)
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500">Projected Cost (Tracked)</p>
+            <p className="font-semibold text-gray-900">{formatCurrency(profitability.projectedCostFromTracking)}</p>
+            <p className="text-xs text-gray-400">Includes non-labor costs: {formatCurrency(profitability.recordedNonLaborCosts)}</p>
+          </div>
+          <div>
+            <p className="text-gray-500">Projected Profit (Tracked)</p>
+            <p className={`font-semibold ${profitability.projectedProfitFromTracking >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatCurrency(profitability.projectedProfitFromTracking)}
+            </p>
+            <p className="text-xs text-gray-400">{profitability.projectedMarginFromTracking.toFixed(1)}% margin</p>
+          </div>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Actual Costs */}

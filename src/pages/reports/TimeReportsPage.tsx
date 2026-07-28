@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { format } from 'date-fns';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { endOfWeek, format, startOfMonth, startOfWeek, subWeeks } from 'date-fns';
 import { useStore } from '../../store';
 import { Card, PageHeader, StatCard, Button, Select, Input } from '../../components/ui';
 import { durationHours, formatDateTime, generateId, nowISO } from '../../utils';
@@ -16,6 +16,7 @@ interface TimeReportsPageProps {
 
 type WorkTypeFilter = 'all' | TimeEntryWorkType;
 type JobFilter = 'all' | string;
+type PayrollPeriodPreset = 'custom' | 'this_week' | 'last_week' | 'this_month';
 
 function normalizeWorkType(entry: Partial<TimeEntry>): TimeEntryWorkType {
   if (entry.workType === 'drive_time' || entry.workType === 'non_billable') return entry.workType;
@@ -63,18 +64,46 @@ export default function TimeReportsPage({
   const { timeEntries, jobs, employees, updateTimeEntry } = useStore();
   const [startDate, setStartDate] = useState(format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [payrollPeriodPreset, setPayrollPeriodPreset] = useState<PayrollPeriodPreset>('this_month');
   const [workTypeFilter, setWorkTypeFilter] = useState<WorkTypeFilter>('all');
   const [employeeSearch, setEmployeeSearch] = useState('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [jobFilter, setJobFilter] = useState<JobFilter>('all');
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillAuditEvents, setBackfillAuditEvents] = useState<AuditEvent[]>([]);
   const [loadingBackfillAudits, setLoadingBackfillAudits] = useState(false);
+  const [expandedAuditEventId, setExpandedAuditEventId] = useState<string | null>(null);
+  const detailSectionRef = useRef<HTMLDivElement | null>(null);
 
   const employeeSearchValue = employeeSearch.trim().toLowerCase();
   const jobsSorted = useMemo(() => [...jobs].sort((a, b) => a.title.localeCompare(b.title)), [jobs]);
+  const isJobFocused = jobFilter !== 'all';
 
   const getEmployeeName = (employeeId: string) => employees.find((employee) => employee.id === employeeId)?.name ?? 'Unknown';
   const getJobTitle = (jobId: string) => jobs.find((job) => job.id === jobId)?.title ?? 'Unknown job';
+
+  const applyPayrollPreset = (preset: PayrollPeriodPreset) => {
+    setPayrollPeriodPreset(preset);
+    const today = new Date();
+
+    if (preset === 'custom') return;
+
+    if (preset === 'this_month') {
+      setStartDate(format(startOfMonth(today), 'yyyy-MM-dd'));
+      setEndDate(format(today, 'yyyy-MM-dd'));
+      return;
+    }
+
+    if (preset === 'this_week') {
+      setStartDate(format(startOfWeek(today, { weekStartsOn: 0 }), 'yyyy-MM-dd'));
+      setEndDate(format(today, 'yyyy-MM-dd'));
+      return;
+    }
+
+    const lastWeekReference = subWeeks(today, 1);
+    setStartDate(format(startOfWeek(lastWeekReference, { weekStartsOn: 0 }), 'yyyy-MM-dd'));
+    setEndDate(format(endOfWeek(lastWeekReference, { weekStartsOn: 0 }), 'yyyy-MM-dd'));
+  };
 
   useEffect(() => {
     if (currentUserRole !== 'admin' && currentUserRole !== 'owner') {
@@ -112,6 +141,11 @@ export default function TimeReportsPage({
     };
   }, [currentUserRole]);
 
+  useEffect(() => {
+    if (!selectedEmployeeId) return;
+    detailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selectedEmployeeId]);
+
   const filteredEntries = useMemo(() => {
     const start = new Date(`${startDate}T00:00:00`);
     const end = new Date(`${endDate}T23:59:59.999`);
@@ -127,6 +161,8 @@ export default function TimeReportsPage({
           if (!employeeName.includes(employeeSearchValue)) return false;
         }
 
+        if (selectedEmployeeId && entry.employeeId !== selectedEmployeeId) return false;
+
         if (jobFilter !== 'all') {
           const workType = normalizeWorkType(entry);
           if (workType !== 'job') return false;
@@ -140,7 +176,7 @@ export default function TimeReportsPage({
         return true;
       })
       .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-  }, [employeeSearchValue, endDate, getEmployeeName, jobFilter, startDate, timeEntries, workTypeFilter]);
+  }, [employeeSearchValue, endDate, getEmployeeName, jobFilter, selectedEmployeeId, startDate, timeEntries, workTypeFilter]);
 
   const totalsByType = useMemo(() => {
     const totals: Record<TimeEntryWorkType, number> = {
@@ -299,6 +335,15 @@ export default function TimeReportsPage({
   }, [filteredEntries]);
 
   const handleExportSummaryCsv = () => {
+    const payrollPeriodLabel =
+      payrollPeriodPreset === 'this_month'
+        ? 'This Month'
+        : payrollPeriodPreset === 'this_week'
+          ? 'This Week'
+          : payrollPeriodPreset === 'last_week'
+            ? 'Last Week'
+            : 'Custom';
+
     const selectedWorkTypeLabel =
       workTypeFilter === 'all'
         ? 'All Types'
@@ -313,11 +358,13 @@ export default function TimeReportsPage({
     const filterRows = [
       ['Report', 'Bookkeeper Time Summary'],
       ['Generated At', new Date().toISOString()],
+      ['Payroll Period', payrollPeriodLabel],
       ['Start Date', startDate],
       ['End Date', endDate],
       ['Work Type', selectedWorkTypeLabel],
       ['Job', selectedJobLabel],
       ['Employee Search', employeeFilterLabel],
+      ['Focused Employee', selectedEmployeeId ? getEmployeeName(selectedEmployeeId) : 'None'],
       ['Matching Entries', String(filteredEntries.length)],
       [],
     ];
@@ -366,13 +413,28 @@ export default function TimeReportsPage({
       </div>
 
       <Card className="p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-3">
+          <div>
+            <Select
+              label="Payroll Period"
+              value={payrollPeriodPreset}
+              onChange={(event) => applyPayrollPreset(event.target.value as PayrollPeriodPreset)}
+            >
+              <option value="this_month">This Month</option>
+              <option value="this_week">This Week</option>
+              <option value="last_week">Last Week</option>
+              <option value="custom">Custom</option>
+            </Select>
+          </div>
           <label className="text-sm text-gray-600">
             <span className="block mb-1 font-medium text-gray-700">Start Date</span>
             <input
               type="date"
               value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
+              onChange={(event) => {
+                setStartDate(event.target.value);
+                setPayrollPeriodPreset('custom');
+              }}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
@@ -381,7 +443,10 @@ export default function TimeReportsPage({
             <input
               type="date"
               value={endDate}
-              onChange={(event) => setEndDate(event.target.value)}
+              onChange={(event) => {
+                setEndDate(event.target.value);
+                setPayrollPeriodPreset('custom');
+              }}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
@@ -409,6 +474,24 @@ export default function TimeReportsPage({
               placeholder="Search by employee name"
             />
           </div>
+          <div className="flex items-end gap-2">
+            <p className="text-sm text-gray-500">
+              {selectedEmployeeId ? `Focused: ${getEmployeeName(selectedEmployeeId)}` : 'No focused employee'}
+            </p>
+            {selectedEmployeeId && (
+              <Button variant="ghost" size="sm" onClick={() => setSelectedEmployeeId(null)}>
+                Clear Employee
+              </Button>
+            )}
+            <p className="text-sm text-gray-500">
+              {isJobFocused ? `Focused Job: ${getJobTitle(jobFilter)}` : 'No focused job'}
+            </p>
+            {isJobFocused && (
+              <Button variant="ghost" size="sm" onClick={() => setJobFilter('all')}>
+                Clear Job
+              </Button>
+            )}
+          </div>
           <div className="flex items-end">
             <p className="text-sm text-gray-500">Showing {filteredEntries.length} entries</p>
           </div>
@@ -433,7 +516,15 @@ export default function TimeReportsPage({
                   <tr><td colSpan={2} className="px-4 py-4 text-sm text-gray-400">No entries in this range.</td></tr>
                 ) : employeeTotals.map((item) => (
                   <tr key={item.employeeId}>
-                    <td className="px-4 py-2">{item.name}</td>
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEmployeeId(item.employeeId)}
+                        className={`text-left hover:underline ${selectedEmployeeId === item.employeeId ? 'font-semibold text-brand-700' : ''}`}
+                      >
+                        {item.name}
+                      </button>
+                    </td>
                     <td className="py-2 text-right font-semibold">{item.hours.toFixed(1)}</td>
                   </tr>
                 ))}
@@ -459,7 +550,18 @@ export default function TimeReportsPage({
                   <tr><td colSpan={2} className="px-4 py-4 text-sm text-gray-400">No job work in this range.</td></tr>
                 ) : jobTotals.map((item) => (
                   <tr key={item.jobId}>
-                    <td className="px-4 py-2">{item.title}</td>
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setJobFilter((current) => (current === item.jobId ? 'all' : item.jobId));
+                          detailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
+                        className={`text-left hover:underline ${jobFilter === item.jobId ? 'font-semibold text-brand-700' : ''}`}
+                      >
+                        {item.title}
+                      </button>
+                    </td>
                     <td className="py-2 text-right font-semibold">{item.hours.toFixed(1)}</td>
                   </tr>
                 ))}
@@ -469,6 +571,7 @@ export default function TimeReportsPage({
         </Card>
       </div>
 
+      <div ref={detailSectionRef}>
       <Card className="mt-6 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4">
           <div>
@@ -508,8 +611,12 @@ export default function TimeReportsPage({
               ) : filteredEntries.map((entry) => {
                 const workType = normalizeWorkType(entry);
                 const hours = durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes);
+                const isFocusedEmployee = selectedEmployeeId === entry.employeeId;
                 return (
-                  <tr key={entry.id} className="hover:bg-gray-50 align-top">
+                  <tr
+                    key={entry.id}
+                    className={`align-top ${isFocusedEmployee ? 'bg-brand-50/60' : 'hover:bg-gray-50'}`}
+                  >
                     <td className="px-4 py-2 font-medium text-gray-800">{getEmployeeName(entry.employeeId)}</td>
                     <td className="py-2 capitalize text-gray-600">{workType.replace('_', ' ')}</td>
                     <td className="py-2 text-gray-600 max-w-xs truncate">{entryLabel(entry, jobs)}</td>
@@ -524,6 +631,7 @@ export default function TimeReportsPage({
           </table>
         </div>
       </Card>
+      </div>
 
       {(currentUserRole === 'admin' || currentUserRole === 'owner') && (
         <Card className="mt-6 overflow-hidden">
@@ -539,21 +647,66 @@ export default function TimeReportsPage({
                   <th className="py-2 font-medium">User</th>
                   <th className="py-2 font-medium">Email</th>
                   <th className="py-2 font-medium text-right">Entries</th>
+                  <th className="px-4 py-2 font-medium text-right">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {loadingBackfillAudits ? (
-                  <tr><td colSpan={4} className="px-4 py-4 text-sm text-gray-400">Loading backfill activity...</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-4 text-sm text-gray-400">Loading backfill activity...</td></tr>
                 ) : backfillAuditEvents.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-4 text-sm text-gray-400">No backfill activity recorded yet.</td></tr>
-                ) : backfillAuditEvents.map((event) => (
-                  <tr key={event.id}>
-                    <td className="px-4 py-2 text-gray-600 text-xs">{formatDateTime(event.createdAt)}</td>
-                    <td className="py-2 text-gray-700">{event.actorName}</td>
-                    <td className="py-2 text-gray-500">{event.actorEmail}</td>
-                    <td className="py-2 text-right font-semibold text-gray-800">{event.affectedEntryCount}</td>
-                  </tr>
-                ))}
+                  <tr><td colSpan={5} className="px-4 py-4 text-sm text-gray-400">No backfill activity recorded yet.</td></tr>
+                ) : backfillAuditEvents.map((event) => {
+                  const isExpanded = expandedAuditEventId === event.id;
+                  const metadataFilters = event.metadata && typeof event.metadata === 'object' && 'filters' in event.metadata
+                    ? (event.metadata.filters as {
+                      startDate?: string;
+                      endDate?: string;
+                      workTypeFilter?: string;
+                      jobFilter?: string;
+                      employeeSearch?: string;
+                    })
+                    : null;
+                  const metadataJobLabel = metadataFilters?.jobFilter
+                    ? (metadataFilters.jobFilter === 'all' ? 'All Jobs' : getJobTitle(metadataFilters.jobFilter))
+                    : '—';
+
+                  return (
+                    <Fragment key={event.id}>
+                      <tr>
+                        <td className="px-4 py-2 text-gray-600 text-xs">{formatDateTime(event.createdAt)}</td>
+                        <td className="py-2 text-gray-700">{event.actorName}</td>
+                        <td className="py-2 text-gray-500">{event.actorEmail}</td>
+                        <td className="py-2 text-right font-semibold text-gray-800">{event.affectedEntryCount}</td>
+                        <td className="px-4 py-2 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setExpandedAuditEventId(isExpanded ? null : event.id)}
+                          >
+                            {isExpanded ? 'Hide Filters' : 'View Filters'}
+                          </Button>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-3 bg-gray-50 text-xs text-gray-600">
+                            {metadataFilters ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                                <p><span className="font-medium text-gray-700">Start:</span> {metadataFilters.startDate ?? '—'}</p>
+                                <p><span className="font-medium text-gray-700">End:</span> {metadataFilters.endDate ?? '—'}</p>
+                                <p><span className="font-medium text-gray-700">Type:</span> {metadataFilters.workTypeFilter ?? '—'}</p>
+                                <p><span className="font-medium text-gray-700">Job:</span> {metadataJobLabel}</p>
+                                <p><span className="font-medium text-gray-700">Employee Search:</span> {metadataFilters.employeeSearch?.trim() ? metadataFilters.employeeSearch : '—'}</p>
+                              </div>
+                            ) : (
+                              <p>No filter metadata recorded for this event.</p>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
