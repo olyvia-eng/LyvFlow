@@ -52,6 +52,10 @@ function budgetSk(budgetItemId) {
   return `BUDGET#${budgetItemId}`;
 }
 
+function labourBudgetPlanSk(labourBudgetPlanId) {
+  return `LABOUR_BUDGET#${labourBudgetPlanId}`;
+}
+
 function employeeSk(employeeId) {
   return `EMPLOYEE#${employeeId}`;
 }
@@ -1021,6 +1025,113 @@ export async function deleteBudgetItemForBusiness(businessId, budgetItemId) {
       Key: {
         PK: businessPk(businessId),
         SK: budgetSk(budgetItemId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listLabourBudgetPlansForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'LABOUR_BUDGET#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.labourBudgetPlanId,
+    employeeId: item.employeeId,
+    year: item.year,
+    compType: item.compType,
+    billableHoursYear: item.billableHoursYear,
+    unbillableHoursYear: item.unbillableHoursYear,
+    overtimeHoursYear: item.overtimeHoursYear,
+    overtimeMultiplier: item.overtimeMultiplier,
+    hourlyRate: item.hourlyRate,
+    annualSalary: item.annualSalary,
+    labourBurdenPct: item.labourBurdenPct,
+  }));
+}
+
+export async function createLabourBudgetPlanForBusiness({ businessId, labourBudgetPlan }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: labourBudgetPlanSk(labourBudgetPlan.id),
+        entityType: 'LABOUR_BUDGET_PLAN',
+        businessId,
+        labourBudgetPlanId: labourBudgetPlan.id,
+        ...labourBudgetPlan,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getLabourBudgetPlanForBusiness(businessId, labourBudgetPlanId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: labourBudgetPlanSk(labourBudgetPlanId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.labourBudgetPlanId,
+        employeeId: result.Item.employeeId,
+        year: result.Item.year,
+        compType: result.Item.compType,
+        billableHoursYear: result.Item.billableHoursYear,
+        unbillableHoursYear: result.Item.unbillableHoursYear,
+        overtimeHoursYear: result.Item.overtimeHoursYear,
+        overtimeMultiplier: result.Item.overtimeMultiplier,
+        hourlyRate: result.Item.hourlyRate,
+        annualSalary: result.Item.annualSalary,
+        labourBurdenPct: result.Item.labourBurdenPct,
+      }
+    : null;
+}
+
+export async function updateLabourBudgetPlanForBusiness({ businessId, labourBudgetPlan }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: labourBudgetPlanSk(labourBudgetPlan.id),
+        entityType: 'LABOUR_BUDGET_PLAN',
+        businessId,
+        labourBudgetPlanId: labourBudgetPlan.id,
+        ...labourBudgetPlan,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteLabourBudgetPlanForBusiness(businessId, labourBudgetPlanId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: labourBudgetPlanSk(labourBudgetPlanId),
       },
     })
   );

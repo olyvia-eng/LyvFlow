@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../store';
 import { PageHeader, Button, Card, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, FileDown } from 'lucide-react';
 import { formatCurrency } from '../../utils';
-import type { BudgetItem, BudgetCategory, EmployeeRole } from '../../types';
+import type { BudgetItem, BudgetCategory, EmployeeRole, LabourBudgetPlan, LabourCompType } from '../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -22,8 +22,33 @@ const empty = (): Omit<BudgetItem, 'id'> => ({
   period: currentPeriod(),
 });
 
+const yearlyHoursBase = 2080;
+const buildLabourPlanId = (employeeId: string, year: string) => `${employeeId}-${year}`;
+
+const defaultLabourPlan = (employeeId: string, year: string, hourlyRate: number): LabourBudgetPlan => ({
+  id: buildLabourPlanId(employeeId, year),
+  employeeId,
+  year,
+  compType: 'hourly',
+  billableHoursYear: 1600,
+  unbillableHoursYear: 300,
+  overtimeHoursYear: 0,
+  overtimeMultiplier: 1.5,
+  hourlyRate,
+  annualSalary: Math.round(hourlyRate * yearlyHoursBase),
+  labourBurdenPct: 18,
+});
+
 export default function BudgetPage() {
-  const { budgetItems, employees, addBudgetItem, updateBudgetItem, deleteBudgetItem } = useStore();
+  const {
+    budgetItems,
+    labourBudgetPlans,
+    employees,
+    addBudgetItem,
+    updateBudgetItem,
+    deleteBudgetItem,
+    upsertLabourBudgetPlan,
+  } = useStore();
   const [period, setPeriod] = useState(currentPeriod());
   const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
   const [year, setYear] = useState(currentPeriod().slice(0, 4));
@@ -52,6 +77,7 @@ export default function BudgetPage() {
     ? budgetItems.filter((b) => b.period === period)
     : budgetItems.filter((b) => b.period.startsWith(`${year}-`));
   const scopeLabel = viewMode === 'month' ? period : year;
+  const plannerYear = viewMode === 'year' ? year : period.slice(0, 4);
 
   const openNew = () => {
     const defaultPeriod = viewMode === 'year' ? `${year}-01` : period;
@@ -215,6 +241,23 @@ export default function BudgetPage() {
     else exportProfitAndLossPdf(false, exportColumnMode);
     setExportModalOpen(false);
   };
+
+  const plansByEmployeeId = useMemo(() => {
+    const byEmployeeId: Record<string, LabourBudgetPlan> = {};
+    for (const plan of labourBudgetPlans) {
+      if (plan.year === plannerYear) {
+        byEmployeeId[plan.employeeId] = plan;
+      }
+    }
+    return byEmployeeId;
+  }, [labourBudgetPlans, plannerYear]);
+
+  useEffect(() => {
+    for (const employee of employees.filter((value) => value.active)) {
+      if (plansByEmployeeId[employee.id]) continue;
+      upsertLabourBudgetPlan(defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate));
+    }
+  }, [employees, plannerYear, plansByEmployeeId, upsertLabourBudgetPlan]);
 
   const exportToPdf = (mode: ExportColumnMode = 'both') => {
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
@@ -460,6 +503,62 @@ export default function BudgetPage() {
     }).sort((a, b) => a.role.localeCompare(b.role));
   }, [activeEmployees, marginDivisor, pricingInputs.overheadRecoveryPct, pricingInputs.payrollBurdenPct]);
 
+  const updateLabourPlan = (employeeId: string, key: keyof LabourBudgetPlan, value: number | LabourCompType) => {
+    const employee = activeEmployees.find((value) => value.id === employeeId);
+    if (!employee) return;
+
+    const existing = plansByEmployeeId[employeeId] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate);
+    const next = { ...existing, [key]: value };
+    upsertLabourBudgetPlan(next);
+  };
+
+  const labourPlannerRows = useMemo(() => {
+    return activeEmployees.map((employee) => {
+      const plan = plansByEmployeeId[employee.id] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate);
+
+      const baseHourlyRate = plan.compType === 'hourly'
+        ? plan.hourlyRate
+        : (plan.annualSalary / yearlyHoursBase);
+      const regularHours = plan.billableHoursYear + plan.unbillableHoursYear;
+      const regularCompensation = plan.compType === 'hourly'
+        ? regularHours * baseHourlyRate
+        : plan.annualSalary;
+      const overtimeCompensation = plan.compType === 'hourly'
+        ? plan.overtimeHoursYear * baseHourlyRate * plan.overtimeMultiplier
+        : plan.overtimeHoursYear * baseHourlyRate * Math.max(plan.overtimeMultiplier - 1, 0);
+      const totalCompensation = regularCompensation + overtimeCompensation;
+      const labourBurdenAmount = totalCompensation * (plan.labourBurdenPct / 100);
+      const totalLabourCost = totalCompensation + labourBurdenAmount;
+
+      return {
+        employee,
+        plan,
+        baseHourlyRate,
+        totalCompensation,
+        labourBurdenAmount,
+        totalLabourCost,
+      };
+    });
+  }, [activeEmployees, plannerYear, plansByEmployeeId]);
+
+  const labourPlannerTotals = useMemo(() => {
+    return labourPlannerRows.reduce((acc, row) => ({
+      totalCompensation: acc.totalCompensation + row.totalCompensation,
+      labourBurdenAmount: acc.labourBurdenAmount + row.labourBurdenAmount,
+      totalLabourCost: acc.totalLabourCost + row.totalLabourCost,
+      billableHoursYear: acc.billableHoursYear + row.plan.billableHoursYear,
+      unbillableHoursYear: acc.unbillableHoursYear + row.plan.unbillableHoursYear,
+      overtimeHoursYear: acc.overtimeHoursYear + row.plan.overtimeHoursYear,
+    }), {
+      totalCompensation: 0,
+      labourBurdenAmount: 0,
+      totalLabourCost: 0,
+      billableHoursYear: 0,
+      unbillableHoursYear: 0,
+      overtimeHoursYear: 0,
+    });
+  }, [labourPlannerRows]);
+
   return (
     <div>
       <PageHeader
@@ -689,6 +788,144 @@ export default function BudgetPage() {
               </Card>
             </button>
           </div>
+
+          <Card className="overflow-hidden mb-6">
+            <div className="p-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900">Employee Labour Budget Planner</h2>
+              <p className="text-sm text-gray-500 mt-1">Set each employee as hourly or salaried, then plan annual billable/unbillable/overtime hours with labour burden.</p>
+            </div>
+            {labourPlannerRows.length === 0 ? (
+              <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees first to build labour budgets.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[1200px]">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
+                      <th className="px-4 py-3 font-medium">Employee</th>
+                      <th className="px-4 py-3 font-medium">Comp Type</th>
+                      <th className="px-4 py-3 font-medium text-right">Pay Basis</th>
+                      <th className="px-4 py-3 font-medium text-right">Billable Hrs / Yr</th>
+                      <th className="px-4 py-3 font-medium text-right">Unbillable Hrs / Yr</th>
+                      <th className="px-4 py-3 font-medium text-right">Overtime Hrs / Yr</th>
+                      <th className="px-4 py-3 font-medium text-right">Overtime Multiplier</th>
+                      <th className="px-4 py-3 font-medium text-right">Total Compensation</th>
+                      <th className="px-4 py-3 font-medium text-right">Labour Burden (%)</th>
+                      <th className="px-4 py-3 font-medium text-right">Labour Burden ($)</th>
+                      <th className="px-4 py-3 font-medium text-right">Total Labour Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {labourPlannerRows.map((row) => (
+                      <tr key={row.employee.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2">
+                          <p className="font-medium text-gray-900">{row.employee.name}</p>
+                          <p className="text-xs text-gray-500 capitalize">{row.employee.role.replace(/_/g, ' ')}</p>
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="inline-flex border border-gray-200 rounded-lg p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => updateLabourPlan(row.employee.id, 'compType', 'hourly')}
+                              className={`px-2 py-1 text-xs rounded ${row.plan.compType === 'hourly' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                            >
+                              Hourly
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateLabourPlan(row.employee.id, 'compType', 'salaried')}
+                              className={`px-2 py-1 text-xs rounded ${row.plan.compType === 'salaried' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                            >
+                              Salaried
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {row.plan.compType === 'hourly' ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={row.plan.hourlyRate}
+                              onChange={(e) => updateLabourPlan(row.employee.id, 'hourlyRate', Number(e.target.value))}
+                              className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+                            />
+                          ) : (
+                            <input
+                              type="number"
+                              min={0}
+                              value={row.plan.annualSalary}
+                              onChange={(e) => updateLabourPlan(row.employee.id, 'annualSalary', Number(e.target.value))}
+                              className="w-28 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+                            />
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <input
+                            type="number"
+                            min={0}
+                            value={row.plan.billableHoursYear}
+                            onChange={(e) => updateLabourPlan(row.employee.id, 'billableHoursYear', Number(e.target.value))}
+                            className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <input
+                            type="number"
+                            min={0}
+                            value={row.plan.unbillableHoursYear}
+                            onChange={(e) => updateLabourPlan(row.employee.id, 'unbillableHoursYear', Number(e.target.value))}
+                            className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <input
+                            type="number"
+                            min={0}
+                            value={row.plan.overtimeHoursYear}
+                            onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeHoursYear', Number(e.target.value))}
+                            className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <input
+                            type="number"
+                            min={1}
+                            step={0.1}
+                            value={row.plan.overtimeMultiplier}
+                            onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeMultiplier', Number(e.target.value))}
+                            className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-right font-semibold">{formatCurrency(row.totalCompensation)}</td>
+                        <td className="px-4 py-2 text-right">
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.1}
+                            value={row.plan.labourBurdenPct}
+                            onChange={(e) => updateLabourPlan(row.employee.id, 'labourBurdenPct', Number(e.target.value))}
+                            className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-right">{formatCurrency(row.labourBurdenAmount)}</td>
+                        <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(row.totalLabourCost)}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-50">
+                      <td className="px-4 py-2 font-semibold" colSpan={3}>Totals</td>
+                      <td className="px-4 py-2 text-right font-semibold">{labourPlannerTotals.billableHoursYear.toFixed(0)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{labourPlannerTotals.unbillableHoursYear.toFixed(0)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{labourPlannerTotals.overtimeHoursYear.toFixed(0)}</td>
+                      <td className="px-4 py-2 text-right">—</td>
+                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(labourPlannerTotals.totalCompensation)}</td>
+                      <td className="px-4 py-2 text-right">—</td>
+                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(labourPlannerTotals.labourBurdenAmount)}</td>
+                      <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(labourPlannerTotals.totalLabourCost)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
 
           <Card className="overflow-hidden mb-6">
             <div className="p-4 border-b border-gray-100">

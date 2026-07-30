@@ -172,6 +172,22 @@ export interface BudgetItem {
   period: string; // YYYY-MM
 }
 
+export type LabourCompType = 'hourly' | 'salaried';
+
+export interface LabourBudgetPlan {
+  id: ID;
+  employeeId: ID;
+  year: string; // YYYY
+  compType: LabourCompType;
+  billableHoursYear: number;
+  unbillableHoursYear: number;
+  overtimeHoursYear: number;
+  overtimeMultiplier: number;
+  hourlyRate: number;
+  annualSalary: number;
+  labourBurdenPct: number;
+}
+
 export interface BudgetPeriod {
   period: string; // YYYY-MM
   items: BudgetItem[];

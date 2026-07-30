@@ -1,4 +1,5 @@
 import {
+  listLabourBudgetPlansForBusiness,
   listBudgetItemsForBusiness,
   listCustomersForBusiness,
   listEmployeesForBusiness,
@@ -19,12 +20,13 @@ export default async function handler(req, res) {
   if (!session) return;
 
   try {
-    const [customers, jobs, estimates, templates, budgetItems, employees, timeEntries] = await Promise.all([
+    const [customers, jobs, estimates, templates, budgetItems, labourBudgetPlans, employees, timeEntries] = await Promise.all([
       listCustomersForBusiness(session.businessId),
       listJobsForBusiness(session.businessId),
       listEstimatesForBusiness(session.businessId),
       listTemplatesForBusiness(session.businessId),
       listBudgetItemsForBusiness(session.businessId),
+      listLabourBudgetPlansForBusiness(session.businessId),
       listEmployeesForBusiness(session.businessId),
       listTimeEntriesForBusiness(session.businessId),
     ]);
@@ -36,6 +38,7 @@ export default async function handler(req, res) {
       estimates,
       templates,
       budgetItems,
+      labourBudgetPlans,
       employees,
       timeEntries,
     });

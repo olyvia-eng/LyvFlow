@@ -8,6 +8,7 @@ import type {
   TimeEntry,
   TimeEntryWorkType,
   BudgetItem,
+  LabourBudgetPlan,
   CostEntry,
   ID,
 } from '../types';
@@ -62,6 +63,7 @@ interface AppState {
   employees: Employee[];
   timeEntries: TimeEntry[];
   budgetItems: BudgetItem[];
+  labourBudgetPlans: LabourBudgetPlan[];
 
   // CRM
   addCustomer: (c: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -102,6 +104,8 @@ interface AppState {
   addBudgetItem: (item: Omit<BudgetItem, 'id'>) => void;
   updateBudgetItem: (id: ID, data: Partial<BudgetItem>) => void;
   deleteBudgetItem: (id: ID) => void;
+  upsertLabourBudgetPlan: (plan: LabourBudgetPlan) => void;
+  deleteLabourBudgetPlan: (id: ID) => void;
 }
 
 export const useStore = create<AppState>()((set, get) => ({
@@ -112,6 +116,7 @@ export const useStore = create<AppState>()((set, get) => ({
       employees: [],
       timeEntries: [],
       budgetItems: [],
+      labourBudgetPlans: [],
 
       // ── CRM ──────────────────────────────────────────────────────────────
       addCustomer: (c) => {
@@ -655,6 +660,43 @@ export const useStore = create<AppState>()((set, get) => ({
         })).catch(() => {
           set({ budgetItems: previous });
           emitAppToast({ tone: 'error', message: 'Budget item could not be deleted.' });
+        });
+      },
+      upsertLabourBudgetPlan: (plan) => {
+        const previous = get().labourBudgetPlans;
+        const exists = previous.some((value) => value.id === plan.id);
+
+        set((state) => ({
+          labourBudgetPlans: exists
+            ? state.labourBudgetPlans.map((value) => (value.id === plan.id ? { ...value, ...plan } : value))
+            : [...state.labourBudgetPlans, plan],
+        }));
+
+        const method = exists ? 'PATCH' : 'POST';
+        const url = exists ? dataUrl('labour-budget-plans', plan.id) : dataUrl('labour-budget-plans');
+
+        void ensureOk(fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: exists ? plan : plan }),
+        })).catch(() => {
+          set({ labourBudgetPlans: previous });
+          emitAppToast({ tone: 'error', message: 'Labour budget plan could not be saved.' });
+        });
+      },
+      deleteLabourBudgetPlan: (id) => {
+        const previous = get().labourBudgetPlans;
+        set((state) => ({ labourBudgetPlans: state.labourBudgetPlans.filter((plan) => plan.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('labour-budget-plans', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch(() => {
+          set({ labourBudgetPlans: previous });
+          emitAppToast({ tone: 'error', message: 'Labour budget plan could not be deleted.' });
         });
       },
     }));
