@@ -12,6 +12,7 @@ const emptyEstimate = (): Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'> => ({
   customerId: '',
   title: '',
   description: '',
+  workAreas: [],
   status: 'draft',
   lineItems: [],
   taxRate: 13,
@@ -49,6 +50,7 @@ export default function EstimatesPage() {
     setEditing(e);
     setForm({
       customerId: e.customerId, title: e.title, description: e.description,
+      workAreas: [...(e.workAreas ?? [])],
       status: e.status, lineItems: e.lineItems.map((li) => ({ ...li })),
       taxRate: e.taxRate, notes: e.notes, validUntil: e.validUntil,
     });
@@ -118,6 +120,7 @@ export default function EstimatesPage() {
               <tr className="border-b border-gray-200 text-gray-500 text-left">
                 <th className="pb-2 font-medium">Title</th>
                 <th className="pb-2 font-medium">Customer</th>
+                <th className="pb-2 font-medium">Work Areas</th>
                 <th className="pb-2 font-medium">Status</th>
                 <th className="pb-2 font-medium text-right">Total</th>
                 <th className="pb-2 font-medium">Valid Until</th>
@@ -133,6 +136,7 @@ export default function EstimatesPage() {
                   <tr key={est.id} className="hover:bg-gray-50">
                     <td className="py-3 font-medium text-gray-900">{est.title}</td>
                     <td className="py-3 text-gray-600">{customer?.name ?? '—'}</td>
+                    <td className="py-3 text-gray-600">{est.workAreas?.length ? est.workAreas.join(', ') : '—'}</td>
                     <td className="py-3">
                       <Badge label={est.status} className={statusColor[est.status]} />
                     </td>
@@ -211,6 +215,12 @@ export default function EstimatesPage() {
             <Input label="Title *" value={form.title} onChange={(e) => set('title', e.target.value)} />
           </div>
           <TextArea label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} />
+          <TextArea
+            label="Work Areas"
+            value={(form.workAreas ?? []).join('\n')}
+            onChange={(e) => set('workAreas', e.target.value.split('\n').map((line) => line.trim()).filter(Boolean))}
+            placeholder="Front yard\nBack patio\nGarden beds"
+          />
 
           {/* Line items */}
           <div>

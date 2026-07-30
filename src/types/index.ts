@@ -50,6 +50,7 @@ export interface Estimate {
   customerId: ID;
   title: string;
   description: string;
+  workAreas?: string[];
   status: EstimateStatus;
   lineItems: LineItem[];
   taxRate: number; // percentage
@@ -92,6 +93,7 @@ export interface Job {
   customerId: ID;
   title: string;
   description: string;
+  workAreas?: string[];
   status: JobStatus;
   startDate: string;
   endDate?: string;

@@ -315,6 +315,10 @@ export default function JobDetailPage() {
           )}
         </Card>
         <Card className="p-4">
+          <h2 className="font-semibold mb-3">Work Areas</h2>
+          <p className="text-sm text-gray-600 whitespace-pre-line mb-4">
+            {job.workAreas?.length ? job.workAreas.join(', ') : 'No work areas.'}
+          </p>
           <h2 className="font-semibold mb-3">Notes</h2>
           <p className="text-sm text-gray-600 whitespace-pre-line">{job.notes || 'No notes.'}</p>
         </Card>

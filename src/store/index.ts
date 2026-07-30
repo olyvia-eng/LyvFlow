@@ -255,6 +255,7 @@ export const useStore = create<AppState>()((set, get) => ({
           customerId: est.customerId,
           title: est.title,
           description: est.description,
+          workAreas: [...(est.workAreas ?? [])],
           status: 'scheduled',
           startDate: nowISO(),
           estimatedHours: est.lineItems

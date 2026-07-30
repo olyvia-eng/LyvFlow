@@ -14,6 +14,7 @@ const empty = (customers: { id: string }[]): Omit<Job, 'id' | 'createdAt' | 'upd
   customerId: customers[0]?.id ?? '',
   title: '',
   description: '',
+  workAreas: [],
   status: 'scheduled',
   startDate: new Date().toISOString().slice(0, 10),
   estimatedHours: 0,
@@ -122,6 +123,7 @@ export default function JobsPage() {
     setEditing(j);
     setForm({
       customerId: j.customerId, title: j.title, description: j.description,
+      workAreas: [...(j.workAreas ?? [])],
       status: j.status, startDate: j.startDate, endDate: j.endDate,
       estimatedHours: j.estimatedHours, actualHours: j.actualHours,
       estimatedCost: j.estimatedCost, actualCosts: j.actualCosts,
@@ -219,6 +221,9 @@ export default function JobsPage() {
                       </div>
                     )}
                     <p className="text-sm text-gray-500">{customer?.name ?? '—'} · Started {formatDate(job.startDate)}</p>
+                    {job.workAreas?.length ? (
+                      <p className="text-xs text-gray-500 mt-1">Work Areas: {job.workAreas.join(', ')}</p>
+                    ) : null}
                     {/* Hours bar */}
                     <div className="flex items-center gap-2 mt-2">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5 max-w-xs">
@@ -266,6 +271,12 @@ export default function JobsPage() {
           </div>
           <Input label="Title *" value={form.title} onChange={(e) => set('title', e.target.value)} />
           <TextArea label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} />
+          <TextArea
+            label="Work Areas"
+            value={(form.workAreas ?? []).join('\n')}
+            onChange={(e) => set('workAreas', e.target.value.split('\n').map((line) => line.trim()).filter(Boolean))}
+            placeholder="Main floor\nGarage\nBackyard"
+          />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Start Date" type="date" value={form.startDate?.slice(0, 10) ?? ''} onChange={(e) => set('startDate', e.target.value)} />
             <Input label="End Date" type="date" value={form.endDate?.slice(0, 10) ?? ''} onChange={(e) => set('endDate', e.target.value || undefined)} />
