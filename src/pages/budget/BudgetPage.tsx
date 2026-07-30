@@ -9,6 +9,8 @@ import autoTable from 'jspdf-autotable';
 
 const CATEGORIES: BudgetCategory[] = ['revenue', 'labour', 'materials', 'equipment', 'subcontractors', 'overhead', 'marketing', 'insurance', 'other'];
 type BudgetTab = 'analysis' | 'revenue' | 'labour' | 'materials' | 'equipment' | 'subcontractors' | 'overhead';
+type ExportColumnMode = 'both' | 'budgeted' | 'actual';
+type ExportKind = 'budget' | 'pnl_detailed' | 'pnl_condensed';
 
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
 
@@ -25,11 +27,14 @@ export default function BudgetPage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
   const [year, setYear] = useState(currentPeriod().slice(0, 4));
-  const [activeTab, setActiveTab] = useState<BudgetTab>('analysis');
+  const [activeTab, setActiveTab] = useState<BudgetTab>('revenue');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<BudgetItem | null>(null);
   const [form, setForm] = useState(empty());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportColumnMode, setExportColumnMode] = useState<ExportColumnMode>('both');
+  const [exportKind, setExportKind] = useState<ExportKind>('budget');
   const [pricingInputs, setPricingInputs] = useState({
     payrollBurdenPct: 18,
     overheadRecoveryPct: 15,
@@ -83,14 +88,39 @@ export default function BudgetPage() {
   }, {} as Record<BudgetCategory, BudgetItem[]>);
 
   const categoryTabs: Array<{ key: BudgetTab; label: string }> = [
-    { key: 'analysis', label: 'Analysis' },
     { key: 'revenue', label: 'Sales / Revenue' },
     { key: 'labour', label: 'Labour' },
     { key: 'materials', label: 'Materials' },
     { key: 'equipment', label: 'Equipment' },
     { key: 'subcontractors', label: 'Subcontractors' },
     { key: 'overhead', label: 'Overhead' },
+    { key: 'analysis', label: 'Analysis' },
   ];
+
+  const totalsByCategory = useMemo(() => {
+    const sum = (category: BudgetCategory) => ({
+      budgeted: grouped[category].reduce((value, item) => value + item.budgeted, 0),
+      actual: grouped[category].reduce((value, item) => value + item.actual, 0),
+    });
+
+    return {
+      revenue: sum('revenue'),
+      labour: sum('labour'),
+      materials: sum('materials'),
+      equipment: sum('equipment'),
+      subcontractors: sum('subcontractors'),
+      overhead: {
+        budgeted: grouped.overhead.reduce((value, item) => value + item.budgeted, 0)
+          + grouped.marketing.reduce((value, item) => value + item.budgeted, 0)
+          + grouped.insurance.reduce((value, item) => value + item.budgeted, 0)
+          + grouped.other.reduce((value, item) => value + item.budgeted, 0),
+        actual: grouped.overhead.reduce((value, item) => value + item.actual, 0)
+          + grouped.marketing.reduce((value, item) => value + item.actual, 0)
+          + grouped.insurance.reduce((value, item) => value + item.actual, 0)
+          + grouped.other.reduce((value, item) => value + item.actual, 0),
+      },
+    };
+  }, [grouped]);
 
   const categoryRows = CATEGORIES.map((category) => {
     const catItems = grouped[category];
@@ -138,7 +168,41 @@ export default function BudgetPage() {
   const budgetedNetMarginPct = totalBudgetedRevenue > 0 ? (budgetedNetProfit / totalBudgetedRevenue) * 100 : 0;
   const actualNetMarginPct = totalActualRevenue > 0 ? (actualNetProfit / totalActualRevenue) * 100 : 0;
 
-  const exportToPdf = () => {
+  const exportMetricHeaders = (mode: ExportColumnMode, includeVariance = true) => {
+    if (mode === 'budgeted') return ['Budgeted'];
+    if (mode === 'actual') return ['Actual'];
+    return includeVariance ? ['Budgeted', 'Actual', 'Variance'] : ['Budgeted', 'Actual'];
+  };
+
+  const formatVariance = (value: number) => `${value >= 0 ? '+' : ''}${formatCurrency(value)}`;
+
+  const exportMetricCells = (mode: ExportColumnMode, budgeted: number, actual: number, variance: number, includeVariance = true) => {
+    if (mode === 'budgeted') return [formatCurrency(budgeted)];
+    if (mode === 'actual') return [formatCurrency(actual)];
+    return includeVariance
+      ? [formatCurrency(budgeted), formatCurrency(actual), formatVariance(variance)]
+      : [formatCurrency(budgeted), formatCurrency(actual)];
+  };
+
+  const exportMarginCells = (mode: ExportColumnMode, budgetedPct: number, actualPct: number) => {
+    if (mode === 'budgeted') return [`${budgetedPct.toFixed(1)}%`];
+    if (mode === 'actual') return [`${actualPct.toFixed(1)}%`];
+    return [`${budgetedPct.toFixed(1)}%`, `${actualPct.toFixed(1)}%`];
+  };
+
+  const openExportModal = (kind: ExportKind) => {
+    setExportKind(kind);
+    setExportModalOpen(true);
+  };
+
+  const runExport = () => {
+    if (exportKind === 'budget') exportToPdf(exportColumnMode);
+    else if (exportKind === 'pnl_condensed') exportProfitAndLossPdf(true, exportColumnMode);
+    else exportProfitAndLossPdf(false, exportColumnMode);
+    setExportModalOpen(false);
+  };
+
+  const exportToPdf = (mode: ExportColumnMode = 'both') => {
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
     const scopeTypeLabel = viewMode === 'month' ? 'Monthly' : 'Yearly';
     const generatedAt = new Date().toLocaleString();
@@ -153,23 +217,21 @@ export default function BudgetPage() {
     if (activeTab === 'analysis') {
       autoTable(doc, {
         startY: 104,
-        head: [['Summary', 'Budgeted', 'Actual', 'Variance']],
+        head: [['Summary', ...exportMetricHeaders(mode)]],
         body: [
-          ['Revenue', formatCurrency(totalBudgetedRevenue), formatCurrency(totalActualRevenue), formatCurrency(totalActualRevenue - totalBudgetedRevenue)],
-          ['Expenses', formatCurrency(totalBudgetedExpenses), formatCurrency(totalActualExpenses), formatCurrency(totalBudgetedExpenses - totalActualExpenses)],
-          ['Profit', formatCurrency(budgetedProfit), formatCurrency(actualProfit), formatCurrency(actualProfit - budgetedProfit)],
+          ['Revenue', ...exportMetricCells(mode, totalBudgetedRevenue, totalActualRevenue, totalActualRevenue - totalBudgetedRevenue)],
+          ['Expenses', ...exportMetricCells(mode, totalBudgetedExpenses, totalActualExpenses, totalBudgetedExpenses - totalActualExpenses)],
+          ['Profit', ...exportMetricCells(mode, budgetedProfit, actualProfit, actualProfit - budgetedProfit)],
         ],
         styles: { fontSize: 9 },
       });
 
       autoTable(doc, {
         startY: 220,
-        head: [['Category', 'Budgeted', 'Actual', 'Variance', 'Items']],
+        head: [['Category', ...exportMetricHeaders(mode), 'Items']],
         body: categoryRows.map((row) => [
           row.category.replace(/_/g, ' '),
-          formatCurrency(row.budgeted),
-          formatCurrency(row.actual),
-          `${row.variance >= 0 ? '+' : ''}${formatCurrency(row.variance)}`,
+          ...exportMetricCells(mode, row.budgeted, row.actual, row.variance),
           String(row.count),
         ]),
         styles: { fontSize: 9 },
@@ -181,9 +243,7 @@ export default function BudgetPage() {
           ...(viewMode === 'year' ? ['Period'] : []),
           'Category',
           'Description',
-          'Budgeted',
-          'Actual',
-          'Variance',
+          ...exportMetricHeaders(mode),
         ]],
         body: items.map((item) => {
           const variance = item.category === 'revenue' ? item.actual - item.budgeted : item.budgeted - item.actual;
@@ -191,9 +251,7 @@ export default function BudgetPage() {
             ...(viewMode === 'year' ? [item.period] : []),
             item.category.replace(/_/g, ' '),
             item.description,
-            formatCurrency(item.budgeted),
-            formatCurrency(item.actual),
-            `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`,
+            ...exportMetricCells(mode, item.budgeted, item.actual, variance),
           ];
         }),
         styles: { fontSize: 8 },
@@ -201,12 +259,10 @@ export default function BudgetPage() {
     } else {
       autoTable(doc, {
         startY: 104,
-        head: [['Category Totals', 'Budgeted', 'Actual', 'Variance']],
+        head: [['Category Totals', ...exportMetricHeaders(mode)]],
         body: [[
           tabLabel,
-          formatCurrency(selectedCategoryTotals.budgeted),
-          formatCurrency(selectedCategoryTotals.actual),
-          `${selectedCategoryVariance >= 0 ? '+' : ''}${formatCurrency(selectedCategoryVariance)}`,
+          ...exportMetricCells(mode, selectedCategoryTotals.budgeted, selectedCategoryTotals.actual, selectedCategoryVariance),
         ]],
         styles: { fontSize: 9 },
       });
@@ -216,28 +272,24 @@ export default function BudgetPage() {
         head: [[
           ...(viewMode === 'year' ? ['Period'] : []),
           'Description',
-          'Budgeted',
-          'Actual',
-          'Variance',
+          ...exportMetricHeaders(mode),
         ]],
         body: selectedCategoryItems.map((item) => {
           const variance = item.category === 'revenue' ? item.actual - item.budgeted : item.budgeted - item.actual;
           return [
             ...(viewMode === 'year' ? [item.period] : []),
             item.description,
-            formatCurrency(item.budgeted),
-            formatCurrency(item.actual),
-            `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`,
+            ...exportMetricCells(mode, item.budgeted, item.actual, variance),
           ];
         }),
         styles: { fontSize: 9 },
       });
     }
 
-    doc.save(`budget-${activeTab}-${scopeLabel}.pdf`);
+    doc.save(`budget-${activeTab}-${scopeLabel}-${mode}.pdf`);
   };
 
-  const exportProfitAndLossPdf = (condensed = false) => {
+  const exportProfitAndLossPdf = (condensed = false, mode: ExportColumnMode = 'both') => {
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
     const scopeTypeLabel = viewMode === 'month' ? 'Monthly' : 'Yearly';
     const generatedAt = new Date().toLocaleString();
@@ -250,23 +302,23 @@ export default function BudgetPage() {
 
     autoTable(doc, {
       startY: 92,
-      head: [['P&L Summary', 'Budgeted', 'Actual', 'Variance']],
+      head: [['P&L Summary', ...exportMetricHeaders(mode)]],
       body: [
-        ['Revenue', formatCurrency(totalBudgetedRevenue), formatCurrency(totalActualRevenue), formatCurrency(totalActualRevenue - totalBudgetedRevenue)],
-        ['Direct Costs (Labour + Materials + Equipment + Subcontractors)', formatCurrency(budgetedDirectCosts), formatCurrency(actualDirectCosts), formatCurrency(budgetedDirectCosts - actualDirectCosts)],
-        ['Gross Profit', formatCurrency(budgetedGrossProfit), formatCurrency(actualGrossProfit), formatCurrency(actualGrossProfit - budgetedGrossProfit)],
-        ['Operating Expenses', formatCurrency(budgetedOperatingExpenses), formatCurrency(actualOperatingExpenses), formatCurrency(budgetedOperatingExpenses - actualOperatingExpenses)],
-        ['Net Profit', formatCurrency(budgetedNetProfit), formatCurrency(actualNetProfit), formatCurrency(actualNetProfit - budgetedNetProfit)],
+        ['Revenue', ...exportMetricCells(mode, totalBudgetedRevenue, totalActualRevenue, totalActualRevenue - totalBudgetedRevenue)],
+        ['Direct Costs (Labour + Materials + Equipment + Subcontractors)', ...exportMetricCells(mode, budgetedDirectCosts, actualDirectCosts, budgetedDirectCosts - actualDirectCosts)],
+        ['Gross Profit', ...exportMetricCells(mode, budgetedGrossProfit, actualGrossProfit, actualGrossProfit - budgetedGrossProfit)],
+        ['Operating Expenses', ...exportMetricCells(mode, budgetedOperatingExpenses, actualOperatingExpenses, budgetedOperatingExpenses - actualOperatingExpenses)],
+        ['Net Profit', ...exportMetricCells(mode, budgetedNetProfit, actualNetProfit, actualNetProfit - budgetedNetProfit)],
       ],
       styles: { fontSize: 9 },
     });
 
     autoTable(doc, {
       startY: 232,
-      head: [['Margin Analysis', 'Budgeted', 'Actual']],
+      head: [['Margin Analysis', ...exportMetricHeaders(mode, false)]],
       body: [
-        ['Gross Margin %', `${budgetedGrossMarginPct.toFixed(1)}%`, `${actualGrossMarginPct.toFixed(1)}%`],
-        ['Net Margin %', `${budgetedNetMarginPct.toFixed(1)}%`, `${actualNetMarginPct.toFixed(1)}%`],
+        ['Gross Margin %', ...exportMarginCells(mode, budgetedGrossMarginPct, actualGrossMarginPct)],
+        ['Net Margin %', ...exportMarginCells(mode, budgetedNetMarginPct, actualNetMarginPct)],
       ],
       styles: { fontSize: 9 },
     });
@@ -274,29 +326,28 @@ export default function BudgetPage() {
     if (condensed) {
       autoTable(doc, {
         startY: 314,
-        head: [['Cost Category Snapshot', 'Budgeted', 'Actual', 'Variance']],
+        head: [['Cost Category Snapshot', ...exportMetricHeaders(mode)]],
         body: [
-          ['Labour', formatCurrency(grouped.labour.reduce((sum, item) => sum + item.budgeted, 0)), formatCurrency(grouped.labour.reduce((sum, item) => sum + item.actual, 0)), formatCurrency(grouped.labour.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
-          ['Materials', formatCurrency(grouped.materials.reduce((sum, item) => sum + item.budgeted, 0)), formatCurrency(grouped.materials.reduce((sum, item) => sum + item.actual, 0)), formatCurrency(grouped.materials.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
-          ['Equipment', formatCurrency(grouped.equipment.reduce((sum, item) => sum + item.budgeted, 0)), formatCurrency(grouped.equipment.reduce((sum, item) => sum + item.actual, 0)), formatCurrency(grouped.equipment.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
-          ['Subcontractors', formatCurrency(grouped.subcontractors.reduce((sum, item) => sum + item.budgeted, 0)), formatCurrency(grouped.subcontractors.reduce((sum, item) => sum + item.actual, 0)), formatCurrency(grouped.subcontractors.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
-          ['Overhead', formatCurrency(grouped.overhead.reduce((sum, item) => sum + item.budgeted, 0)), formatCurrency(grouped.overhead.reduce((sum, item) => sum + item.actual, 0)), formatCurrency(grouped.overhead.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
+          ['Labour', ...exportMetricCells(mode, grouped.labour.reduce((sum, item) => sum + item.budgeted, 0), grouped.labour.reduce((sum, item) => sum + item.actual, 0), grouped.labour.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
+          ['Materials', ...exportMetricCells(mode, grouped.materials.reduce((sum, item) => sum + item.budgeted, 0), grouped.materials.reduce((sum, item) => sum + item.actual, 0), grouped.materials.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
+          ['Equipment', ...exportMetricCells(mode, grouped.equipment.reduce((sum, item) => sum + item.budgeted, 0), grouped.equipment.reduce((sum, item) => sum + item.actual, 0), grouped.equipment.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
+          ['Subcontractors', ...exportMetricCells(mode, grouped.subcontractors.reduce((sum, item) => sum + item.budgeted, 0), grouped.subcontractors.reduce((sum, item) => sum + item.actual, 0), grouped.subcontractors.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
+          ['Overhead', ...exportMetricCells(mode, grouped.overhead.reduce((sum, item) => sum + item.budgeted, 0), grouped.overhead.reduce((sum, item) => sum + item.actual, 0), grouped.overhead.reduce((sum, item) => sum + item.budgeted - item.actual, 0))],
         ],
         styles: { fontSize: 9 },
       });
 
-      doc.save(`profit-loss-${scopeTypeLabel.toLowerCase()}-${scopeLabel}-1-page.pdf`);
+      doc.save(`profit-loss-${scopeTypeLabel.toLowerCase()}-${scopeLabel}-1-page-${mode}.pdf`);
       return;
     }
 
     autoTable(doc, {
       startY: 314,
-      head: [[...(viewMode === 'year' ? ['Period'] : []), 'Revenue Description', 'Budgeted', 'Actual']],
+      head: [[...(viewMode === 'year' ? ['Period'] : []), 'Revenue Description', ...exportMetricHeaders(mode, false)]],
       body: revenueItems.map((item) => [
         ...(viewMode === 'year' ? [item.period] : []),
         item.description,
-        formatCurrency(item.budgeted),
-        formatCurrency(item.actual),
+        ...exportMetricCells(mode, item.budgeted, item.actual, 0, false),
       ]),
       styles: { fontSize: 8 },
     });
@@ -307,13 +358,12 @@ export default function BudgetPage() {
 
     autoTable(doc, {
       startY: cogsStartY,
-      head: [[...(viewMode === 'year' ? ['Period'] : []), 'Direct Cost Description', 'Category', 'Budgeted', 'Actual']],
+      head: [[...(viewMode === 'year' ? ['Period'] : []), 'Direct Cost Description', 'Category', ...exportMetricHeaders(mode, false)]],
       body: directCostItems.map((item) => [
         ...(viewMode === 'year' ? [item.period] : []),
         item.description,
         item.category.replace(/_/g, ' '),
-        formatCurrency(item.budgeted),
-        formatCurrency(item.actual),
+        ...exportMetricCells(mode, item.budgeted, item.actual, 0, false),
       ]),
       styles: { fontSize: 8 },
     });
@@ -324,18 +374,17 @@ export default function BudgetPage() {
 
     autoTable(doc, {
       startY: opexStartY,
-      head: [[...(viewMode === 'year' ? ['Period'] : []), 'Operating Expense Description', 'Category', 'Budgeted', 'Actual']],
+      head: [[...(viewMode === 'year' ? ['Period'] : []), 'Operating Expense Description', 'Category', ...exportMetricHeaders(mode, false)]],
       body: operatingExpenseItems.map((item) => [
         ...(viewMode === 'year' ? [item.period] : []),
         item.description,
         item.category.replace(/_/g, ' '),
-        formatCurrency(item.budgeted),
-        formatCurrency(item.actual),
+        ...exportMetricCells(mode, item.budgeted, item.actual, 0, false),
       ]),
       styles: { fontSize: 8 },
     });
 
-    doc.save(`profit-loss-${scopeTypeLabel.toLowerCase()}-${scopeLabel}.pdf`);
+    doc.save(`profit-loss-${scopeTypeLabel.toLowerCase()}-${scopeLabel}-${mode}.pdf`);
   };
 
   const updatePricingInput = (key: keyof typeof pricingInputs, value: number) => {
@@ -404,9 +453,9 @@ export default function BudgetPage() {
         subtitle="Track your company budget by month or year, with category breakdowns for pricing and planning."
         action={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => exportProfitAndLossPdf(true)}><FileDown size={16} /> Export P&L 1-Page</Button>
-            <Button variant="secondary" onClick={() => exportProfitAndLossPdf(false)}><FileDown size={16} /> Export P&L PDF</Button>
-            <Button variant="secondary" onClick={exportToPdf}><FileDown size={16} /> Export PDF</Button>
+            <Button variant="secondary" onClick={() => openExportModal('pnl_condensed')}><FileDown size={16} /> Export P&L 1-Page</Button>
+            <Button variant="secondary" onClick={() => openExportModal('pnl_detailed')}><FileDown size={16} /> Export P&L PDF</Button>
+            <Button variant="secondary" onClick={() => openExportModal('budget')}><FileDown size={16} /> Export PDF</Button>
             <Button onClick={openNew}><Plus size={16} /> Add Budget Item</Button>
           </div>
         }
@@ -455,151 +504,268 @@ export default function BudgetPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        {categoryTabs.map((tab) => (
-          <Button
-            key={tab.key}
-            size="sm"
-            variant={activeTab === tab.key ? 'primary' : 'secondary'}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </Button>
-        ))}
+      <div className="mb-6 overflow-x-auto">
+        <div className="inline-flex border border-gray-200 rounded-xl p-1 bg-white min-w-max" role="tablist" aria-label="Budget sections">
+          {categoryTabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
+                activeTab === tab.key
+                  ? 'bg-brand-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-        <Card className="p-4">
-          <p className="text-xs text-gray-500">Budgeted Revenue</p>
-          <p className="text-xl font-bold text-green-600">{formatCurrency(totalBudgetedRevenue)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-gray-500">Actual Revenue</p>
-          <p className="text-xl font-bold text-green-700">{formatCurrency(totalActualRevenue)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-gray-500">Budget vs Actual Profit</p>
-          <p className={`text-xl font-bold ${budgetedProfit >= 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatCurrency(budgetedProfit)}</p>
-          <p className={`text-xs ${actualProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Actual: {formatCurrency(actualProfit)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-gray-500">Total Expenses</p>
-          <p className="text-xl font-bold text-red-600">{formatCurrency(totalActualExpenses)}</p>
-          <p className="text-xs text-gray-400">Budget: {formatCurrency(totalBudgetedExpenses)}</p>
-        </Card>
-      </div>
+      {activeTab === 'analysis' && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Budgeted Revenue</p>
+              <p className="text-xl font-bold text-green-600">{formatCurrency(totalBudgetedRevenue)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Actual Revenue</p>
+              <p className="text-xl font-bold text-green-700">{formatCurrency(totalActualRevenue)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Budget vs Actual Profit</p>
+              <p className={`text-xl font-bold ${budgetedProfit >= 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatCurrency(budgetedProfit)}</p>
+              <p className={`text-xs ${actualProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Actual: {formatCurrency(actualProfit)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Total Expenses</p>
+              <p className="text-xl font-bold text-red-600">{formatCurrency(totalActualExpenses)}</p>
+              <p className="text-xs text-gray-400">Budget: {formatCurrency(totalBudgetedExpenses)}</p>
+            </Card>
+          </div>
 
-      <Card className="p-4 mb-6">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Estimate Pricing Calculator</h2>
-          <p className="text-sm text-gray-500 mt-1">Use current budget + payroll assumptions to set charge-out rates for labour, machine time, materials, and subcontractors.</p>
-        </div>
+          <Card className="p-4 mb-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Estimate Pricing Calculator</h2>
+              <p className="text-sm text-gray-500 mt-1">Use current budget + payroll assumptions to set charge-out rates for labour, machine time, materials, and subcontractors.</p>
+            </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
-          <Input
-            label="Payroll Burden (%)"
-            type="number"
-            min={0}
-            value={pricingInputs.payrollBurdenPct}
-            onChange={(e) => updatePricingInput('payrollBurdenPct', Number(e.target.value))}
-          />
-          <Input
-            label="Overhead Recovery (%)"
-            type="number"
-            min={0}
-            value={pricingInputs.overheadRecoveryPct}
-            onChange={(e) => updatePricingInput('overheadRecoveryPct', Number(e.target.value))}
-          />
-          <Input
-            label="Target Margin (%)"
-            type="number"
-            min={0}
-            max={95}
-            value={pricingInputs.targetMarginPct}
-            onChange={(e) => updatePricingInput('targetMarginPct', Number(e.target.value))}
-          />
-          <Input
-            label="Machine Utilization (hrs/month)"
-            type="number"
-            min={1}
-            value={pricingInputs.equipmentUtilizationHours}
-            onChange={(e) => updatePricingInput('equipmentUtilizationHours', Number(e.target.value))}
-          />
-          <Input
-            label="Material Waste Buffer (%)"
-            type="number"
-            min={0}
-            value={pricingInputs.materialWastePct}
-            onChange={(e) => updatePricingInput('materialWastePct', Number(e.target.value))}
-          />
-          <Input
-            label="Subcontractor Risk Buffer (%)"
-            type="number"
-            min={0}
-            value={pricingInputs.subcontractorRiskPct}
-            onChange={(e) => updatePricingInput('subcontractorRiskPct', Number(e.target.value))}
-          />
-        </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
+              <Input
+                label="Payroll Burden (%)"
+                type="number"
+                min={0}
+                value={pricingInputs.payrollBurdenPct}
+                onChange={(e) => updatePricingInput('payrollBurdenPct', Number(e.target.value))}
+              />
+              <Input
+                label="Overhead Recovery (%)"
+                type="number"
+                min={0}
+                value={pricingInputs.overheadRecoveryPct}
+                onChange={(e) => updatePricingInput('overheadRecoveryPct', Number(e.target.value))}
+              />
+              <Input
+                label="Target Margin (%)"
+                type="number"
+                min={0}
+                max={95}
+                value={pricingInputs.targetMarginPct}
+                onChange={(e) => updatePricingInput('targetMarginPct', Number(e.target.value))}
+              />
+              <Input
+                label="Machine Utilization (hrs/month)"
+                type="number"
+                min={1}
+                value={pricingInputs.equipmentUtilizationHours}
+                onChange={(e) => updatePricingInput('equipmentUtilizationHours', Number(e.target.value))}
+              />
+              <Input
+                label="Material Waste Buffer (%)"
+                type="number"
+                min={0}
+                value={pricingInputs.materialWastePct}
+                onChange={(e) => updatePricingInput('materialWastePct', Number(e.target.value))}
+              />
+              <Input
+                label="Subcontractor Risk Buffer (%)"
+                type="number"
+                min={0}
+                value={pricingInputs.subcontractorRiskPct}
+                onChange={(e) => updatePricingInput('subcontractorRiskPct', Number(e.target.value))}
+              />
+            </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <Card className="p-4">
+                <p className="text-xs text-gray-500">Suggested Labour Charge-Out</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedLaborSellRate)}/hr</p>
+                <p className="text-xs text-gray-400 mt-1">Avg pay {formatCurrency(averageBaseLaborRate)}/hr, loaded {formatCurrency(loadedLaborCostPerHour)}/hr</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedMachineSellRate)}/hr</p>
+                <p className="text-xs text-gray-400 mt-1">Based on equipment actual {formatCurrency(periodEquipmentActual)} for {scopeLabel}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs text-gray-500">Material Markup Guidance</p>
+                <p className="text-xl font-bold text-gray-900">{suggestedMaterialMarkupPct.toFixed(1)}%</p>
+                <p className="text-xs text-gray-400 mt-1">Includes waste + overhead + target margin</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs text-gray-500">Subcontractor Markup Guidance</p>
+                <p className="text-xl font-bold text-gray-900">{suggestedSubcontractorMarkupPct.toFixed(1)}%</p>
+                <p className="text-xs text-gray-400 mt-1">Includes risk buffer + overhead + target margin</p>
+              </Card>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {activeTab === 'labour' && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Budgeted Labour</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.labour.budgeted)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Actual Labour</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.labour.actual)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Suggested Labour Rate</p>
+              <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedLaborSellRate)}/hr</p>
+            </Card>
+          </div>
+
+          <Card className="overflow-hidden mb-6">
+            <div className="p-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900">Role-Based Labour Benchmarks</h2>
+              <p className="text-sm text-gray-500 mt-1">Labour rates by role using current payroll and margin assumptions.</p>
+            </div>
+            {roleBenchmarks.length === 0 ? (
+              <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees with hourly rates to calculate labour benchmarks.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
+                      <th className="px-4 py-3 font-medium">Role</th>
+                      <th className="px-4 py-3 font-medium text-right">Team Size</th>
+                      <th className="px-4 py-3 font-medium text-right">Avg Pay / Hr</th>
+                      <th className="px-4 py-3 font-medium text-right">Loaded Cost / Hr</th>
+                      <th className="px-4 py-3 font-medium text-right">Suggested Bill Rate / Hr</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {roleBenchmarks.map((row) => (
+                      <tr key={row.role} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 capitalize">{row.role.replace(/_/g, ' ')}</td>
+                        <td className="px-4 py-2 text-right">{row.count}</td>
+                        <td className="px-4 py-2 text-right">{formatCurrency(row.averageRate)}</td>
+                        <td className="px-4 py-2 text-right">{formatCurrency(row.loadedCost)}</td>
+                        <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(row.suggestedSellRate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {activeTab === 'revenue' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <Card className="p-4">
-            <p className="text-xs text-gray-500">Suggested Labour Charge-Out</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedLaborSellRate)}/hr</p>
-            <p className="text-xs text-gray-400 mt-1">Avg pay {formatCurrency(averageBaseLaborRate)}/hr, loaded {formatCurrency(loadedLaborCostPerHour)}/hr</p>
+            <p className="text-xs text-gray-500">Budgeted Sales / Revenue</p>
+            <p className="text-xl font-bold text-green-600">{formatCurrency(totalsByCategory.revenue.budgeted)}</p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Actual Sales / Revenue</p>
+            <p className="text-xl font-bold text-green-700">{formatCurrency(totalsByCategory.revenue.actual)}</p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Revenue Variance</p>
+            <p className={`text-xl font-bold ${(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+              {(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? '+' : ''}{formatCurrency(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted)}
+            </p>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'materials' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Budgeted Materials</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.materials.budgeted)}</p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Actual Materials</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.materials.actual)}</p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Suggested Material Markup</p>
+            <p className="text-xl font-bold text-brand-700">{suggestedMaterialMarkupPct.toFixed(1)}%</p>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'equipment' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Budgeted Equipment</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.budgeted)}</p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Actual Equipment</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.actual)}</p>
           </Card>
           <Card className="p-4">
             <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedMachineSellRate)}/hr</p>
-            <p className="text-xs text-gray-400 mt-1">Based on equipment actual {formatCurrency(periodEquipmentActual)} for {scopeLabel}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Material Markup Guidance</p>
-            <p className="text-xl font-bold text-gray-900">{suggestedMaterialMarkupPct.toFixed(1)}%</p>
-            <p className="text-xs text-gray-400 mt-1">Includes waste + overhead + target margin</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Subcontractor Markup Guidance</p>
-            <p className="text-xl font-bold text-gray-900">{suggestedSubcontractorMarkupPct.toFixed(1)}%</p>
-            <p className="text-xs text-gray-400 mt-1">Includes risk buffer + overhead + target margin</p>
+            <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedMachineSellRate)}/hr</p>
           </Card>
         </div>
-      </Card>
+      )}
 
-      <Card className="overflow-hidden mb-6">
-        <div className="p-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Role-Based Labour Benchmarks</h2>
-          <p className="text-sm text-gray-500 mt-1">Use this as your field pricing baseline when building labour line items in estimates.</p>
+      {activeTab === 'subcontractors' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Budgeted Subcontractors</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.subcontractors.budgeted)}</p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Actual Subcontractors</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.subcontractors.actual)}</p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Suggested Subcontractor Markup</p>
+            <p className="text-xl font-bold text-brand-700">{suggestedSubcontractorMarkupPct.toFixed(1)}%</p>
+          </Card>
         </div>
-        {roleBenchmarks.length === 0 ? (
-          <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees with hourly rates to calculate role benchmarks.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
-                  <th className="px-4 py-3 font-medium">Role</th>
-                  <th className="px-4 py-3 font-medium text-right">Team Size</th>
-                  <th className="px-4 py-3 font-medium text-right">Avg Pay / Hr</th>
-                  <th className="px-4 py-3 font-medium text-right">Loaded Cost / Hr</th>
-                  <th className="px-4 py-3 font-medium text-right">Suggested Bill Rate / Hr</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {roleBenchmarks.map((row) => (
-                  <tr key={row.role} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 capitalize">{row.role.replace(/_/g, ' ')}</td>
-                    <td className="px-4 py-2 text-right">{row.count}</td>
-                    <td className="px-4 py-2 text-right">{formatCurrency(row.averageRate)}</td>
-                    <td className="px-4 py-2 text-right">{formatCurrency(row.loadedCost)}</td>
-                    <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(row.suggestedSellRate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      )}
+
+      {activeTab === 'overhead' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Budgeted Overhead</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.overhead.budgeted)}</p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Actual Overhead</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.overhead.actual)}</p>
+          </Card>
+          <Card className="p-4">
+            <p className="text-xs text-gray-500">Overhead Recovery Setting</p>
+            <p className="text-xl font-bold text-brand-700">{pricingInputs.overheadRecoveryPct.toFixed(1)}%</p>
+          </Card>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <EmptyState title={`No budget items for ${scopeLabel}`} action={<Button onClick={openNew}><Plus size={16} /> Add Budget Item</Button>} />
@@ -768,6 +934,39 @@ export default function BudgetPage() {
         </>}
       >
         <p className="text-gray-600">Delete this budget item?</p>
+      </Modal>
+
+      <Modal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        title="Export PDF Options"
+        footer={<>
+          <Button variant="secondary" onClick={() => setExportModalOpen(false)}>Cancel</Button>
+          <Button onClick={runExport}>Export</Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <Input
+            label="Report"
+            value={
+              exportKind === 'budget'
+                ? 'Budget Report'
+                : exportKind === 'pnl_condensed'
+                  ? 'Profit & Loss (1-Page)'
+                  : 'Profit & Loss (Detailed)'
+            }
+            disabled
+          />
+          <Select
+            label="Columns"
+            value={exportColumnMode}
+            onChange={(e) => setExportColumnMode(e.target.value as ExportColumnMode)}
+          >
+            <option value="both">Budgeted + Actual + Variance</option>
+            <option value="budgeted">Budgeted only</option>
+            <option value="actual">Actual only</option>
+          </Select>
+        </div>
       </Modal>
     </div>
   );
