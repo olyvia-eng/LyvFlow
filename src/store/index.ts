@@ -10,6 +10,7 @@ import type {
   BudgetItem,
   LabourBudgetPlan,
   LabourHoursSalesGoal,
+  RevenueSalesGoal,
   CostEntry,
   ID,
 } from '../types';
@@ -66,6 +67,7 @@ interface AppState {
   budgetItems: BudgetItem[];
   labourBudgetPlans: LabourBudgetPlan[];
   labourHoursSalesGoals: LabourHoursSalesGoal[];
+  revenueSalesGoals: RevenueSalesGoal[];
 
   // CRM
   addCustomer: (c: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -110,6 +112,8 @@ interface AppState {
   deleteLabourBudgetPlan: (id: ID) => void;
   upsertLabourHoursSalesGoal: (goal: LabourHoursSalesGoal) => void;
   deleteLabourHoursSalesGoal: (id: ID) => void;
+  upsertRevenueSalesGoal: (goal: RevenueSalesGoal) => void;
+  deleteRevenueSalesGoal: (id: ID) => void;
 }
 
 export const useStore = create<AppState>()((set, get) => ({
@@ -122,6 +126,7 @@ export const useStore = create<AppState>()((set, get) => ({
       budgetItems: [],
       labourBudgetPlans: [],
       labourHoursSalesGoals: [],
+      revenueSalesGoals: [],
 
       // ── CRM ──────────────────────────────────────────────────────────────
       addCustomer: (c) => {
@@ -689,7 +694,7 @@ export const useStore = create<AppState>()((set, get) => ({
           body: JSON.stringify({ data: exists ? plan : plan }),
         })).catch(() => {
           set({ labourBudgetPlans: previous });
-          emitAppToast({ tone: 'error', message: 'Labour budget plan could not be saved.' });
+          emitAppToast({ tone: 'error', message: 'Labour planner could not be saved.' });
         });
       },
       deleteLabourBudgetPlan: (id) => {
@@ -701,7 +706,7 @@ export const useStore = create<AppState>()((set, get) => ({
           credentials: 'include',
         })).catch(() => {
           set({ labourBudgetPlans: previous });
-          emitAppToast({ tone: 'error', message: 'Labour budget plan could not be deleted.' });
+          emitAppToast({ tone: 'error', message: 'Labour planner could not be deleted.' });
         });
       },
       upsertLabourHoursSalesGoal: (goal) => {
@@ -739,6 +744,43 @@ export const useStore = create<AppState>()((set, get) => ({
         })).catch(() => {
           set({ labourHoursSalesGoals: previous });
           emitAppToast({ tone: 'error', message: 'Labour hours sales goal could not be deleted.' });
+        });
+      },
+      upsertRevenueSalesGoal: (goal) => {
+        const previous = get().revenueSalesGoals;
+        const exists = previous.some((value) => value.id === goal.id);
+
+        set((state) => ({
+          revenueSalesGoals: exists
+            ? state.revenueSalesGoals.map((value) => (value.id === goal.id ? { ...value, ...goal } : value))
+            : [...state.revenueSalesGoals, goal],
+        }));
+
+        const method = exists ? 'PATCH' : 'POST';
+        const url = exists ? dataUrl('revenue-sales-goals', goal.id) : dataUrl('revenue-sales-goals');
+
+        void ensureOk(fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: goal }),
+        })).catch(() => {
+          set({ revenueSalesGoals: previous });
+          emitAppToast({ tone: 'error', message: 'Revenue sales goal could not be saved.' });
+        });
+      },
+      deleteRevenueSalesGoal: (id) => {
+        const previous = get().revenueSalesGoals;
+        set((state) => ({ revenueSalesGoals: state.revenueSalesGoals.filter((goal) => goal.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('revenue-sales-goals', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch(() => {
+          set({ revenueSalesGoals: previous });
+          emitAppToast({ tone: 'error', message: 'Revenue sales goal could not be deleted.' });
         });
       },
     }));

@@ -60,6 +60,10 @@ function labourHoursSalesGoalSk(labourHoursSalesGoalId) {
   return `LABOUR_HOURS_GOAL#${labourHoursSalesGoalId}`;
 }
 
+function revenueSalesGoalSk(revenueSalesGoalId) {
+  return `REVENUE_GOAL#${revenueSalesGoalId}`;
+}
+
 function employeeSk(employeeId) {
   return `EMPLOYEE#${employeeId}`;
 }
@@ -1229,6 +1233,101 @@ export async function deleteLabourHoursSalesGoalForBusiness(businessId, labourHo
       Key: {
         PK: businessPk(businessId),
         SK: labourHoursSalesGoalSk(labourHoursSalesGoalId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listRevenueSalesGoalsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'REVENUE_GOAL#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.revenueSalesGoalId,
+    scopeType: item.scopeType,
+    scopeValue: item.scopeValue,
+    goalRevenue: item.goalRevenue,
+    workingDays: item.workingDays,
+  }));
+}
+
+export async function createRevenueSalesGoalForBusiness({ businessId, revenueSalesGoal }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: revenueSalesGoalSk(revenueSalesGoal.id),
+        entityType: 'REVENUE_SALES_GOAL',
+        businessId,
+        revenueSalesGoalId: revenueSalesGoal.id,
+        ...revenueSalesGoal,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getRevenueSalesGoalForBusiness(businessId, revenueSalesGoalId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: revenueSalesGoalSk(revenueSalesGoalId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.revenueSalesGoalId,
+        scopeType: result.Item.scopeType,
+        scopeValue: result.Item.scopeValue,
+        goalRevenue: result.Item.goalRevenue,
+        workingDays: result.Item.workingDays,
+      }
+    : null;
+}
+
+export async function updateRevenueSalesGoalForBusiness({ businessId, revenueSalesGoal }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: revenueSalesGoalSk(revenueSalesGoal.id),
+        entityType: 'REVENUE_SALES_GOAL',
+        businessId,
+        revenueSalesGoalId: revenueSalesGoal.id,
+        ...revenueSalesGoal,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteRevenueSalesGoalForBusiness(businessId, revenueSalesGoalId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: revenueSalesGoalSk(revenueSalesGoalId),
       },
     })
   );

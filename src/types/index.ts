@@ -197,6 +197,14 @@ export interface LabourHoursSalesGoal {
   hoursGoal: number;
 }
 
+export interface RevenueSalesGoal {
+  id: ID;
+  scopeType: 'month' | 'year';
+  scopeValue: string; // YYYY-MM for month, YYYY for year
+  goalRevenue: number;
+  workingDays: number;
+}
+
 export interface BudgetPeriod {
   period: string; // YYYY-MM
   items: BudgetItem[];

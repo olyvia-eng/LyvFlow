@@ -1,4 +1,5 @@
 import {
+  listRevenueSalesGoalsForBusiness,
   listLabourHoursSalesGoalsForBusiness,
   listLabourBudgetPlansForBusiness,
   listBudgetItemsForBusiness,
@@ -21,7 +22,7 @@ export default async function handler(req, res) {
   if (!session) return;
 
   try {
-    const [customers, jobs, estimates, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, employees, timeEntries] = await Promise.all([
+    const [customers, jobs, estimates, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
       listCustomersForBusiness(session.businessId),
       listJobsForBusiness(session.businessId),
       listEstimatesForBusiness(session.businessId),
@@ -29,6 +30,7 @@ export default async function handler(req, res) {
       listBudgetItemsForBusiness(session.businessId),
       listLabourBudgetPlansForBusiness(session.businessId),
       listLabourHoursSalesGoalsForBusiness(session.businessId),
+      listRevenueSalesGoalsForBusiness(session.businessId),
       listEmployeesForBusiness(session.businessId),
       listTimeEntriesForBusiness(session.businessId),
     ]);
@@ -42,6 +44,7 @@ export default async function handler(req, res) {
       budgetItems,
       labourBudgetPlans,
       labourHoursSalesGoals,
+      revenueSalesGoals,
       employees,
       timeEntries,
     });

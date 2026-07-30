@@ -3,7 +3,7 @@ import { useStore } from '../../store';
 import { PageHeader, Button, Card, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, FileDown } from 'lucide-react';
 import { formatCurrency } from '../../utils';
-import type { BudgetItem, BudgetCategory, EmployeeRole, LabourBudgetPlan, LabourCompType, EquipmentCostType } from '../../types';
+import type { BudgetItem, BudgetCategory, LabourBudgetPlan, LabourCompType, EquipmentCostType, RevenueSalesGoal } from '../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -29,7 +29,8 @@ const empty = (): Omit<BudgetItem, 'id'> => ({
 
 const yearlyHoursBase = 2080;
 const buildLabourPlanId = (employeeId: string, year: string) => `${employeeId}-${year}`;
-const buildLabourHoursGoalId = (year: string) => `labour-hours-goal-${year}`;
+const buildRevenueSalesGoalId = (scopeType: 'month' | 'year', scopeValue: string) => `revenue-goal-${scopeType}-${scopeValue}`;
+const defaultWorkingDaysByViewMode = (mode: 'month' | 'year') => (mode === 'month' ? 22 : 260);
 
 const defaultLabourPlan = (employeeId: string, year: string, hourlyRate: number): LabourBudgetPlan => ({
   id: buildLabourPlanId(employeeId, year),
@@ -49,13 +50,13 @@ export default function BudgetPage() {
   const {
     budgetItems,
     labourBudgetPlans,
-    labourHoursSalesGoals,
+    revenueSalesGoals,
     employees,
     addBudgetItem,
     updateBudgetItem,
     deleteBudgetItem,
     upsertLabourBudgetPlan,
-    upsertLabourHoursSalesGoal,
+    upsertRevenueSalesGoal,
   } = useStore();
   const [period, setPeriod] = useState(currentPeriod());
   const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
@@ -87,6 +88,8 @@ export default function BudgetPage() {
     ? budgetItems.filter((b) => b.period === period)
     : budgetItems.filter((b) => b.period.startsWith(`${year}-`));
   const scopeLabel = viewMode === 'month' ? period : year;
+  const revenueScopeType = viewMode;
+  const revenueScopeValue = scopeLabel;
   const plannerYear = viewMode === 'year' ? year : period.slice(0, 4);
 
   const openNew = () => {
@@ -260,6 +263,54 @@ export default function BudgetPage() {
   const budgetedNetMarginPct = totalBudgetedRevenue > 0 ? (budgetedNetProfit / totalBudgetedRevenue) * 100 : 0;
   const actualNetMarginPct = totalActualRevenue > 0 ? (actualNetProfit / totalActualRevenue) * 100 : 0;
 
+  const currentRevenuePlanRecord = useMemo(() => {
+    return revenueSalesGoals.find((goal) => goal.scopeType === revenueScopeType && goal.scopeValue === revenueScopeValue);
+  }, [revenueSalesGoals, revenueScopeType, revenueScopeValue]);
+
+  const currentRevenuePlan = currentRevenuePlanRecord ?? {
+    id: buildRevenueSalesGoalId(revenueScopeType, revenueScopeValue),
+    scopeType: revenueScopeType,
+    scopeValue: revenueScopeValue,
+    goalRevenue: totalBudgetedRevenue > 0 ? totalBudgetedRevenue : totalActualRevenue,
+    workingDays: defaultWorkingDaysByViewMode(viewMode),
+  };
+
+  const revenuePerDayNeeded = currentRevenuePlan.workingDays > 0
+    ? currentRevenuePlan.goalRevenue / currentRevenuePlan.workingDays
+    : 0;
+  const actualRevenuePerDay = currentRevenuePlan.workingDays > 0
+    ? totalActualRevenue / currentRevenuePlan.workingDays
+    : 0;
+  const revenuePerDayGap = revenuePerDayNeeded - actualRevenuePerDay;
+
+  useEffect(() => {
+    if (currentRevenuePlanRecord) return;
+    upsertRevenueSalesGoal({
+      id: buildRevenueSalesGoalId(revenueScopeType, revenueScopeValue),
+      scopeType: revenueScopeType,
+      scopeValue: revenueScopeValue,
+      goalRevenue: totalBudgetedRevenue > 0 ? totalBudgetedRevenue : totalActualRevenue,
+      workingDays: defaultWorkingDaysByViewMode(viewMode),
+    });
+  }, [
+    currentRevenuePlanRecord,
+    revenueScopeType,
+    revenueScopeValue,
+    totalBudgetedRevenue,
+    totalActualRevenue,
+    viewMode,
+    upsertRevenueSalesGoal,
+  ]);
+
+  const updateRevenuePlan = (key: 'goalRevenue' | 'workingDays', value: number) => {
+    const sanitizedValue = Math.max(0, Number.isFinite(value) ? value : 0);
+    const next: RevenueSalesGoal = {
+      ...currentRevenuePlan,
+      [key]: sanitizedValue,
+    };
+    upsertRevenueSalesGoal(next);
+  };
+
   const exportMetricHeaders = (mode: ExportColumnMode, includeVariance = true) => {
     if (mode === 'budgeted') return ['Budgeted'];
     if (mode === 'actual') return ['Actual'];
@@ -304,27 +355,12 @@ export default function BudgetPage() {
     return byEmployeeId;
   }, [labourBudgetPlans, plannerYear]);
 
-  const labourHoursGoalRecord = useMemo(() => {
-    return labourHoursSalesGoals.find((goal) => goal.year === plannerYear);
-  }, [labourHoursSalesGoals, plannerYear]);
-
-  const labourHoursSalesGoal = labourHoursGoalRecord?.hoursGoal ?? 0;
-
   useEffect(() => {
     for (const employee of employees.filter((value) => value.active)) {
       if (plansByEmployeeId[employee.id]) continue;
       upsertLabourBudgetPlan(defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate));
     }
   }, [employees, plannerYear, plansByEmployeeId, upsertLabourBudgetPlan]);
-
-  useEffect(() => {
-    if (labourHoursGoalRecord) return;
-    upsertLabourHoursSalesGoal({
-      id: buildLabourHoursGoalId(plannerYear),
-      year: plannerYear,
-      hoursGoal: 0,
-    });
-  }, [labourHoursGoalRecord, plannerYear, upsertLabourHoursSalesGoal]);
 
   const exportToPdf = (mode: ExportColumnMode = 'both') => {
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
@@ -545,31 +581,6 @@ export default function BudgetPage() {
     (1 + pricingInputs.subcontractorRiskPct / 100) * (1 + pricingInputs.overheadRecoveryPct / 100) / marginDivisor;
   const suggestedSubcontractorMarkupPct = (subcontractorSellMultiplier - 1) * 100;
 
-  const roleBenchmarks = useMemo(() => {
-    const groups = new Map<EmployeeRole, { count: number; totalRate: number }>();
-    for (const employee of activeEmployees) {
-      const existing = groups.get(employee.role) ?? { count: 0, totalRate: 0 };
-      existing.count += 1;
-      existing.totalRate += employee.hourlyRate;
-      groups.set(employee.role, existing);
-    }
-
-    return Array.from(groups.entries()).map(([role, data]) => {
-      const averageRate = data.totalRate / Math.max(1, data.count);
-      const loadedCost = averageRate * (1 + pricingInputs.payrollBurdenPct / 100);
-      const breakEven = loadedCost * (1 + pricingInputs.overheadRecoveryPct / 100);
-      const suggestedSellRate = breakEven / marginDivisor;
-
-      return {
-        role,
-        count: data.count,
-        averageRate,
-        loadedCost,
-        suggestedSellRate,
-      };
-    }).sort((a, b) => a.role.localeCompare(b.role));
-  }, [activeEmployees, marginDivisor, pricingInputs.overheadRecoveryPct, pricingInputs.payrollBurdenPct]);
-
   const updateLabourPlan = (employeeId: string, key: keyof LabourBudgetPlan, value: number | LabourCompType) => {
     const employee = activeEmployees.find((value) => value.id === employeeId);
     if (!employee) return;
@@ -586,27 +597,31 @@ export default function BudgetPage() {
       const baseHourlyRate = plan.compType === 'hourly'
         ? plan.hourlyRate
         : (plan.annualSalary / yearlyHoursBase);
-      const regularHours = plan.billableHoursYear + plan.unbillableHoursYear;
-      const regularCompensation = plan.compType === 'hourly'
-        ? regularHours * baseHourlyRate
+      const annualBasePay = plan.compType === 'hourly'
+        ? plan.billableHoursYear * baseHourlyRate
         : plan.annualSalary;
-      const overtimeCompensation = plan.compType === 'hourly'
-        ? plan.overtimeHoursYear * baseHourlyRate * plan.overtimeMultiplier
-        : plan.overtimeHoursYear * baseHourlyRate * Math.max(plan.overtimeMultiplier - 1, 0);
-      const totalCompensation = regularCompensation + overtimeCompensation;
-      const labourBurdenAmount = totalCompensation * (plan.labourBurdenPct / 100);
-      const totalLabourCost = totalCompensation + labourBurdenAmount;
+      const labourBurdenAmount = annualBasePay * (plan.labourBurdenPct / 100);
+      const annualLabourCost = annualBasePay + labourBurdenAmount;
+      const trueCostPerHour = plan.billableHoursYear > 0
+        ? annualLabourCost / plan.billableHoursYear
+        : 0;
+      const suggestedChargeOutRate = (trueCostPerHour * (1 + pricingInputs.overheadRecoveryPct / 100)) / marginDivisor;
+      const annualRevenueGenerated = suggestedChargeOutRate * plan.billableHoursYear;
+      const grossProfitGenerated = annualRevenueGenerated - annualLabourCost;
 
       return {
         employee,
         plan,
-        baseHourlyRate,
-        totalCompensation,
+        payBasisRate: baseHourlyRate,
         labourBurdenAmount,
-        totalLabourCost,
+        trueCostPerHour,
+        suggestedChargeOutRate,
+        annualLabourCost,
+        annualRevenueGenerated,
+        grossProfitGenerated,
       };
     });
-  }, [activeEmployees, plannerYear, plansByEmployeeId]);
+  }, [activeEmployees, marginDivisor, plannerYear, plansByEmployeeId, pricingInputs.overheadRecoveryPct]);
 
   const visibleLabourPlannerRows = useMemo(() => {
     if (labourTableView === 'all') return labourPlannerRows;
@@ -615,65 +630,43 @@ export default function BudgetPage() {
 
   const visibleLabourPlannerTotals = useMemo(() => {
     return visibleLabourPlannerRows.reduce((acc, row) => ({
-      totalCompensation: acc.totalCompensation + row.totalCompensation,
-      labourBurdenAmount: acc.labourBurdenAmount + row.labourBurdenAmount,
-      totalLabourCost: acc.totalLabourCost + row.totalLabourCost,
+      annualLabourCost: acc.annualLabourCost + row.annualLabourCost,
+      annualRevenueGenerated: acc.annualRevenueGenerated + row.annualRevenueGenerated,
+      grossProfitGenerated: acc.grossProfitGenerated + row.grossProfitGenerated,
       billableHoursYear: acc.billableHoursYear + row.plan.billableHoursYear,
-      unbillableHoursYear: acc.unbillableHoursYear + row.plan.unbillableHoursYear,
-      overtimeHoursYear: acc.overtimeHoursYear + row.plan.overtimeHoursYear,
     }), {
-      totalCompensation: 0,
-      labourBurdenAmount: 0,
-      totalLabourCost: 0,
+      annualLabourCost: 0,
+      annualRevenueGenerated: 0,
+      grossProfitGenerated: 0,
       billableHoursYear: 0,
-      unbillableHoursYear: 0,
-      overtimeHoursYear: 0,
     });
   }, [visibleLabourPlannerRows]);
 
   const labourPlannerTotalsAll = useMemo(() => {
     return labourPlannerRows.reduce((acc, row) => ({
-      totalCompensation: acc.totalCompensation + row.totalCompensation,
-      labourBurdenAmount: acc.labourBurdenAmount + row.labourBurdenAmount,
-      totalLabourCost: acc.totalLabourCost + row.totalLabourCost,
+      annualLabourCost: acc.annualLabourCost + row.annualLabourCost,
+      annualRevenueGenerated: acc.annualRevenueGenerated + row.annualRevenueGenerated,
+      grossProfitGenerated: acc.grossProfitGenerated + row.grossProfitGenerated,
       billableHoursYear: acc.billableHoursYear + row.plan.billableHoursYear,
-      unbillableHoursYear: acc.unbillableHoursYear + row.plan.unbillableHoursYear,
-      overtimeHoursYear: acc.overtimeHoursYear + row.plan.overtimeHoursYear,
     }), {
-      totalCompensation: 0,
-      labourBurdenAmount: 0,
-      totalLabourCost: 0,
+      annualLabourCost: 0,
+      annualRevenueGenerated: 0,
+      grossProfitGenerated: 0,
       billableHoursYear: 0,
-      unbillableHoursYear: 0,
-      overtimeHoursYear: 0,
     });
   }, [labourPlannerRows]);
 
-  const breakEvenHoursToSell = suggestedLaborSellRate > 0
-    ? labourPlannerTotalsAll.totalLabourCost / suggestedLaborSellRate
+  const targetLabourRevenue = labourPlannerTotalsAll.annualLabourCost * (1 + pricingInputs.overheadRecoveryPct / 100) / marginDivisor;
+  const requiredAverageChargeOutRate = labourPlannerTotalsAll.billableHoursYear > 0
+    ? targetLabourRevenue / labourPlannerTotalsAll.billableHoursYear
     : 0;
-  const targetMarginRevenueNeed = labourPlannerTotalsAll.totalLabourCost / marginDivisor;
-  const targetMarginHoursToSell = suggestedLaborSellRate > 0
-    ? targetMarginRevenueNeed / suggestedLaborSellRate
-    : 0;
-  const labourHoursGoalRevenue = labourHoursSalesGoal * suggestedLaborSellRate;
-  const labourHoursGoalGap = labourHoursSalesGoal - labourPlannerTotalsAll.billableHoursYear;
-
-  const updateLabourHoursGoal = (nextHoursGoal: number) => {
-    upsertLabourHoursSalesGoal({
-      id: labourHoursGoalRecord?.id ?? buildLabourHoursGoalId(plannerYear),
-      year: plannerYear,
-      hoursGoal: Math.max(0, nextHoursGoal),
-    });
-  };
 
   const renderLabourPlannerRow = (row: typeof labourPlannerRows[number]) => (
     <tr key={row.employee.id} className="hover:bg-gray-50">
       <td className="px-4 py-2">
         <p className="font-medium text-gray-900">{row.employee.name}</p>
-        <p className="text-xs text-gray-500 capitalize">{row.employee.role.replace(/_/g, ' ')}</p>
       </td>
-      <td className="px-4 py-2">
+      <td className="px-4 py-2 text-right">
         <div className="inline-flex border border-gray-200 rounded-lg p-0.5">
           <button
             type="button"
@@ -714,53 +707,42 @@ export default function BudgetPage() {
         <input
           type="number"
           min={0}
-          value={row.plan.billableHoursYear}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'billableHoursYear', Number(e.target.value))}
-          className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-        />
-      </td>
-      <td className="px-4 py-2 text-right">
-        <input
-          type="number"
-          min={0}
-          value={row.plan.unbillableHoursYear}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'unbillableHoursYear', Number(e.target.value))}
-          className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-        />
-      </td>
-      <td className="px-4 py-2 text-right">
-        <input
-          type="number"
-          min={0}
-          value={row.plan.overtimeHoursYear}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeHoursYear', Number(e.target.value))}
-          className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-        />
-      </td>
-      <td className="px-4 py-2 text-right">
-        <input
-          type="number"
-          min={1}
-          step={0.1}
-          value={row.plan.overtimeMultiplier}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeMultiplier', Number(e.target.value))}
-          className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-        />
-      </td>
-      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(row.totalCompensation)}</td>
-      <td className="px-4 py-2 text-right">
-        <input
-          type="number"
-          min={0}
           step={0.1}
           value={row.plan.labourBurdenPct}
           onChange={(e) => updateLabourPlan(row.employee.id, 'labourBurdenPct', Number(e.target.value))}
           className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
       </td>
-      <td className="px-4 py-2 text-right">{formatCurrency(row.labourBurdenAmount)}</td>
-      <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(row.totalLabourCost)}</td>
+      <td className="px-4 py-2 text-right">{formatCurrency(row.trueCostPerHour)}</td>
+      <td className="px-4 py-2 text-right">
+        <input
+          type="number"
+          min={0}
+          value={row.plan.billableHoursYear}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'billableHoursYear', Number(e.target.value))}
+          className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
+      <td className="px-4 py-2 text-right">{formatCurrency(row.suggestedChargeOutRate)}</td>
+      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(row.annualLabourCost)}</td>
+      <td className="px-4 py-2 text-right">{formatCurrency(row.annualRevenueGenerated)}</td>
+      <td className={`px-4 py-2 text-right font-semibold ${row.grossProfitGenerated >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+        {formatCurrency(row.grossProfitGenerated)}
+      </td>
     </tr>
+  );
+
+  const renderCalculationDetails = () => (
+    <details className="rounded-lg border border-gray-200 bg-white mt-4">
+      <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-gray-700">Show Calculation Details</summary>
+      <div className="px-4 pb-4 text-sm text-gray-600 space-y-2">
+        <p>True Cost per Hour = Annual Labour Cost / Annual Billable Hours</p>
+        <p>Suggested Charge-Out Rate = True Cost per Hour x (1 + Overhead Recovery %) / (1 - Target Margin %)</p>
+        <p>Annual Revenue Generated = Annual Billable Hours x Suggested Charge-Out Rate</p>
+        <p>Gross Profit Generated = Annual Revenue Generated - Annual Labour Cost</p>
+        <p className="text-xs text-gray-500 mt-2">Current assumptions: Overhead Recovery {pricingInputs.overheadRecoveryPct.toFixed(1)}%, Target Margin {pricingInputs.targetMarginPct.toFixed(1)}%.</p>
+      </div>
+    </details>
   );
 
   return (
@@ -849,14 +831,14 @@ export default function BudgetPage() {
               <Card className="p-4 hover:border-brand-300 cursor-pointer">
                 <p className="text-xs text-gray-500">Budgeted Revenue</p>
                 <p className="text-xl font-bold text-green-600">{formatCurrency(totalBudgetedRevenue)}</p>
-              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
             <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
               <Card className="p-4 hover:border-brand-300 cursor-pointer">
                 <p className="text-xs text-gray-500">Actual Revenue</p>
                 <p className="text-xl font-bold text-green-700">{formatCurrency(totalActualRevenue)}</p>
-              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
             <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
@@ -864,7 +846,7 @@ export default function BudgetPage() {
                 <p className="text-xs text-gray-500">Budget vs Actual Profit</p>
                 <p className={`text-xl font-bold ${budgetedProfit >= 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatCurrency(budgetedProfit)}</p>
                 <p className={`text-xs ${actualProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Actual: {formatCurrency(actualProfit)}</p>
-              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
             <button type="button" onClick={() => openCategoryEditor('overhead')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
@@ -872,7 +854,7 @@ export default function BudgetPage() {
                 <p className="text-xs text-gray-500">Total Expenses</p>
                 <p className="text-xl font-bold text-red-600">{formatCurrency(totalActualExpenses)}</p>
                 <p className="text-xs text-gray-400">Budget: {formatCurrency(totalBudgetedExpenses)}</p>
-              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
           </div>
@@ -935,7 +917,7 @@ export default function BudgetPage() {
                   <p className="text-xs text-gray-500">Suggested Labour Charge-Out</p>
                   <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedLaborSellRate)}/hr</p>
                   <p className="text-xs text-gray-400 mt-1">Avg pay {formatCurrency(averageBaseLaborRate)}/hr, loaded {formatCurrency(loadedLaborCostPerHour)}/hr</p>
-                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                  <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
                 </Card>
               </button>
               <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
@@ -943,7 +925,7 @@ export default function BudgetPage() {
                   <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
                   <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedMachineSellRate)}/hr</p>
                   <p className="text-xs text-gray-400 mt-1">Based on equipment actual {formatCurrency(periodEquipmentActual)} for {scopeLabel}</p>
-                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                  <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
                 </Card>
               </button>
               <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
@@ -951,7 +933,7 @@ export default function BudgetPage() {
                   <p className="text-xs text-gray-500">Material Markup Guidance</p>
                   <p className="text-xl font-bold text-gray-900">{suggestedMaterialMarkupPct.toFixed(1)}%</p>
                   <p className="text-xs text-gray-400 mt-1">Includes waste + overhead + target margin</p>
-                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                  <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
                 </Card>
               </button>
               <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
@@ -959,7 +941,7 @@ export default function BudgetPage() {
                   <p className="text-xs text-gray-500">Subcontractor Markup Guidance</p>
                   <p className="text-xl font-bold text-gray-900">{suggestedSubcontractorMarkupPct.toFixed(1)}%</p>
                   <p className="text-xs text-gray-400 mt-1">Includes risk buffer + overhead + target margin</p>
-                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                  <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
                 </Card>
               </button>
             </div>
@@ -970,78 +952,26 @@ export default function BudgetPage() {
       {activeTab === 'labour' && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <button type="button" onClick={() => openCategoryEditor('labour')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-              <Card className="p-4 hover:border-brand-300 cursor-pointer">
-                <p className="text-xs text-gray-500">Budgeted Labour</p>
-                <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.labour.budgeted)}</p>
-              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-              </Card>
-            </button>
-            <button type="button" onClick={() => openCategoryEditor('labour')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-              <Card className="p-4 hover:border-brand-300 cursor-pointer">
-                <p className="text-xs text-gray-500">Actual Labour</p>
-                <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.labour.actual)}</p>
-              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-              </Card>
-            </button>
-            <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-              <Card className="p-4 hover:border-brand-300 cursor-pointer">
-                <p className="text-xs text-gray-500">Suggested Labour Rate</p>
-                <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedLaborSellRate)}/hr</p>
-              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-              </Card>
-            </button>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Total Annual Labour Cost</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(labourPlannerTotalsAll.annualLabourCost)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Target Labour Revenue</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(targetLabourRevenue)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Required Average Charge-Out Rate</p>
+              <p className="text-xl font-bold text-brand-700">{formatCurrency(requiredAverageChargeOutRate)}/hr</p>
+            </Card>
           </div>
-
-          <Card className="p-4 mb-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Labour Hours Sales Budget</h2>
-                <p className="text-sm text-gray-500 mt-1">Plan how many billable labour hours you need to sell this year and compare against your employee billable-hour plan.</p>
-              </div>
-              <div className="w-full sm:w-56">
-                <Input
-                  label="Hours Sales Goal / Yr"
-                  type="number"
-                  min={0}
-                  value={labourHoursSalesGoal}
-                  onChange={(e) => updateLabourHoursGoal(Number(e.target.value) || 0)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-              <Card className="p-3 border border-gray-100">
-                <p className="text-xs text-gray-500">Planned Billable Hours</p>
-                <p className="text-lg font-semibold text-gray-900">{labourPlannerTotalsAll.billableHoursYear.toFixed(0)} hrs</p>
-              </Card>
-              <Card className="p-3 border border-gray-100">
-                <p className="text-xs text-gray-500">Break-Even Hours To Sell</p>
-                <p className="text-lg font-semibold text-gray-900">{breakEvenHoursToSell.toFixed(0)} hrs</p>
-              </Card>
-              <Card className="p-3 border border-gray-100">
-                <p className="text-xs text-gray-500">Target-Margin Hours To Sell</p>
-                <p className="text-lg font-semibold text-gray-900">{targetMarginHoursToSell.toFixed(0)} hrs</p>
-              </Card>
-              <Card className="p-3 border border-gray-100">
-                <p className="text-xs text-gray-500">Goal Revenue From Hours</p>
-                <p className="text-lg font-semibold text-gray-900">{formatCurrency(labourHoursGoalRevenue)}</p>
-              </Card>
-              <Card className="p-3 border border-gray-100">
-                <p className="text-xs text-gray-500">Goal vs Planned Gap</p>
-                <p className={`text-lg font-semibold ${labourHoursGoalGap >= 0 ? 'text-brand-700' : 'text-red-600'}`}>
-                  {labourHoursGoalGap >= 0 ? '+' : ''}{labourHoursGoalGap.toFixed(0)} hrs
-                </p>
-              </Card>
-            </div>
-          </Card>
 
           <Card className="overflow-hidden mb-6">
             <div className="p-4 border-b border-gray-100">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="font-semibold text-gray-900">Employee Labour Budget Planner</h2>
-                  <p className="text-sm text-gray-500 mt-1">Set each employee as hourly or salaried, then plan annual billable/unbillable/overtime hours with labour burden.</p>
+                  <h2 className="font-semibold text-gray-900">Employee Labour Planner</h2>
+                  <p className="text-sm text-gray-500 mt-1">Set each employee pay and billable hours. The table automatically calculates cost, charge-out rate, revenue, and profit.</p>
                 </div>
                 <div className="inline-flex border border-gray-200 rounded-lg p-0.5 self-start">
                   <button
@@ -1069,34 +999,33 @@ export default function BudgetPage() {
               </div>
             </div>
             {labourPlannerRows.length === 0 ? (
-              <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees first to build labour budgets.</p>
+              <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees first to build your labour planner.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[1200px]">
+                <table className="w-full text-sm min-w-[1300px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                       <th className="px-4 py-3 font-medium">Employee</th>
-                      <th className="px-4 py-3 font-medium">Comp Type</th>
-                      <th className="px-4 py-3 font-medium text-right">Pay Basis</th>
-                      <th className="px-4 py-3 font-medium text-right">Billable Hrs / Yr</th>
-                      <th className="px-4 py-3 font-medium text-right">Unbillable Hrs / Yr</th>
-                      <th className="px-4 py-3 font-medium text-right">Overtime Hrs / Yr</th>
-                      <th className="px-4 py-3 font-medium text-right">Overtime Multiplier</th>
-                      <th className="px-4 py-3 font-medium text-right">Total Compensation</th>
+                      <th className="px-4 py-3 font-medium text-right">Comp Type</th>
+                      <th className="px-4 py-3 font-medium text-right">Hourly Wage / Salary</th>
                       <th className="px-4 py-3 font-medium text-right">Labour Burden (%)</th>
-                      <th className="px-4 py-3 font-medium text-right">Labour Burden ($)</th>
-                      <th className="px-4 py-3 font-medium text-right">Total Labour Cost</th>
+                      <th className="px-4 py-3 font-medium text-right">True Cost / Hr</th>
+                      <th className="px-4 py-3 font-medium text-right">Billable Hrs / Yr</th>
+                      <th className="px-4 py-3 font-medium text-right">Suggested Charge-Out Rate</th>
+                      <th className="px-4 py-3 font-medium text-right">Annual Labour Cost</th>
+                      <th className="px-4 py-3 font-medium text-right">Annual Revenue Generated</th>
+                      <th className="px-4 py-3 font-medium text-right">Gross Profit Generated</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {labourTableView === 'all' ? (
                       <>
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={11}>Hourly Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={10}>Hourly Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'hourly').map((row) => renderLabourPlannerRow(row))}
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={11}>Salaried Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={10}>Salaried Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'salaried').map((row) => renderLabourPlannerRow(row))}
                       </>
@@ -1105,89 +1034,94 @@ export default function BudgetPage() {
                     )}
                     {visibleLabourPlannerRows.length === 0 && (
                       <tr>
-                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={11}>No employees in this compensation type view yet.</td>
+                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={10}>No employees in this compensation type view yet.</td>
                       </tr>
                     )}
                     <tr className="bg-gray-50">
                       <td className="px-4 py-2 font-semibold" colSpan={3}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
                       <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.billableHoursYear.toFixed(0)}</td>
-                      <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.unbillableHoursYear.toFixed(0)}</td>
-                      <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.overtimeHoursYear.toFixed(0)}</td>
                       <td className="px-4 py-2 text-right">—</td>
-                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.totalCompensation)}</td>
                       <td className="px-4 py-2 text-right">—</td>
-                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.labourBurdenAmount)}</td>
-                      <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(visibleLabourPlannerTotals.totalLabourCost)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualLabourCost)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualRevenueGenerated)}</td>
+                      <td className={`px-4 py-2 text-right font-semibold ${visibleLabourPlannerTotals.grossProfitGenerated >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                        {formatCurrency(visibleLabourPlannerTotals.grossProfitGenerated)}
+                      </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             )}
-          </Card>
-
-          <Card className="overflow-hidden mb-6">
-            <div className="p-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">Role-Based Labour Benchmarks</h2>
-              <p className="text-sm text-gray-500 mt-1">Labour rates by role using current payroll and margin assumptions.</p>
-            </div>
-            {roleBenchmarks.length === 0 ? (
-              <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees with hourly rates to calculate labour benchmarks.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
-                      <th className="px-4 py-3 font-medium">Role</th>
-                      <th className="px-4 py-3 font-medium text-right">Team Size</th>
-                      <th className="px-4 py-3 font-medium text-right">Avg Pay / Hr</th>
-                      <th className="px-4 py-3 font-medium text-right">Loaded Cost / Hr</th>
-                      <th className="px-4 py-3 font-medium text-right">Suggested Bill Rate / Hr</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {roleBenchmarks.map((row) => (
-                      <tr key={row.role} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 capitalize">{row.role.replace(/_/g, ' ')}</td>
-                        <td className="px-4 py-2 text-right">{row.count}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(row.averageRate)}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(row.loadedCost)}</td>
-                        <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(row.suggestedSellRate)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {renderCalculationDetails()}
           </Card>
         </>
       )}
 
       {activeTab === 'revenue' && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-            <Card className="p-4 hover:border-brand-300 cursor-pointer">
-              <p className="text-xs text-gray-500">Budgeted Sales / Revenue</p>
-              <p className="text-xl font-bold text-green-600">{formatCurrency(totalsByCategory.revenue.budgeted)}</p>
-            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-            </Card>
-          </button>
-          <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-            <Card className="p-4 hover:border-brand-300 cursor-pointer">
-              <p className="text-xs text-gray-500">Actual Sales / Revenue</p>
-              <p className="text-xl font-bold text-green-700">{formatCurrency(totalsByCategory.revenue.actual)}</p>
-            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-            </Card>
-          </button>
-          <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-            <Card className="p-4 hover:border-brand-300 cursor-pointer">
-              <p className="text-xs text-gray-500">Revenue Variance</p>
-              <p className={`text-xl font-bold ${(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                {(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? '+' : ''}{formatCurrency(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted)}
-              </p>
-            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-            </Card>
-          </button>
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Budgeted Sales / Revenue</p>
+                <p className="text-xl font-bold text-green-600">{formatCurrency(totalsByCategory.revenue.budgeted)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Actual Sales / Revenue</p>
+                <p className="text-xl font-bold text-green-700">{formatCurrency(totalsByCategory.revenue.actual)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Revenue Variance</p>
+                <p className={`text-xl font-bold ${(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? '+' : ''}{formatCurrency(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted)}
+                </p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+          </div>
+
+          <Card className="p-4 mb-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Revenue Goal Planner</h2>
+              <p className="text-sm text-gray-500 mt-1">Set a revenue goal and working days for {scopeLabel} to see daily revenue required to hit target.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+              <Input
+                label="Revenue Goal"
+                type="number"
+                min={0}
+                value={currentRevenuePlan.goalRevenue}
+                onChange={(e) => updateRevenuePlan('goalRevenue', Number(e.target.value))}
+              />
+              <Input
+                label="Working Days"
+                type="number"
+                min={1}
+                value={currentRevenuePlan.workingDays}
+                onChange={(e) => updateRevenuePlan('workingDays', Number(e.target.value))}
+              />
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Revenue / Day Needed</p>
+                <p className="text-lg font-semibold text-gray-900">{formatCurrency(revenuePerDayNeeded)}</p>
+              </Card>
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Actual Revenue / Day</p>
+                <p className="text-lg font-semibold text-gray-900">{formatCurrency(actualRevenuePerDay)}</p>
+              </Card>
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Daily Gap To Goal</p>
+                <p className={`text-lg font-semibold ${revenuePerDayGap <= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {revenuePerDayGap > 0 ? '+' : ''}{formatCurrency(revenuePerDayGap)}
+                </p>
+              </Card>
+            </div>
+          </Card>
+        </>
       )}
 
       {activeTab === 'materials' && (
