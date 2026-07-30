@@ -11,6 +11,7 @@ const CATEGORIES: BudgetCategory[] = ['revenue', 'labour', 'materials', 'equipme
 type BudgetTab = 'analysis' | 'revenue' | 'labour' | 'materials' | 'equipment' | 'subcontractors' | 'overhead';
 type ExportColumnMode = 'both' | 'budgeted' | 'actual';
 type ExportKind = 'budget' | 'pnl_detailed' | 'pnl_condensed';
+type LabourTableView = 'all' | LabourCompType;
 
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
 
@@ -61,6 +62,7 @@ export default function BudgetPage() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportColumnMode, setExportColumnMode] = useState<ExportColumnMode>('both');
   const [exportKind, setExportKind] = useState<ExportKind>('budget');
+  const [labourTableView, setLabourTableView] = useState<LabourTableView>('all');
   const [pricingInputs, setPricingInputs] = useState({
     payrollBurdenPct: 18,
     overheadRecoveryPct: 15,
@@ -541,8 +543,13 @@ export default function BudgetPage() {
     });
   }, [activeEmployees, plannerYear, plansByEmployeeId]);
 
-  const labourPlannerTotals = useMemo(() => {
-    return labourPlannerRows.reduce((acc, row) => ({
+  const visibleLabourPlannerRows = useMemo(() => {
+    if (labourTableView === 'all') return labourPlannerRows;
+    return labourPlannerRows.filter((row) => row.plan.compType === labourTableView);
+  }, [labourPlannerRows, labourTableView]);
+
+  const visibleLabourPlannerTotals = useMemo(() => {
+    return visibleLabourPlannerRows.reduce((acc, row) => ({
       totalCompensation: acc.totalCompensation + row.totalCompensation,
       labourBurdenAmount: acc.labourBurdenAmount + row.labourBurdenAmount,
       totalLabourCost: acc.totalLabourCost + row.totalLabourCost,
@@ -557,7 +564,103 @@ export default function BudgetPage() {
       unbillableHoursYear: 0,
       overtimeHoursYear: 0,
     });
-  }, [labourPlannerRows]);
+  }, [visibleLabourPlannerRows]);
+
+  const renderLabourPlannerRow = (row: typeof labourPlannerRows[number]) => (
+    <tr key={row.employee.id} className="hover:bg-gray-50">
+      <td className="px-4 py-2">
+        <p className="font-medium text-gray-900">{row.employee.name}</p>
+        <p className="text-xs text-gray-500 capitalize">{row.employee.role.replace(/_/g, ' ')}</p>
+      </td>
+      <td className="px-4 py-2">
+        <div className="inline-flex border border-gray-200 rounded-lg p-0.5">
+          <button
+            type="button"
+            onClick={() => updateLabourPlan(row.employee.id, 'compType', 'hourly')}
+            className={`px-2 py-1 text-xs rounded ${row.plan.compType === 'hourly' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            Hourly
+          </button>
+          <button
+            type="button"
+            onClick={() => updateLabourPlan(row.employee.id, 'compType', 'salaried')}
+            className={`px-2 py-1 text-xs rounded ${row.plan.compType === 'salaried' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            Salaried
+          </button>
+        </div>
+      </td>
+      <td className="px-4 py-2 text-right">
+        {row.plan.compType === 'hourly' ? (
+          <input
+            type="number"
+            min={0}
+            value={row.plan.hourlyRate}
+            onChange={(e) => updateLabourPlan(row.employee.id, 'hourlyRate', Number(e.target.value))}
+            className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+          />
+        ) : (
+          <input
+            type="number"
+            min={0}
+            value={row.plan.annualSalary}
+            onChange={(e) => updateLabourPlan(row.employee.id, 'annualSalary', Number(e.target.value))}
+            className="w-28 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+          />
+        )}
+      </td>
+      <td className="px-4 py-2 text-right">
+        <input
+          type="number"
+          min={0}
+          value={row.plan.billableHoursYear}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'billableHoursYear', Number(e.target.value))}
+          className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
+      <td className="px-4 py-2 text-right">
+        <input
+          type="number"
+          min={0}
+          value={row.plan.unbillableHoursYear}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'unbillableHoursYear', Number(e.target.value))}
+          className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
+      <td className="px-4 py-2 text-right">
+        <input
+          type="number"
+          min={0}
+          value={row.plan.overtimeHoursYear}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeHoursYear', Number(e.target.value))}
+          className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
+      <td className="px-4 py-2 text-right">
+        <input
+          type="number"
+          min={1}
+          step={0.1}
+          value={row.plan.overtimeMultiplier}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeMultiplier', Number(e.target.value))}
+          className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
+      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(row.totalCompensation)}</td>
+      <td className="px-4 py-2 text-right">
+        <input
+          type="number"
+          min={0}
+          step={0.1}
+          value={row.plan.labourBurdenPct}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'labourBurdenPct', Number(e.target.value))}
+          className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
+      <td className="px-4 py-2 text-right">{formatCurrency(row.labourBurdenAmount)}</td>
+      <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(row.totalLabourCost)}</td>
+    </tr>
+  );
 
   return (
     <div>
@@ -791,8 +894,35 @@ export default function BudgetPage() {
 
           <Card className="overflow-hidden mb-6">
             <div className="p-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">Employee Labour Budget Planner</h2>
-              <p className="text-sm text-gray-500 mt-1">Set each employee as hourly or salaried, then plan annual billable/unbillable/overtime hours with labour burden.</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Employee Labour Budget Planner</h2>
+                  <p className="text-sm text-gray-500 mt-1">Set each employee as hourly or salaried, then plan annual billable/unbillable/overtime hours with labour burden.</p>
+                </div>
+                <div className="inline-flex border border-gray-200 rounded-lg p-0.5 self-start">
+                  <button
+                    type="button"
+                    onClick={() => setLabourTableView('all')}
+                    className={`px-3 py-1 text-xs rounded ${labourTableView === 'all' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLabourTableView('hourly')}
+                    className={`px-3 py-1 text-xs rounded ${labourTableView === 'hourly' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    Hourly
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLabourTableView('salaried')}
+                    className={`px-3 py-1 text-xs rounded ${labourTableView === 'salaried' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    Salaried
+                  </button>
+                </div>
+              </div>
             </div>
             {labourPlannerRows.length === 0 ? (
               <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees first to build labour budgets.</p>
@@ -815,111 +945,35 @@ export default function BudgetPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {labourPlannerRows.map((row) => (
-                      <tr key={row.employee.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2">
-                          <p className="font-medium text-gray-900">{row.employee.name}</p>
-                          <p className="text-xs text-gray-500 capitalize">{row.employee.role.replace(/_/g, ' ')}</p>
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="inline-flex border border-gray-200 rounded-lg p-0.5">
-                            <button
-                              type="button"
-                              onClick={() => updateLabourPlan(row.employee.id, 'compType', 'hourly')}
-                              className={`px-2 py-1 text-xs rounded ${row.plan.compType === 'hourly' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-                            >
-                              Hourly
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => updateLabourPlan(row.employee.id, 'compType', 'salaried')}
-                              className={`px-2 py-1 text-xs rounded ${row.plan.compType === 'salaried' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-                            >
-                              Salaried
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          {row.plan.compType === 'hourly' ? (
-                            <input
-                              type="number"
-                              min={0}
-                              value={row.plan.hourlyRate}
-                              onChange={(e) => updateLabourPlan(row.employee.id, 'hourlyRate', Number(e.target.value))}
-                              className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-                            />
-                          ) : (
-                            <input
-                              type="number"
-                              min={0}
-                              value={row.plan.annualSalary}
-                              onChange={(e) => updateLabourPlan(row.employee.id, 'annualSalary', Number(e.target.value))}
-                              className="w-28 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-                            />
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <input
-                            type="number"
-                            min={0}
-                            value={row.plan.billableHoursYear}
-                            onChange={(e) => updateLabourPlan(row.employee.id, 'billableHoursYear', Number(e.target.value))}
-                            className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <input
-                            type="number"
-                            min={0}
-                            value={row.plan.unbillableHoursYear}
-                            onChange={(e) => updateLabourPlan(row.employee.id, 'unbillableHoursYear', Number(e.target.value))}
-                            className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <input
-                            type="number"
-                            min={0}
-                            value={row.plan.overtimeHoursYear}
-                            onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeHoursYear', Number(e.target.value))}
-                            className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <input
-                            type="number"
-                            min={1}
-                            step={0.1}
-                            value={row.plan.overtimeMultiplier}
-                            onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeMultiplier', Number(e.target.value))}
-                            className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right font-semibold">{formatCurrency(row.totalCompensation)}</td>
-                        <td className="px-4 py-2 text-right">
-                          <input
-                            type="number"
-                            min={0}
-                            step={0.1}
-                            value={row.plan.labourBurdenPct}
-                            onChange={(e) => updateLabourPlan(row.employee.id, 'labourBurdenPct', Number(e.target.value))}
-                            className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(row.labourBurdenAmount)}</td>
-                        <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(row.totalLabourCost)}</td>
+                    {labourTableView === 'all' ? (
+                      <>
+                        <tr className="bg-gray-50">
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={11}>Hourly Employees</td>
+                        </tr>
+                        {labourPlannerRows.filter((row) => row.plan.compType === 'hourly').map((row) => renderLabourPlannerRow(row))}
+                        <tr className="bg-gray-50">
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={11}>Salaried Employees</td>
+                        </tr>
+                        {labourPlannerRows.filter((row) => row.plan.compType === 'salaried').map((row) => renderLabourPlannerRow(row))}
+                      </>
+                    ) : (
+                      visibleLabourPlannerRows.map((row) => renderLabourPlannerRow(row))
+                    )}
+                    {visibleLabourPlannerRows.length === 0 && (
+                      <tr>
+                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={11}>No employees in this compensation type view yet.</td>
                       </tr>
-                    ))}
+                    )}
                     <tr className="bg-gray-50">
-                      <td className="px-4 py-2 font-semibold" colSpan={3}>Totals</td>
-                      <td className="px-4 py-2 text-right font-semibold">{labourPlannerTotals.billableHoursYear.toFixed(0)}</td>
-                      <td className="px-4 py-2 text-right font-semibold">{labourPlannerTotals.unbillableHoursYear.toFixed(0)}</td>
-                      <td className="px-4 py-2 text-right font-semibold">{labourPlannerTotals.overtimeHoursYear.toFixed(0)}</td>
+                      <td className="px-4 py-2 font-semibold" colSpan={3}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.billableHoursYear.toFixed(0)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.unbillableHoursYear.toFixed(0)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.overtimeHoursYear.toFixed(0)}</td>
                       <td className="px-4 py-2 text-right">—</td>
-                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(labourPlannerTotals.totalCompensation)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.totalCompensation)}</td>
                       <td className="px-4 py-2 text-right">—</td>
-                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(labourPlannerTotals.labourBurdenAmount)}</td>
-                      <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(labourPlannerTotals.totalLabourCost)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.labourBurdenAmount)}</td>
+                      <td className="px-4 py-2 text-right font-semibold text-brand-700">{formatCurrency(visibleLabourPlannerTotals.totalLabourCost)}</td>
                     </tr>
                   </tbody>
                 </table>
