@@ -1443,22 +1443,24 @@ export default function BudgetPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Budgeted {activeTab}</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(selectedCategoryTotals.budgeted)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Actual {activeTab}</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(selectedCategoryTotals.actual)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Variance</p>
-              <p className={`text-xl font-bold ${selectedCategoryVariance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {selectedCategoryVariance >= 0 ? '+' : ''}{formatCurrency(selectedCategoryVariance)}
-              </p>
-            </Card>
-          </div>
+          {activeTab !== 'labour' && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card className="p-4">
+                <p className="text-xs text-gray-500">Budgeted {activeTab}</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(selectedCategoryTotals.budgeted)}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs text-gray-500">Actual {activeTab}</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(selectedCategoryTotals.actual)}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs text-gray-500">Variance</p>
+                <p className={`text-xl font-bold ${selectedCategoryVariance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {selectedCategoryVariance >= 0 ? '+' : ''}{formatCurrency(selectedCategoryVariance)}
+                </p>
+              </Card>
+            </div>
+          )}
 
           {displayCategoryItems.length === 0 ? (
             <EmptyState title={`No ${activeTab} items for ${scopeLabel}`} action={<Button onClick={openNew}><Plus size={16} /> Add Budget Item</Button>} />
