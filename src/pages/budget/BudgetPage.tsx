@@ -32,6 +32,7 @@ export default function BudgetPage() {
   const [editing, setEditing] = useState<BudgetItem | null>(null);
   const [form, setForm] = useState(empty());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [assumptionsModalOpen, setAssumptionsModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportColumnMode, setExportColumnMode] = useState<ExportColumnMode>('both');
   const [exportKind, setExportKind] = useState<ExportKind>('budget');
@@ -70,6 +71,19 @@ export default function BudgetPage() {
     setModalOpen(false);
   };
   const set = (key: keyof typeof form, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
+
+  const openCategoryEditor = (category: BudgetCategory) => {
+    const existingItem = items.find((item) => item.category === category);
+    if (existingItem) {
+      openEdit(existingItem);
+      return;
+    }
+
+    const defaultPeriod = viewMode === 'year' ? `${year}-01` : period;
+    setEditing(null);
+    setForm({ ...empty(), category, period: defaultPeriod });
+    setModalOpen(true);
+  };
 
   // Summaries
   const revenue = items.filter((b) => b.category === 'revenue');
@@ -528,24 +542,36 @@ export default function BudgetPage() {
       {activeTab === 'analysis' && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Budgeted Revenue</p>
-              <p className="text-xl font-bold text-green-600">{formatCurrency(totalBudgetedRevenue)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Actual Revenue</p>
-              <p className="text-xl font-bold text-green-700">{formatCurrency(totalActualRevenue)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Budget vs Actual Profit</p>
-              <p className={`text-xl font-bold ${budgetedProfit >= 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatCurrency(budgetedProfit)}</p>
-              <p className={`text-xs ${actualProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Actual: {formatCurrency(actualProfit)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Total Expenses</p>
-              <p className="text-xl font-bold text-red-600">{formatCurrency(totalActualExpenses)}</p>
-              <p className="text-xs text-gray-400">Budget: {formatCurrency(totalBudgetedExpenses)}</p>
-            </Card>
+            <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Budgeted Revenue</p>
+                <p className="text-xl font-bold text-green-600">{formatCurrency(totalBudgetedRevenue)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Actual Revenue</p>
+                <p className="text-xl font-bold text-green-700">{formatCurrency(totalActualRevenue)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Budget vs Actual Profit</p>
+                <p className={`text-xl font-bold ${budgetedProfit >= 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatCurrency(budgetedProfit)}</p>
+                <p className={`text-xs ${actualProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Actual: {formatCurrency(actualProfit)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => openCategoryEditor('overhead')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Total Expenses</p>
+                <p className="text-xl font-bold text-red-600">{formatCurrency(totalActualExpenses)}</p>
+                <p className="text-xs text-gray-400">Budget: {formatCurrency(totalBudgetedExpenses)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
           </div>
 
           <Card className="p-4 mb-6">
@@ -601,26 +627,38 @@ export default function BudgetPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <Card className="p-4">
-                <p className="text-xs text-gray-500">Suggested Labour Charge-Out</p>
-                <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedLaborSellRate)}/hr</p>
-                <p className="text-xs text-gray-400 mt-1">Avg pay {formatCurrency(averageBaseLaborRate)}/hr, loaded {formatCurrency(loadedLaborCostPerHour)}/hr</p>
-              </Card>
-              <Card className="p-4">
-                <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
-                <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedMachineSellRate)}/hr</p>
-                <p className="text-xs text-gray-400 mt-1">Based on equipment actual {formatCurrency(periodEquipmentActual)} for {scopeLabel}</p>
-              </Card>
-              <Card className="p-4">
-                <p className="text-xs text-gray-500">Material Markup Guidance</p>
-                <p className="text-xl font-bold text-gray-900">{suggestedMaterialMarkupPct.toFixed(1)}%</p>
-                <p className="text-xs text-gray-400 mt-1">Includes waste + overhead + target margin</p>
-              </Card>
-              <Card className="p-4">
-                <p className="text-xs text-gray-500">Subcontractor Markup Guidance</p>
-                <p className="text-xl font-bold text-gray-900">{suggestedSubcontractorMarkupPct.toFixed(1)}%</p>
-                <p className="text-xs text-gray-400 mt-1">Includes risk buffer + overhead + target margin</p>
-              </Card>
+              <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                  <p className="text-xs text-gray-500">Suggested Labour Charge-Out</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedLaborSellRate)}/hr</p>
+                  <p className="text-xs text-gray-400 mt-1">Avg pay {formatCurrency(averageBaseLaborRate)}/hr, loaded {formatCurrency(loadedLaborCostPerHour)}/hr</p>
+                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                </Card>
+              </button>
+              <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                  <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedMachineSellRate)}/hr</p>
+                  <p className="text-xs text-gray-400 mt-1">Based on equipment actual {formatCurrency(periodEquipmentActual)} for {scopeLabel}</p>
+                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                </Card>
+              </button>
+              <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                  <p className="text-xs text-gray-500">Material Markup Guidance</p>
+                  <p className="text-xl font-bold text-gray-900">{suggestedMaterialMarkupPct.toFixed(1)}%</p>
+                  <p className="text-xs text-gray-400 mt-1">Includes waste + overhead + target margin</p>
+                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                </Card>
+              </button>
+              <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                  <p className="text-xs text-gray-500">Subcontractor Markup Guidance</p>
+                  <p className="text-xl font-bold text-gray-900">{suggestedSubcontractorMarkupPct.toFixed(1)}%</p>
+                  <p className="text-xs text-gray-400 mt-1">Includes risk buffer + overhead + target margin</p>
+                <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+                </Card>
+              </button>
             </div>
           </Card>
         </>
@@ -629,18 +667,27 @@ export default function BudgetPage() {
       {activeTab === 'labour' && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Budgeted Labour</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.labour.budgeted)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Actual Labour</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.labour.actual)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Suggested Labour Rate</p>
-              <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedLaborSellRate)}/hr</p>
-            </Card>
+            <button type="button" onClick={() => openCategoryEditor('labour')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Budgeted Labour</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.labour.budgeted)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => openCategoryEditor('labour')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Actual Labour</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.labour.actual)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Suggested Labour Rate</p>
+                <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedLaborSellRate)}/hr</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
           </div>
 
           <Card className="overflow-hidden mb-6">
@@ -682,88 +729,133 @@ export default function BudgetPage() {
 
       {activeTab === 'revenue' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Budgeted Sales / Revenue</p>
-            <p className="text-xl font-bold text-green-600">{formatCurrency(totalsByCategory.revenue.budgeted)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Actual Sales / Revenue</p>
-            <p className="text-xl font-bold text-green-700">{formatCurrency(totalsByCategory.revenue.actual)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Revenue Variance</p>
-            <p className={`text-xl font-bold ${(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-              {(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? '+' : ''}{formatCurrency(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted)}
-            </p>
-          </Card>
+          <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Budgeted Sales / Revenue</p>
+              <p className="text-xl font-bold text-green-600">{formatCurrency(totalsByCategory.revenue.budgeted)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Actual Sales / Revenue</p>
+              <p className="text-xl font-bold text-green-700">{formatCurrency(totalsByCategory.revenue.actual)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Revenue Variance</p>
+              <p className={`text-xl font-bold ${(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                {(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted) >= 0 ? '+' : ''}{formatCurrency(totalsByCategory.revenue.actual - totalsByCategory.revenue.budgeted)}
+              </p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
         </div>
       )}
 
       {activeTab === 'materials' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Budgeted Materials</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.materials.budgeted)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Actual Materials</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.materials.actual)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Suggested Material Markup</p>
-            <p className="text-xl font-bold text-brand-700">{suggestedMaterialMarkupPct.toFixed(1)}%</p>
-          </Card>
+          <button type="button" onClick={() => openCategoryEditor('materials')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Budgeted Materials</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.materials.budgeted)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => openCategoryEditor('materials')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Actual Materials</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.materials.actual)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Suggested Material Markup</p>
+              <p className="text-xl font-bold text-brand-700">{suggestedMaterialMarkupPct.toFixed(1)}%</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
         </div>
       )}
 
       {activeTab === 'equipment' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Budgeted Equipment</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.budgeted)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Actual Equipment</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.actual)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
-            <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedMachineSellRate)}/hr</p>
-          </Card>
+          <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Budgeted Equipment</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.budgeted)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Actual Equipment</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.actual)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
+              <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedMachineSellRate)}/hr</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
         </div>
       )}
 
       {activeTab === 'subcontractors' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Budgeted Subcontractors</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.subcontractors.budgeted)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Actual Subcontractors</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.subcontractors.actual)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Suggested Subcontractor Markup</p>
-            <p className="text-xl font-bold text-brand-700">{suggestedSubcontractorMarkupPct.toFixed(1)}%</p>
-          </Card>
+          <button type="button" onClick={() => openCategoryEditor('subcontractors')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Budgeted Subcontractors</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.subcontractors.budgeted)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => openCategoryEditor('subcontractors')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Actual Subcontractors</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.subcontractors.actual)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Suggested Subcontractor Markup</p>
+              <p className="text-xl font-bold text-brand-700">{suggestedSubcontractorMarkupPct.toFixed(1)}%</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
         </div>
       )}
 
       {activeTab === 'overhead' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Budgeted Overhead</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.overhead.budgeted)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Actual Overhead</p>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.overhead.actual)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs text-gray-500">Overhead Recovery Setting</p>
-            <p className="text-xl font-bold text-brand-700">{pricingInputs.overheadRecoveryPct.toFixed(1)}%</p>
-          </Card>
+          <button type="button" onClick={() => openCategoryEditor('overhead')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Budgeted Overhead</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.overhead.budgeted)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => openCategoryEditor('overhead')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Actual Overhead</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.overhead.actual)}</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <Card className="p-4 hover:border-brand-300 cursor-pointer">
+              <p className="text-xs text-gray-500">Overhead Recovery Setting</p>
+              <p className="text-xl font-bold text-brand-700">{pricingInputs.overheadRecoveryPct.toFixed(1)}%</p>
+            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+            </Card>
+          </button>
         </div>
       )}
 
@@ -937,6 +1029,61 @@ export default function BudgetPage() {
       </Modal>
 
       <Modal
+        open={assumptionsModalOpen}
+        onClose={() => setAssumptionsModalOpen(false)}
+        title="Edit Pricing Assumptions"
+        footer={<>
+          <Button variant="secondary" onClick={() => setAssumptionsModalOpen(false)}>Close</Button>
+        </>}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            label="Payroll Burden (%)"
+            type="number"
+            min={0}
+            value={pricingInputs.payrollBurdenPct}
+            onChange={(e) => updatePricingInput('payrollBurdenPct', Number(e.target.value))}
+          />
+          <Input
+            label="Overhead Recovery (%)"
+            type="number"
+            min={0}
+            value={pricingInputs.overheadRecoveryPct}
+            onChange={(e) => updatePricingInput('overheadRecoveryPct', Number(e.target.value))}
+          />
+          <Input
+            label="Target Margin (%)"
+            type="number"
+            min={0}
+            max={95}
+            value={pricingInputs.targetMarginPct}
+            onChange={(e) => updatePricingInput('targetMarginPct', Number(e.target.value))}
+          />
+          <Input
+            label="Machine Utilization (hrs/month)"
+            type="number"
+            min={1}
+            value={pricingInputs.equipmentUtilizationHours}
+            onChange={(e) => updatePricingInput('equipmentUtilizationHours', Number(e.target.value))}
+          />
+          <Input
+            label="Material Waste Buffer (%)"
+            type="number"
+            min={0}
+            value={pricingInputs.materialWastePct}
+            onChange={(e) => updatePricingInput('materialWastePct', Number(e.target.value))}
+          />
+          <Input
+            label="Subcontractor Risk Buffer (%)"
+            type="number"
+            min={0}
+            value={pricingInputs.subcontractorRiskPct}
+            onChange={(e) => updatePricingInput('subcontractorRiskPct', Number(e.target.value))}
+          />
+        </div>
+      </Modal>
+
+      <Modal
         open={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
         title="Export PDF Options"
@@ -971,3 +1118,6 @@ export default function BudgetPage() {
     </div>
   );
 }
+
+
+
