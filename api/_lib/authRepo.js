@@ -56,6 +56,10 @@ function labourBudgetPlanSk(labourBudgetPlanId) {
   return `LABOUR_BUDGET#${labourBudgetPlanId}`;
 }
 
+function labourHoursSalesGoalSk(labourHoursSalesGoalId) {
+  return `LABOUR_HOURS_GOAL#${labourHoursSalesGoalId}`;
+}
+
 function employeeSk(employeeId) {
   return `EMPLOYEE#${employeeId}`;
 }
@@ -950,6 +954,7 @@ export async function listBudgetItemsForBusiness(businessId) {
   return (result.Items ?? []).map((item) => ({
     id: item.budgetItemId,
     category: item.category,
+    equipmentCostType: item.equipmentCostType,
     description: item.description,
     budgeted: item.budgeted,
     actual: item.actual,
@@ -991,6 +996,7 @@ export async function getBudgetItemForBusiness(businessId, budgetItemId) {
     ? {
         id: result.Item.budgetItemId,
         category: result.Item.category,
+      equipmentCostType: result.Item.equipmentCostType,
         description: result.Item.description,
         budgeted: result.Item.budgeted,
         actual: result.Item.actual,
@@ -1132,6 +1138,97 @@ export async function deleteLabourBudgetPlanForBusiness(businessId, labourBudget
       Key: {
         PK: businessPk(businessId),
         SK: labourBudgetPlanSk(labourBudgetPlanId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listLabourHoursSalesGoalsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'LABOUR_HOURS_GOAL#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.labourHoursSalesGoalId,
+    year: item.year,
+    hoursGoal: item.hoursGoal,
+  }));
+}
+
+export async function createLabourHoursSalesGoalForBusiness({ businessId, labourHoursSalesGoal }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: labourHoursSalesGoalSk(labourHoursSalesGoal.id),
+        entityType: 'LABOUR_HOURS_SALES_GOAL',
+        businessId,
+        labourHoursSalesGoalId: labourHoursSalesGoal.id,
+        ...labourHoursSalesGoal,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getLabourHoursSalesGoalForBusiness(businessId, labourHoursSalesGoalId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: labourHoursSalesGoalSk(labourHoursSalesGoalId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.labourHoursSalesGoalId,
+        year: result.Item.year,
+        hoursGoal: result.Item.hoursGoal,
+      }
+    : null;
+}
+
+export async function updateLabourHoursSalesGoalForBusiness({ businessId, labourHoursSalesGoal }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: labourHoursSalesGoalSk(labourHoursSalesGoal.id),
+        entityType: 'LABOUR_HOURS_SALES_GOAL',
+        businessId,
+        labourHoursSalesGoalId: labourHoursSalesGoal.id,
+        ...labourHoursSalesGoal,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteLabourHoursSalesGoalForBusiness(businessId, labourHoursSalesGoalId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: labourHoursSalesGoalSk(labourHoursSalesGoalId),
       },
     })
   );

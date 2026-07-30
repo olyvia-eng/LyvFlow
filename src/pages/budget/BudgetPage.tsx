@@ -3,7 +3,7 @@ import { useStore } from '../../store';
 import { PageHeader, Button, Card, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, FileDown } from 'lucide-react';
 import { formatCurrency } from '../../utils';
-import type { BudgetItem, BudgetCategory, EmployeeRole, LabourBudgetPlan, LabourCompType } from '../../types';
+import type { BudgetItem, BudgetCategory, EmployeeRole, LabourBudgetPlan, LabourCompType, EquipmentCostType } from '../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -12,11 +12,15 @@ type BudgetTab = 'analysis' | 'revenue' | 'labour' | 'materials' | 'equipment' |
 type ExportColumnMode = 'both' | 'budgeted' | 'actual';
 type ExportKind = 'budget' | 'pnl_detailed' | 'pnl_condensed';
 type LabourTableView = 'all' | LabourCompType;
+type EquipmentTableView = 'all' | EquipmentCostType;
+
+const EQUIPMENT_COST_TYPES: EquipmentCostType[] = ['financed', 'leased', 'other'];
 
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
 
 const empty = (): Omit<BudgetItem, 'id'> => ({
   category: 'labour',
+  equipmentCostType: undefined,
   description: '',
   budgeted: 0,
   actual: 0,
@@ -25,6 +29,7 @@ const empty = (): Omit<BudgetItem, 'id'> => ({
 
 const yearlyHoursBase = 2080;
 const buildLabourPlanId = (employeeId: string, year: string) => `${employeeId}-${year}`;
+const buildLabourHoursGoalId = (year: string) => `labour-hours-goal-${year}`;
 
 const defaultLabourPlan = (employeeId: string, year: string, hourlyRate: number): LabourBudgetPlan => ({
   id: buildLabourPlanId(employeeId, year),
@@ -44,11 +49,13 @@ export default function BudgetPage() {
   const {
     budgetItems,
     labourBudgetPlans,
+    labourHoursSalesGoals,
     employees,
     addBudgetItem,
     updateBudgetItem,
     deleteBudgetItem,
     upsertLabourBudgetPlan,
+    upsertLabourHoursSalesGoal,
   } = useStore();
   const [period, setPeriod] = useState(currentPeriod());
   const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
@@ -63,6 +70,7 @@ export default function BudgetPage() {
   const [exportColumnMode, setExportColumnMode] = useState<ExportColumnMode>('both');
   const [exportKind, setExportKind] = useState<ExportKind>('budget');
   const [labourTableView, setLabourTableView] = useState<LabourTableView>('all');
+  const [equipmentTableView, setEquipmentTableView] = useState<EquipmentTableView>('all');
   const [pricingInputs, setPricingInputs] = useState({
     payrollBurdenPct: 18,
     overheadRecoveryPct: 15,
@@ -89,7 +97,14 @@ export default function BudgetPage() {
   };
   const openEdit = (b: BudgetItem) => {
     setEditing(b);
-    setForm({ category: b.category, description: b.description, budgeted: b.budgeted, actual: b.actual, period: b.period });
+    setForm({
+      category: b.category,
+      equipmentCostType: b.equipmentCostType,
+      description: b.description,
+      budgeted: b.budgeted,
+      actual: b.actual,
+      period: b.period,
+    });
     setModalOpen(true);
   };
   const handleSave = () => {
@@ -99,6 +114,16 @@ export default function BudgetPage() {
     setModalOpen(false);
   };
   const set = (key: keyof typeof form, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
+
+  const setCategory = (category: BudgetCategory) => {
+    setForm((current) => ({
+      ...current,
+      category,
+      equipmentCostType: category === 'equipment'
+        ? (current.equipmentCostType ?? 'financed')
+        : undefined,
+    }));
+  };
 
   const openCategoryEditor = (category: BudgetCategory) => {
     const existingItem = items.find((item) => item.category === category);
@@ -172,12 +197,37 @@ export default function BudgetPage() {
     return { category, budgeted, actual, variance, count: catItems.length };
   }).filter((row) => row.count > 0);
 
+  const equipmentByCostType = useMemo(() => {
+    const equipmentItems = grouped.equipment;
+    const totalFor = (costType: EquipmentCostType) => ({
+      budgeted: equipmentItems
+        .filter((item) => (item.equipmentCostType ?? 'other') === costType)
+        .reduce((sum, item) => sum + item.budgeted, 0),
+      actual: equipmentItems
+        .filter((item) => (item.equipmentCostType ?? 'other') === costType)
+        .reduce((sum, item) => sum + item.actual, 0),
+    });
+
+    return {
+      financed: totalFor('financed'),
+      leased: totalFor('leased'),
+      other: totalFor('other'),
+    };
+  }, [grouped.equipment]);
+
   const selectedCategory = activeTab !== 'analysis' ? activeTab : null;
   const selectedCategoryItems = selectedCategory ? grouped[selectedCategory] : [];
+  const equipmentFilteredItems = useMemo(() => {
+    if (equipmentTableView === 'all') return grouped.equipment;
+    return grouped.equipment.filter((item) => (item.equipmentCostType ?? 'other') === equipmentTableView);
+  }, [equipmentTableView, grouped.equipment]);
+
+  const displayCategoryItems = activeTab === 'equipment' ? equipmentFilteredItems : selectedCategoryItems;
+
   const selectedCategoryTotals = selectedCategory
     ? {
-        budgeted: selectedCategoryItems.reduce((sum, item) => sum + item.budgeted, 0),
-        actual: selectedCategoryItems.reduce((sum, item) => sum + item.actual, 0),
+        budgeted: displayCategoryItems.reduce((sum, item) => sum + item.budgeted, 0),
+        actual: displayCategoryItems.reduce((sum, item) => sum + item.actual, 0),
       }
     : { budgeted: 0, actual: 0 };
   const selectedCategoryVariance = selectedCategory
@@ -254,12 +304,27 @@ export default function BudgetPage() {
     return byEmployeeId;
   }, [labourBudgetPlans, plannerYear]);
 
+  const labourHoursGoalRecord = useMemo(() => {
+    return labourHoursSalesGoals.find((goal) => goal.year === plannerYear);
+  }, [labourHoursSalesGoals, plannerYear]);
+
+  const labourHoursSalesGoal = labourHoursGoalRecord?.hoursGoal ?? 0;
+
   useEffect(() => {
     for (const employee of employees.filter((value) => value.active)) {
       if (plansByEmployeeId[employee.id]) continue;
       upsertLabourBudgetPlan(defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate));
     }
   }, [employees, plannerYear, plansByEmployeeId, upsertLabourBudgetPlan]);
+
+  useEffect(() => {
+    if (labourHoursGoalRecord) return;
+    upsertLabourHoursSalesGoal({
+      id: buildLabourHoursGoalId(plannerYear),
+      year: plannerYear,
+      hoursGoal: 0,
+    });
+  }, [labourHoursGoalRecord, plannerYear, upsertLabourHoursSalesGoal]);
 
   const exportToPdf = (mode: ExportColumnMode = 'both') => {
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
@@ -565,6 +630,42 @@ export default function BudgetPage() {
       overtimeHoursYear: 0,
     });
   }, [visibleLabourPlannerRows]);
+
+  const labourPlannerTotalsAll = useMemo(() => {
+    return labourPlannerRows.reduce((acc, row) => ({
+      totalCompensation: acc.totalCompensation + row.totalCompensation,
+      labourBurdenAmount: acc.labourBurdenAmount + row.labourBurdenAmount,
+      totalLabourCost: acc.totalLabourCost + row.totalLabourCost,
+      billableHoursYear: acc.billableHoursYear + row.plan.billableHoursYear,
+      unbillableHoursYear: acc.unbillableHoursYear + row.plan.unbillableHoursYear,
+      overtimeHoursYear: acc.overtimeHoursYear + row.plan.overtimeHoursYear,
+    }), {
+      totalCompensation: 0,
+      labourBurdenAmount: 0,
+      totalLabourCost: 0,
+      billableHoursYear: 0,
+      unbillableHoursYear: 0,
+      overtimeHoursYear: 0,
+    });
+  }, [labourPlannerRows]);
+
+  const breakEvenHoursToSell = suggestedLaborSellRate > 0
+    ? labourPlannerTotalsAll.totalLabourCost / suggestedLaborSellRate
+    : 0;
+  const targetMarginRevenueNeed = labourPlannerTotalsAll.totalLabourCost / marginDivisor;
+  const targetMarginHoursToSell = suggestedLaborSellRate > 0
+    ? targetMarginRevenueNeed / suggestedLaborSellRate
+    : 0;
+  const labourHoursGoalRevenue = labourHoursSalesGoal * suggestedLaborSellRate;
+  const labourHoursGoalGap = labourHoursSalesGoal - labourPlannerTotalsAll.billableHoursYear;
+
+  const updateLabourHoursGoal = (nextHoursGoal: number) => {
+    upsertLabourHoursSalesGoal({
+      id: labourHoursGoalRecord?.id ?? buildLabourHoursGoalId(plannerYear),
+      year: plannerYear,
+      hoursGoal: Math.max(0, nextHoursGoal),
+    });
+  };
 
   const renderLabourPlannerRow = (row: typeof labourPlannerRows[number]) => (
     <tr key={row.employee.id} className="hover:bg-gray-50">
@@ -892,6 +993,49 @@ export default function BudgetPage() {
             </button>
           </div>
 
+          <Card className="p-4 mb-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Labour Hours Sales Budget</h2>
+                <p className="text-sm text-gray-500 mt-1">Plan how many billable labour hours you need to sell this year and compare against your employee billable-hour plan.</p>
+              </div>
+              <div className="w-full sm:w-56">
+                <Input
+                  label="Hours Sales Goal / Yr"
+                  type="number"
+                  min={0}
+                  value={labourHoursSalesGoal}
+                  onChange={(e) => updateLabourHoursGoal(Number(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Planned Billable Hours</p>
+                <p className="text-lg font-semibold text-gray-900">{labourPlannerTotalsAll.billableHoursYear.toFixed(0)} hrs</p>
+              </Card>
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Break-Even Hours To Sell</p>
+                <p className="text-lg font-semibold text-gray-900">{breakEvenHoursToSell.toFixed(0)} hrs</p>
+              </Card>
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Target-Margin Hours To Sell</p>
+                <p className="text-lg font-semibold text-gray-900">{targetMarginHoursToSell.toFixed(0)} hrs</p>
+              </Card>
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Goal Revenue From Hours</p>
+                <p className="text-lg font-semibold text-gray-900">{formatCurrency(labourHoursGoalRevenue)}</p>
+              </Card>
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Goal vs Planned Gap</p>
+                <p className={`text-lg font-semibold ${labourHoursGoalGap >= 0 ? 'text-brand-700' : 'text-red-600'}`}>
+                  {labourHoursGoalGap >= 0 ? '+' : ''}{labourHoursGoalGap.toFixed(0)} hrs
+                </p>
+              </Card>
+            </div>
+          </Card>
+
           <Card className="overflow-hidden mb-6">
             <div className="p-4 border-b border-gray-100">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1073,29 +1217,91 @@ export default function BudgetPage() {
       )}
 
       {activeTab === 'equipment' && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-            <Card className="p-4 hover:border-brand-300 cursor-pointer">
-              <p className="text-xs text-gray-500">Budgeted Equipment</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.budgeted)}</p>
-            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-            </Card>
-          </button>
-          <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-            <Card className="p-4 hover:border-brand-300 cursor-pointer">
-              <p className="text-xs text-gray-500">Actual Equipment</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.actual)}</p>
-            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-            </Card>
-          </button>
-          <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-            <Card className="p-4 hover:border-brand-300 cursor-pointer">
-              <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
-              <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedMachineSellRate)}/hr</p>
-            <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-            </Card>
-          </button>
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Budgeted Equipment</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.budgeted)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Actual Equipment</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.actual)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
+                <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedMachineSellRate)}/hr</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Financed Equipment</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(equipmentByCostType.financed.actual)}</p>
+                <p className="text-xs text-gray-400">Budget: {formatCurrency(equipmentByCostType.financed.budgeted)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Leased Equipment</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(equipmentByCostType.leased.actual)}</p>
+                <p className="text-xs text-gray-400">Budget: {formatCurrency(equipmentByCostType.leased.budgeted)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+            <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <Card className="p-4 hover:border-brand-300 cursor-pointer">
+                <p className="text-xs text-gray-500">Other Equipment</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(equipmentByCostType.other.actual)}</p>
+                <p className="text-xs text-gray-400">Budget: {formatCurrency(equipmentByCostType.other.budgeted)}</p>
+              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
+              </Card>
+            </button>
+          </div>
+
+          <div className="mb-6">
+            <div className="inline-flex border border-gray-200 rounded-lg p-0.5 bg-white">
+              <button
+                type="button"
+                onClick={() => setEquipmentTableView('all')}
+                className={`px-3 py-1 text-xs rounded ${equipmentTableView === 'all' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                All Equipment
+              </button>
+              <button
+                type="button"
+                onClick={() => setEquipmentTableView('financed')}
+                className={`px-3 py-1 text-xs rounded ${equipmentTableView === 'financed' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                Financed
+              </button>
+              <button
+                type="button"
+                onClick={() => setEquipmentTableView('leased')}
+                className={`px-3 py-1 text-xs rounded ${equipmentTableView === 'leased' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                Leased
+              </button>
+              <button
+                type="button"
+                onClick={() => setEquipmentTableView('other')}
+                className={`px-3 py-1 text-xs rounded ${equipmentTableView === 'other' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                Other
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {activeTab === 'subcontractors' && (
@@ -1207,7 +1413,16 @@ export default function BudgetPage() {
                     <tr key={b.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2 capitalize">{b.category}</td>
                       {viewMode === 'year' && <td className="px-4 py-2 text-gray-500">{b.period}</td>}
-                      <td className="px-4 py-2 text-gray-700">{b.description}</td>
+                      <td className="px-4 py-2 text-gray-700">
+                        <div className="flex items-center gap-2">
+                          <span>{b.description}</span>
+                          {b.category === 'equipment' && (
+                            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 capitalize">
+                              {(b.equipmentCostType ?? 'other').replace('_', ' ')}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-2 text-right">{formatCurrency(b.budgeted)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(b.actual)}</td>
                       <td className={`px-4 py-2 text-right font-semibold ${variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -1245,7 +1460,7 @@ export default function BudgetPage() {
             </Card>
           </div>
 
-          {selectedCategoryItems.length === 0 ? (
+          {displayCategoryItems.length === 0 ? (
             <EmptyState title={`No ${activeTab} items for ${scopeLabel}`} action={<Button onClick={openNew}><Plus size={16} /> Add Budget Item</Button>} />
           ) : (
             <Card className="overflow-hidden">
@@ -1261,12 +1476,21 @@ export default function BudgetPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {selectedCategoryItems.map((b) => {
+                  {displayCategoryItems.map((b) => {
                     const variance = b.category === 'revenue' ? b.actual - b.budgeted : b.budgeted - b.actual;
                     return (
                       <tr key={b.id} className="hover:bg-gray-50">
                         {viewMode === 'year' && <td className="px-4 py-2 text-gray-500">{b.period}</td>}
-                        <td className="px-4 py-2 text-gray-700">{b.description}</td>
+                        <td className="px-4 py-2 text-gray-700">
+                          <div className="flex items-center gap-2">
+                            <span>{b.description}</span>
+                            {b.category === 'equipment' && (
+                              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 capitalize">
+                                {(b.equipmentCostType ?? 'other').replace('_', ' ')}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-2 text-right">{formatCurrency(b.budgeted)}</td>
                         <td className="px-4 py-2 text-right">{formatCurrency(b.actual)}</td>
                         <td className={`px-4 py-2 text-right font-semibold ${variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -1297,11 +1521,22 @@ export default function BudgetPage() {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Select label="Category" value={form.category} onChange={(e) => set('category', e.target.value as BudgetCategory)}>
+            <Select label="Category" value={form.category} onChange={(e) => setCategory(e.target.value as BudgetCategory)}>
               {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
             </Select>
             <Input label="Period (YYYY-MM)" value={form.period} onChange={(e) => set('period', e.target.value)} />
           </div>
+          {form.category === 'equipment' && (
+            <Select
+              label="Equipment Cost Type"
+              value={form.equipmentCostType ?? 'financed'}
+              onChange={(e) => set('equipmentCostType', e.target.value as EquipmentCostType)}
+            >
+              {EQUIPMENT_COST_TYPES.map((costType) => (
+                <option key={costType} value={costType}>{costType.charAt(0).toUpperCase() + costType.slice(1)}</option>
+              ))}
+            </Select>
+          )}
           <Input label="Description *" value={form.description} onChange={(e) => set('description', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Budgeted ($)" type="number" min={0} value={form.budgeted} onChange={(e) => set('budgeted', Number(e.target.value))} />

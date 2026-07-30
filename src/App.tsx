@@ -18,7 +18,7 @@ import SignupPage from './pages/auth/SignupPage';
 import UserAccessPage from './pages/users/UserAccessPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Job, LabourBudgetPlan, TimeEntry } from './types';
+import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Job, LabourBudgetPlan, LabourHoursSalesGoal, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
@@ -68,6 +68,7 @@ export default function App() {
         templates?: EstimateTemplate[];
         budgetItems?: BudgetItem[];
         labourBudgetPlans?: LabourBudgetPlan[];
+        labourHoursSalesGoals?: LabourHoursSalesGoal[];
         employees?: Employee[];
         timeEntries?: TimeEntry[];
       }>(response);
@@ -85,6 +86,7 @@ export default function App() {
         templates: payload.templates ?? [],
         budgetItems: payload.budgetItems ?? [],
         labourBudgetPlans: payload.labourBudgetPlans ?? [],
+        labourHoursSalesGoals: payload.labourHoursSalesGoals ?? [],
         employees: payload.employees ?? [],
         timeEntries: payload.timeEntries ?? [],
       }));
@@ -183,6 +185,7 @@ export default function App() {
       timeEntries: [],
       budgetItems: [],
       labourBudgetPlans: [],
+      labourHoursSalesGoals: [],
     });
     localStorage.setItem(STORE_OWNER_KEY, sessionUser.businessId);
   }, [sessionUser]);

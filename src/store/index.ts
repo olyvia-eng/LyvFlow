@@ -9,6 +9,7 @@ import type {
   TimeEntryWorkType,
   BudgetItem,
   LabourBudgetPlan,
+  LabourHoursSalesGoal,
   CostEntry,
   ID,
 } from '../types';
@@ -64,6 +65,7 @@ interface AppState {
   timeEntries: TimeEntry[];
   budgetItems: BudgetItem[];
   labourBudgetPlans: LabourBudgetPlan[];
+  labourHoursSalesGoals: LabourHoursSalesGoal[];
 
   // CRM
   addCustomer: (c: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -106,6 +108,8 @@ interface AppState {
   deleteBudgetItem: (id: ID) => void;
   upsertLabourBudgetPlan: (plan: LabourBudgetPlan) => void;
   deleteLabourBudgetPlan: (id: ID) => void;
+  upsertLabourHoursSalesGoal: (goal: LabourHoursSalesGoal) => void;
+  deleteLabourHoursSalesGoal: (id: ID) => void;
 }
 
 export const useStore = create<AppState>()((set, get) => ({
@@ -117,6 +121,7 @@ export const useStore = create<AppState>()((set, get) => ({
       timeEntries: [],
       budgetItems: [],
       labourBudgetPlans: [],
+      labourHoursSalesGoals: [],
 
       // ── CRM ──────────────────────────────────────────────────────────────
       addCustomer: (c) => {
@@ -697,6 +702,43 @@ export const useStore = create<AppState>()((set, get) => ({
         })).catch(() => {
           set({ labourBudgetPlans: previous });
           emitAppToast({ tone: 'error', message: 'Labour budget plan could not be deleted.' });
+        });
+      },
+      upsertLabourHoursSalesGoal: (goal) => {
+        const previous = get().labourHoursSalesGoals;
+        const exists = previous.some((value) => value.id === goal.id);
+
+        set((state) => ({
+          labourHoursSalesGoals: exists
+            ? state.labourHoursSalesGoals.map((value) => (value.id === goal.id ? { ...value, ...goal } : value))
+            : [...state.labourHoursSalesGoals, goal],
+        }));
+
+        const method = exists ? 'PATCH' : 'POST';
+        const url = exists ? dataUrl('labour-hours-sales-goals', goal.id) : dataUrl('labour-hours-sales-goals');
+
+        void ensureOk(fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: goal }),
+        })).catch(() => {
+          set({ labourHoursSalesGoals: previous });
+          emitAppToast({ tone: 'error', message: 'Labour hours sales goal could not be saved.' });
+        });
+      },
+      deleteLabourHoursSalesGoal: (id) => {
+        const previous = get().labourHoursSalesGoals;
+        set((state) => ({ labourHoursSalesGoals: state.labourHoursSalesGoals.filter((goal) => goal.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('labour-hours-sales-goals', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch(() => {
+          set({ labourHoursSalesGoals: previous });
+          emitAppToast({ tone: 'error', message: 'Labour hours sales goal could not be deleted.' });
         });
       },
     }));

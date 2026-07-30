@@ -163,9 +163,12 @@ export type BudgetCategory =
   | 'insurance'
   | 'other';
 
+export type EquipmentCostType = 'financed' | 'leased' | 'other';
+
 export interface BudgetItem {
   id: ID;
   category: BudgetCategory;
+  equipmentCostType?: EquipmentCostType;
   description: string;
   budgeted: number;
   actual: number;
@@ -186,6 +189,12 @@ export interface LabourBudgetPlan {
   hourlyRate: number;
   annualSalary: number;
   labourBurdenPct: number;
+}
+
+export interface LabourHoursSalesGoal {
+  id: ID;
+  year: string; // YYYY
+  hoursGoal: number;
 }
 
 export interface BudgetPeriod {
