@@ -17,6 +17,8 @@ type FavoritesContextValue = {
   currentPage: FavoritePage;
   isCurrentPageFavorited: boolean;
   toggleCurrentPageFavorite: () => void;
+  isPageFavorited: (to: string) => boolean;
+  toggleFavoritePage: (page: FavoritePage) => void;
   reorderFavorites: (fromIndex: number, toIndex: number) => void;
 };
 
@@ -122,6 +124,30 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
     });
   };
 
+  const isPageFavorited = (to: string) => {
+    const path = normalizePath(to);
+    return favorites.some((favorite) => normalizePath(favorite.to) === path);
+  };
+
+  const toggleFavoritePage = (page: FavoritePage) => {
+    setFavorites((current) => {
+      const targetPath = normalizePath(page.to);
+      const exists = current.some((favorite) => normalizePath(favorite.to) === targetPath);
+
+      if (exists) {
+        return current.filter((favorite) => normalizePath(favorite.to) !== targetPath);
+      }
+
+      return [
+        ...current,
+        {
+          ...page,
+          to: targetPath,
+        },
+      ];
+    });
+  };
+
   const reorderFavorites = (fromIndex: number, toIndex: number) => {
     setFavorites((current) => {
       if (fromIndex === toIndex) return current;
@@ -142,6 +168,8 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
         currentPage,
         isCurrentPageFavorited,
         toggleCurrentPageFavorite,
+        isPageFavorited,
+        toggleFavoritePage,
         reorderFavorites,
       }}
     >

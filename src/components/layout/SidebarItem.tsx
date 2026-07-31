@@ -1,6 +1,7 @@
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Star } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useFavorites } from '../../navigation/FavoritesContext';
 import type { SidebarNavItem } from '../../navigation/types';
 
 interface SidebarItemProps {
@@ -31,6 +32,7 @@ export default function SidebarItem({
   onAction,
 }: SidebarItemProps) {
   const { pathname } = useLocation();
+  const { isPageFavorited, toggleFavoritePage } = useFavorites();
   const isBranchActive = useMemo(() => hasActiveDescendant(item, pathname), [item, pathname]);
 
   const [expanded, setExpanded] = useState(item.type === 'group' ? (item.defaultExpanded ?? true) : false);
@@ -59,33 +61,57 @@ export default function SidebarItem({
 
   if (item.type === 'link') {
     const Icon = item.icon;
+    const favorited = isPageFavorited(item.to);
 
     return (
-      <NavLink
-        to={item.to}
-        end={item.end}
-        onClick={onNavigate}
-        style={indentStyle}
-        className={({ isActive }) =>
-          `group relative flex items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} pl-3 rounded-lg text-sm font-medium transition-colors ${
-            isActive
-              ? 'bg-emerald-50 text-emerald-700'
-              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-          }`
-        }
-      >
-        {({ isActive }) => (
-          <>
-            <span
-              className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r ${
-                isActive ? 'bg-emerald-500' : 'bg-transparent group-hover:bg-gray-200'
-              }`}
-            />
-            {Icon ? <Icon size={compact ? 14 : 15} /> : null}
-            <span className="truncate">{item.label}</span>
-          </>
-        )}
-      </NavLink>
+      <div style={indentStyle} className="group relative flex items-center gap-1">
+        <NavLink
+          to={item.to}
+          end={item.end}
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            `group relative flex min-w-0 flex-1 items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} pl-3 rounded-lg text-sm font-medium transition-colors ${
+              isActive
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <span
+                className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r ${
+                  isActive ? 'bg-emerald-500' : 'bg-transparent group-hover:bg-gray-200'
+                }`}
+              />
+              {Icon ? <Icon size={compact ? 14 : 15} /> : null}
+              <span className="truncate">{item.label}</span>
+            </>
+          )}
+        </NavLink>
+        <button
+          type="button"
+          aria-label={favorited ? `Remove ${item.label} from favorites` : `Add ${item.label} to favorites`}
+          title={favorited ? 'Remove from favorites' : 'Add to favorites'}
+          className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+            favorited
+              ? 'text-amber-500 hover:bg-amber-50'
+              : 'text-gray-300 hover:text-amber-500 hover:bg-gray-100'
+          }`}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleFavoritePage({
+              id: item.id,
+              label: item.label,
+              to: item.to,
+              end: item.end,
+            });
+          }}
+        >
+          <Star size={14} className={favorited ? 'fill-current' : ''} />
+        </button>
+      </div>
     );
   }
 
@@ -138,9 +164,6 @@ export default function SidebarItem({
       style={indentStyle}
       className="relative"
       ref={flyoutRef}
-      onMouseLeave={() => {
-        if (expanded) setExpanded(false);
-      }}
     >
       <button
         ref={triggerRef}

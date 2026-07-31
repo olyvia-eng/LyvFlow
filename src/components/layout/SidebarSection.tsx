@@ -24,6 +24,7 @@ export default function SidebarSection({
 }: SidebarSectionProps) {
   const isCollapsible = section.collapsible !== false;
   const isCollapsed = collapsed ?? !(section.defaultExpanded ?? true);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [flyoutPosition, setFlyoutPosition] = useState({ top: 0, left: 0 });
 
@@ -50,23 +51,29 @@ export default function SidebarSection({
   useEffect(() => {
     if (isCollapsed) return;
 
+    const handleOutsidePointer = (event: MouseEvent) => {
+      if (!sectionRef.current) return;
+      if (!sectionRef.current.contains(event.target as Node)) {
+        onClose?.(section.id);
+      }
+    };
+
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose?.(section.id);
       }
     };
 
+    window.addEventListener('mousedown', handleOutsidePointer);
     window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsidePointer);
+      window.removeEventListener('keydown', handleEscape);
+    };
   }, [isCollapsed, onClose, section.id]);
 
   return (
-    <div
-      className="mb-3 relative"
-      onMouseLeave={() => {
-        if (!isCollapsed) onClose?.(section.id);
-      }}
-    >
+    <div className="mb-3 relative" ref={sectionRef}>
       <button
         ref={triggerRef}
         type="button"
