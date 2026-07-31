@@ -24,7 +24,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { BusinessUserRole } from '../auth/types';
-import type { SidebarConfig, SidebarNavItem, SidebarSectionConfig } from './types';
+import type { SidebarConfig, SidebarLinkItem, SidebarNavItem, SidebarSectionConfig } from './types';
 
 const ownerAdminRoles: BusinessUserRole[] = ['owner', 'admin'];
 
@@ -141,6 +141,14 @@ const includesRole = (roles: BusinessUserRole[] | undefined, userRole: BusinessU
   return roles.includes(userRole);
 };
 
+const collectLinkItems = (items: SidebarNavItem[]): SidebarLinkItem[] => {
+  return items.flatMap((item) => {
+    if (item.type === 'link') return [item];
+    if (item.type === 'group') return collectLinkItems(item.children);
+    return [];
+  });
+};
+
 const filterNavItem = (item: SidebarNavItem, userRole: BusinessUserRole): SidebarNavItem | null => {
   if (!includesRole(item.roles, userRole)) return null;
 
@@ -183,4 +191,22 @@ export const getSidebarConfig = (userRole: BusinessUserRole): SidebarConfig => {
     favorites,
     sections,
   };
+};
+
+export const getSidebarLinkItems = (userRole: BusinessUserRole): SidebarLinkItem[] => {
+  const config = getSidebarConfig(userRole);
+  const sectionItems = config.sections.flatMap((section) => collectLinkItems(section.items));
+  const all = [...collectLinkItems(config.topLevel), ...sectionItems];
+
+  const seen = new Set<string>();
+  const unique: SidebarLinkItem[] = [];
+
+  for (const item of all) {
+    const key = `${item.to}::${item.label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+
+  return unique;
 };

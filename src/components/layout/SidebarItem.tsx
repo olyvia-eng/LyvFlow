@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import type { SidebarNavItem } from '../../navigation/types';
 
@@ -91,9 +91,41 @@ export default function SidebarItem({
 
   const GroupIcon = item.icon;
   const isCollapsible = item.collapsible !== false;
+  const flyoutRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!expanded) return;
+
+    const handleOutsidePointer = (event: MouseEvent) => {
+      if (!flyoutRef.current) return;
+      if (!flyoutRef.current.contains(event.target as Node)) {
+        setExpanded(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setExpanded(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleOutsidePointer);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsidePointer);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [expanded]);
 
   return (
-    <div style={indentStyle}>
+    <div
+      style={indentStyle}
+      className="relative"
+      ref={flyoutRef}
+      onMouseLeave={() => {
+        if (expanded) setExpanded(false);
+      }}
+    >
       <button
         type="button"
         className={`w-full flex items-center justify-between ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-sm font-medium transition-colors ${
@@ -111,22 +143,28 @@ export default function SidebarItem({
           <span className="truncate">{item.label}</span>
         </span>
         {isCollapsible ? (
-          <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`} />
+          <ChevronDown size={13} className={`transition-transform ${expanded ? '-rotate-90' : 'rotate-0'}`} />
         ) : null}
       </button>
 
       {expanded && (
-        <div className="space-y-0.5 mt-0.5">
-          {item.children.map((child) => (
-            <SidebarItem
-              key={child.id}
-              item={child}
-              level={level + 1}
-              compact={compact}
-              onNavigate={onNavigate}
-              onAction={onAction}
-            />
-          ))}
+        <div
+          className="absolute left-full top-0 ml-2 min-w-[220px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg z-50"
+          role="menu"
+          aria-label={`${item.label} submenu`}
+        >
+          <div className="space-y-0.5">
+            {item.children.map((child) => (
+              <SidebarItem
+                key={child.id}
+                item={child}
+                level={0}
+                compact={compact}
+                onNavigate={onNavigate}
+                onAction={onAction}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

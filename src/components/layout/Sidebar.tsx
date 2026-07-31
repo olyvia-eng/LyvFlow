@@ -7,10 +7,11 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { BusinessUserRole } from '../../auth/types';
-import { getSidebarConfig } from '../../navigation/sidebarConfig';
+import { getSidebarConfig, getSidebarLinkItems } from '../../navigation/sidebarConfig';
 import type { SidebarNavItem } from '../../navigation/types';
 import SidebarItem from './SidebarItem';
 import SidebarSection from './SidebarSection';
+import { useFavorites } from '../../navigation/FavoritesContext';
 
 const EXPANDED_SECTIONS_STORAGE_KEY = 'oliveops.sidebar.expanded-sections.v1';
 
@@ -23,7 +24,10 @@ interface SidebarProps {
 
 export default function Sidebar({ userName, businessName, userRole, onLogout }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const navigation = getSidebarConfig(userRole);
+  const linkCandidates = getSidebarLinkItems(userRole);
+  const { favorites, reorderFavorites } = useFavorites();
 
   const allSectionIds = useMemo(() => {
     return ['favorites', ...navigation.sections.map((section) => section.id)];
@@ -75,8 +79,37 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
     });
   };
 
-  const renderFavoriteItem = (item: SidebarNavItem) => (
-    <div key={`fav-${item.id}`} className="flex items-center">
+  const closeSection = (sectionId: string) => {
+    setExpandedSectionIds((current) => current.filter((id) => id !== sectionId));
+  };
+
+  const favoriteItems: SidebarNavItem[] = useMemo(() => {
+    return favorites.map((favorite) => ({
+      ...(linkCandidates.find((candidate) => candidate.to === favorite.to && candidate.label === favorite.label) ?? {}),
+      id: `fav-${favorite.id}`,
+      type: 'link' as const,
+      to: favorite.to,
+      end: favorite.end,
+      label: favorite.label,
+    }));
+  }, [favorites, linkCandidates]);
+
+  const renderFavoriteItem = (item: SidebarNavItem, index: number) => (
+    <div
+      key={`fav-${item.id}`}
+      className="flex items-center"
+      draggable
+      onDragStart={() => setDragIndex(index)}
+      onDragOver={(event) => {
+        event.preventDefault();
+      }}
+      onDrop={() => {
+        if (dragIndex === null) return;
+        reorderFavorites(dragIndex, index);
+        setDragIndex(null);
+      }}
+      onDragEnd={() => setDragIndex(null)}
+    >
       <Star size={12} className="mr-2 text-amber-400" />
       <SidebarItem
         item={item}
@@ -147,7 +180,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             </button>
             {isExpanded('favorites') && (
               <div className="space-y-0.5">
-                {navigation.favorites.map(renderFavoriteItem)}
+                {favoriteItems.map((item, index) => renderFavoriteItem(item, index))}
               </div>
             )}
           </div>
@@ -159,6 +192,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
               compact
               collapsed={!isExpanded(section.id)}
               onToggle={toggleSection}
+              onClose={closeSection}
               onNavigate={() => setMobileOpen(false)}
               onAction={handleAction}
             />
@@ -214,7 +248,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             </button>
             {isExpanded('favorites') && (
               <div className="space-y-0.5">
-                {navigation.favorites.map(renderFavoriteItem)}
+                {favoriteItems.map((item, index) => renderFavoriteItem(item, index))}
               </div>
             )}
           </div>
@@ -226,6 +260,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
               compact
               collapsed={!isExpanded(section.id)}
               onToggle={toggleSection}
+              onClose={closeSection}
               onNavigate={() => setMobileOpen(false)}
               onAction={handleAction}
             />
