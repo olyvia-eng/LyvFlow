@@ -64,10 +64,10 @@ export default function SidebarSection({
       }
     };
 
-    window.addEventListener('mousedown', handleOutsidePointer);
+    window.addEventListener('click', handleOutsidePointer);
     window.addEventListener('keydown', handleEscape);
     return () => {
-      window.removeEventListener('mousedown', handleOutsidePointer);
+      window.removeEventListener('click', handleOutsidePointer);
       window.removeEventListener('keydown', handleEscape);
     };
   }, [isCollapsed, onClose, section.id]);

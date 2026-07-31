@@ -5,6 +5,11 @@ import { getSidebarLinkItems } from './sidebarConfig';
 
 const FAVORITES_STORAGE_KEY = 'oliveops.navigation.favorites.v1';
 
+const saveFavorites = (favorites: FavoritePage[]) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+};
+
 type FavoritePage = {
   id: string;
   label: string;
@@ -97,7 +102,7 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return;
-    window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+    saveFavorites(favorites);
   }, [favorites, hydrated]);
 
   const currentPage = useMemo<FavoritePage>(() => {
@@ -134,10 +139,14 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
       const exists = current.some((favorite) => normalizePath(favorite.to) === currentPath);
 
       if (exists) {
-        return current.filter((favorite) => normalizePath(favorite.to) !== currentPath);
+        const next = current.filter((favorite) => normalizePath(favorite.to) !== currentPath);
+        saveFavorites(next);
+        return next;
       }
 
-      return [...current, currentPage];
+      const next = [...current, currentPage];
+      saveFavorites(next);
+      return next;
     });
   };
 
@@ -152,16 +161,20 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
       const exists = current.some((favorite) => normalizePath(favorite.to) === targetPath);
 
       if (exists) {
-        return current.filter((favorite) => normalizePath(favorite.to) !== targetPath);
+        const next = current.filter((favorite) => normalizePath(favorite.to) !== targetPath);
+        saveFavorites(next);
+        return next;
       }
 
-      return [
+      const next = [
         ...current,
         {
           ...page,
           to: targetPath,
         },
       ];
+      saveFavorites(next);
+      return next;
     });
   };
 
@@ -174,6 +187,7 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
       const next = [...current];
       const [moved] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, moved);
+      saveFavorites(next);
       return next;
     });
   };
