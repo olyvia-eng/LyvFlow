@@ -92,9 +92,21 @@ export default function SidebarItem({
   const GroupIcon = item.icon;
   const isCollapsible = item.collapsible !== false;
   const flyoutRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [flyoutPosition, setFlyoutPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
     if (!expanded) return;
+
+    const updateFlyoutPosition = () => {
+      if (!triggerRef.current) return;
+      const rect = triggerRef.current.getBoundingClientRect();
+      const top = Math.max(8, Math.min(rect.top, window.innerHeight - 340));
+      const left = rect.right + 8;
+      setFlyoutPosition({ top, left });
+    };
+
+    updateFlyoutPosition();
 
     const handleOutsidePointer = (event: MouseEvent) => {
       if (!flyoutRef.current) return;
@@ -109,9 +121,13 @@ export default function SidebarItem({
       }
     };
 
+    window.addEventListener('resize', updateFlyoutPosition);
+    window.addEventListener('scroll', updateFlyoutPosition, true);
     window.addEventListener('mousedown', handleOutsidePointer);
     window.addEventListener('keydown', handleEscape);
     return () => {
+      window.removeEventListener('resize', updateFlyoutPosition);
+      window.removeEventListener('scroll', updateFlyoutPosition, true);
       window.removeEventListener('mousedown', handleOutsidePointer);
       window.removeEventListener('keydown', handleEscape);
     };
@@ -127,6 +143,7 @@ export default function SidebarItem({
       }}
     >
       <button
+        ref={triggerRef}
         type="button"
         className={`w-full flex items-center justify-between ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-sm font-medium transition-colors ${
           isBranchActive
@@ -149,7 +166,8 @@ export default function SidebarItem({
 
       {expanded && (
         <div
-          className="absolute left-full top-0 ml-2 min-w-[220px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg z-50"
+          className="fixed min-w-[220px] max-h-[70vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg z-50"
+          style={{ top: flyoutPosition.top, left: flyoutPosition.left }}
           role="menu"
           aria-label={`${item.label} submenu`}
         >

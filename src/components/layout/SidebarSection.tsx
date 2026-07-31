@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SidebarSectionConfig } from '../../navigation/types';
 import SidebarItem from './SidebarItem';
 
@@ -24,6 +24,28 @@ export default function SidebarSection({
 }: SidebarSectionProps) {
   const isCollapsible = section.collapsible !== false;
   const isCollapsed = collapsed ?? !(section.defaultExpanded ?? true);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [flyoutPosition, setFlyoutPosition] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (isCollapsed) return;
+
+    const updateFlyoutPosition = () => {
+      if (!triggerRef.current) return;
+      const rect = triggerRef.current.getBoundingClientRect();
+      const top = Math.max(8, Math.min(rect.top, window.innerHeight - 340));
+      const left = rect.right + 8;
+      setFlyoutPosition({ top, left });
+    };
+
+    updateFlyoutPosition();
+    window.addEventListener('resize', updateFlyoutPosition);
+    window.addEventListener('scroll', updateFlyoutPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateFlyoutPosition);
+      window.removeEventListener('scroll', updateFlyoutPosition, true);
+    };
+  }, [isCollapsed]);
 
   useEffect(() => {
     if (isCollapsed) return;
@@ -46,6 +68,7 @@ export default function SidebarSection({
       }}
     >
       <button
+        ref={triggerRef}
         type="button"
         className="w-full flex items-center justify-between px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-600"
         onClick={() => {
@@ -60,7 +83,10 @@ export default function SidebarSection({
       </button>
 
       {!isCollapsed && (
-        <div className="absolute left-full top-0 ml-2 min-w-[240px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg z-40">
+        <div
+          className="fixed min-w-[240px] max-h-[70vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg z-50"
+          style={{ top: flyoutPosition.top, left: flyoutPosition.left }}
+        >
           <div className="space-y-0.5">
             {section.items.map((item) => (
               <SidebarItem
