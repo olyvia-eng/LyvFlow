@@ -5,7 +5,7 @@ import {
   Leaf,
   Star,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { BusinessUserRole } from '../../auth/types';
 import { getSidebarConfig, getSidebarLinkItems } from '../../navigation/sidebarConfig';
@@ -48,6 +48,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   const navigation = getSidebarConfig(userRole);
   const linkCandidates = getSidebarLinkItems(userRole);
   const { favorites, reorderFavorites } = useFavorites();
+  const previousFavoritesCountRef = useRef(favorites.length);
 
   const allSectionIds = useMemo(() => {
     return ['favorites', ...navigation.sections.map((section) => section.id)];
@@ -77,6 +78,17 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   useEffect(() => {
     window.localStorage.setItem(EXPANDED_SECTIONS_STORAGE_KEY, JSON.stringify(expandedSectionIds));
   }, [expandedSectionIds]);
+
+  useEffect(() => {
+    const previousCount = previousFavoritesCountRef.current;
+    const currentCount = favorites.length;
+
+    if (currentCount > previousCount) {
+      setExpandedSectionIds(['favorites']);
+    }
+
+    previousFavoritesCountRef.current = currentCount;
+  }, [favorites.length]);
 
   useEffect(() => {
     setMobileOpen(false);

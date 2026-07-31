@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { Star } from 'lucide-react';
 import Sidebar from './Sidebar';
 import type { BusinessUserRole } from '../../auth/types';
@@ -31,8 +31,6 @@ function FavoritePageButton() {
 }
 
 export default function AppLayout({ userName, businessName, userRole, onLogout }: AppLayoutProps) {
-  const { pathname } = useLocation();
-
   return (
     <FavoritesProvider userRole={userRole}>
       <div className="min-h-screen bg-gray-50">
@@ -43,9 +41,7 @@ export default function AppLayout({ userName, businessName, userRole, onLogout }
             <div className="flex justify-end mb-3">
               <FavoritePageButton />
             </div>
-            <div key={pathname}>
-              <Outlet />
-            </div>
+            <Outlet />
           </div>
         </main>
       </div>
