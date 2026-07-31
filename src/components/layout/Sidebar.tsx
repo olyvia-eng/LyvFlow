@@ -6,7 +6,7 @@ import {
   Star,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { BusinessUserRole } from '../../auth/types';
 import { getSidebarConfig, getSidebarLinkItems } from '../../navigation/sidebarConfig';
 import type { SidebarNavItem } from '../../navigation/types';
@@ -42,6 +42,7 @@ interface SidebarProps {
 
 export default function Sidebar({ userName, businessName, userRole, onLogout }: SidebarProps) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const navigation = getSidebarConfig(userRole);
@@ -77,16 +78,19 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
     window.localStorage.setItem(EXPANDED_SECTIONS_STORAGE_KEY, JSON.stringify(expandedSectionIds));
   }, [expandedSectionIds]);
 
-  const handleNavigate = () => {
+  useEffect(() => {
     setMobileOpen(false);
     setExpandedSectionIds([]);
+  }, [pathname]);
+
+  const handleNavigate = () => {
+    setMobileOpen(false);
   };
 
   const handleAction = (actionId: string) => {
     const path = ACTION_ROUTE_MAP[actionId];
     if (!path) return;
     navigate(path);
-    handleNavigate();
   };
 
   const isExpanded = (sectionId: string) => expandedSectionIds.includes(sectionId);
