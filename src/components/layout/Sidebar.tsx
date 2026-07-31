@@ -6,7 +6,7 @@ import {
   Star,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { BusinessUserRole } from '../../auth/types';
 import { getSidebarConfig, getSidebarLinkItems } from '../../navigation/sidebarConfig';
 import type { SidebarNavItem } from '../../navigation/types';
@@ -42,7 +42,6 @@ interface SidebarProps {
 
 export default function Sidebar({ userName, businessName, userRole, onLogout }: SidebarProps) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const navigation = getSidebarConfig(userRole);
@@ -90,11 +89,6 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
     previousFavoritesCountRef.current = currentCount;
   }, [favorites.length]);
 
-  useEffect(() => {
-    setMobileOpen(false);
-    setExpandedSectionIds([]);
-  }, [pathname]);
-
   const handleNavigate = () => {
     setMobileOpen(false);
   };
@@ -113,10 +107,6 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       }
       return [sectionId];
     });
-  };
-
-  const closeSection = (sectionId: string) => {
-    setExpandedSectionIds((current) => current.filter((id) => id !== sectionId));
   };
 
   const favoriteItems: SidebarNavItem[] = useMemo(() => {
@@ -228,7 +218,6 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
               compact
               collapsed={!isExpanded(section.id)}
               onToggle={toggleSection}
-              onClose={closeSection}
               onNavigate={handleNavigate}
               onAction={handleAction}
             />
@@ -296,7 +285,6 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
               compact
               collapsed={!isExpanded(section.id)}
               onToggle={toggleSection}
-              onClose={closeSection}
               onNavigate={handleNavigate}
               onAction={handleAction}
             />
