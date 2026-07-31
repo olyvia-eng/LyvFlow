@@ -58,30 +58,47 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
   const location = useLocation();
   const candidates = useMemo(() => getSidebarLinkItems(userRole), [userRole]);
 
-  const [favorites, setFavorites] = useState<FavoritePage[]>(() => {
-    if (typeof window === 'undefined') return [];
+  const [favorites, setFavorites] = useState<FavoritePage[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
     try {
       const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
+      if (!raw) {
+        setFavorites([]);
+        setHydrated(true);
+        return;
+      }
 
-      return parsed.filter((value): value is FavoritePage => {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        setFavorites([]);
+        setHydrated(true);
+        return;
+      }
+
+      const loaded = parsed.filter((value): value is FavoritePage => {
         return (
           typeof value?.id === 'string' &&
           typeof value?.label === 'string' &&
           typeof value?.to === 'string'
         );
       });
+
+      setFavorites(loaded);
     } catch {
-      return [];
+      setFavorites([]);
+    } finally {
+      setHydrated(true);
     }
-  });
+  }, []);
 
   useEffect(() => {
+    if (!hydrated || typeof window === 'undefined') return;
     window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
-  }, [favorites]);
+  }, [favorites, hydrated]);
 
   const currentPage = useMemo<FavoritePage>(() => {
     const pathname = normalizePath(location.pathname);

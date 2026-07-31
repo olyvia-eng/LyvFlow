@@ -1,6 +1,6 @@
 import { ChevronDown, Star } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useFavorites } from '../../navigation/FavoritesContext';
 import type { SidebarNavItem } from '../../navigation/types';
 
@@ -31,6 +31,7 @@ export default function SidebarItem({
   onNavigate,
   onAction,
 }: SidebarItemProps) {
+  const navigate = useNavigate();
   const { pathname } = useLocation();
   const { isPageFavorited, toggleFavoritePage } = useFavorites();
   const isBranchActive = useMemo(() => hasActiveDescendant(item, pathname), [item, pathname]);
@@ -62,33 +63,30 @@ export default function SidebarItem({
   if (item.type === 'link') {
     const Icon = item.icon;
     const favorited = isPageFavorited(item.to);
+    const isActive = isRouteActive(pathname, item.to, item.end);
 
     return (
       <div style={indentStyle} className="group relative flex items-center gap-1">
-        <NavLink
-          to={item.to}
-          end={item.end}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            `group relative flex min-w-0 flex-1 items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} pl-3 rounded-lg text-sm font-medium transition-colors ${
-              isActive
-                ? 'bg-emerald-50 text-emerald-700'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-            }`
-          }
+        <button
+          type="button"
+          onClick={() => {
+            navigate(item.to);
+            onNavigate?.();
+          }}
+          className={`group relative flex min-w-0 flex-1 items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} pl-3 rounded-lg text-sm font-medium transition-colors ${
+            isActive
+              ? 'bg-emerald-50 text-emerald-700'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+          }`}
         >
-          {({ isActive }) => (
-            <>
-              <span
-                className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r ${
-                  isActive ? 'bg-emerald-500' : 'bg-transparent group-hover:bg-gray-200'
-                }`}
-              />
-              {Icon ? <Icon size={compact ? 14 : 15} /> : null}
-              <span className="truncate">{item.label}</span>
-            </>
-          )}
-        </NavLink>
+          <span
+            className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r ${
+              isActive ? 'bg-emerald-500' : 'bg-transparent group-hover:bg-gray-200'
+            }`}
+          />
+          {Icon ? <Icon size={compact ? 14 : 15} /> : null}
+          <span className="truncate text-left">{item.label}</span>
+        </button>
         <button
           type="button"
           aria-label={favorited ? `Remove ${item.label} from favorites` : `Add ${item.label} to favorites`}
