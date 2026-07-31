@@ -77,11 +77,16 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
     window.localStorage.setItem(EXPANDED_SECTIONS_STORAGE_KEY, JSON.stringify(expandedSectionIds));
   }, [expandedSectionIds]);
 
+  const handleNavigate = () => {
+    setMobileOpen(false);
+    setExpandedSectionIds([]);
+  };
+
   const handleAction = (actionId: string) => {
     const path = ACTION_ROUTE_MAP[actionId];
     if (!path) return;
     navigate(path);
-    setMobileOpen(false);
+    handleNavigate();
   };
 
   const isExpanded = (sectionId: string) => expandedSectionIds.includes(sectionId);
@@ -129,7 +134,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       <SidebarItem
         item={item}
         compact
-        onNavigate={() => setMobileOpen(false)}
+        onNavigate={handleNavigate}
         onAction={handleAction}
       />
     </div>
@@ -179,7 +184,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
                 key={item.id}
                 item={item}
                 compact
-                onNavigate={() => setMobileOpen(false)}
+                onNavigate={handleNavigate}
                 onAction={handleAction}
               />
             ))}
@@ -208,7 +213,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
               collapsed={!isExpanded(section.id)}
               onToggle={toggleSection}
               onClose={closeSection}
-              onNavigate={() => setMobileOpen(false)}
+              onNavigate={handleNavigate}
               onAction={handleAction}
             />
           ))}
@@ -247,7 +252,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
                 key={`desktop-${item.id}`}
                 item={item}
                 compact
-                onNavigate={() => setMobileOpen(false)}
+                onNavigate={handleNavigate}
                 onAction={handleAction}
               />
             ))}
@@ -276,7 +281,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
               collapsed={!isExpanded(section.id)}
               onToggle={toggleSection}
               onClose={closeSection}
-              onNavigate={() => setMobileOpen(false)}
+              onNavigate={handleNavigate}
               onAction={handleAction}
             />
           ))}
