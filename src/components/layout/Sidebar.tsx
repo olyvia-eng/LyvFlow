@@ -33,11 +33,6 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
     return ['favorites', ...navigation.sections.map((section) => section.id)];
   }, [navigation.sections]);
 
-  const defaultExpandedSectionId = useMemo(() => {
-    const preferred = navigation.sections.find((section) => section.defaultExpanded)?.id;
-    return preferred ?? navigation.sections[0]?.id ?? '';
-  }, [navigation.sections]);
-
   const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [];
 
@@ -55,11 +50,9 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
 
   useEffect(() => {
     setExpandedSectionIds((current) => {
-      const filtered = current.filter((id) => allSectionIds.includes(id));
-      if (filtered.length > 0) return filtered;
-      return defaultExpandedSectionId ? [defaultExpandedSectionId] : [];
+      return current.filter((id) => allSectionIds.includes(id));
     });
-  }, [allSectionIds, defaultExpandedSectionId]);
+  }, [allSectionIds]);
 
   useEffect(() => {
     window.localStorage.setItem(EXPANDED_SECTIONS_STORAGE_KEY, JSON.stringify(expandedSectionIds));
@@ -73,9 +66,9 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   const toggleSection = (sectionId: string) => {
     setExpandedSectionIds((current) => {
       if (current.includes(sectionId)) {
-        return current.filter((id) => id !== sectionId);
+        return [];
       }
-      return [...current, sectionId];
+      return [sectionId];
     });
   };
 

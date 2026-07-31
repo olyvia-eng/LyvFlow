@@ -98,13 +98,13 @@ export default function EstimatesPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search estimates…"
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full h-10 pl-9 pr-3 text-sm border border-gray-300 rounded-xl shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as EstimateStatus | 'all')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+          className="h-10 border border-gray-300 rounded-xl px-3 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
         >
           <option value="all">All Statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
@@ -194,7 +194,7 @@ export default function EstimatesPage() {
                 <select
                   autoFocus
                   onChange={(e) => applyTemplate(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white"
+                  className="h-9 border border-gray-300 rounded-xl px-3 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
                 >
                   <option value="">— Select template —</option>
                   {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}

@@ -205,7 +205,7 @@ export default function EmployeesPage() {
                 {/* Clock status */}
                 {activeEntry ? (
                   <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-2 text-xs">
-                    <p className="font-semibold text-green-700">🟢 Clocked In</p>
+                    <p className="font-semibold text-green-700">Clocked In</p>
                     <p className="text-green-600">{activeWorkLabel}</p>
                     <p className="text-green-500">Since {formatDateTime(activeEntry.clockIn)}</p>
                     <button
@@ -216,7 +216,7 @@ export default function EmployeesPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="mt-3 text-xs text-gray-400">⚪ Not clocked in</div>
+                  <div className="mt-3 text-xs text-gray-400">Not clocked in</div>
                 )}
 
                 <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">

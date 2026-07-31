@@ -6,4 +6,52 @@
   body {
     @apply bg-gray-50 text-gray-900;
   }
+
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
+
+  table {
+    @apply w-full text-sm;
+  }
+
+  th {
+    @apply font-medium text-gray-500;
+  }
+
+  td {
+    @apply text-gray-700;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-white rounded-2xl border border-gray-200 shadow-sm;
+  }
+
+  .panel-header {
+    @apply p-4 border-b border-gray-100;
+  }
+
+  .panel-title {
+    @apply font-semibold text-gray-800;
+  }
+
+  .table-shell {
+    @apply overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm;
+  }
+
+  .table-head-row {
+    @apply border-b border-gray-200 text-gray-500 text-left;
+  }
+
+  .table-header-cell {
+    @apply px-4 py-3 font-medium text-xs uppercase tracking-wide;
+  }
+
+  .table-cell {
+    @apply px-4 py-3;
+  }
 }

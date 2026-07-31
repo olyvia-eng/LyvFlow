@@ -3,6 +3,7 @@ import { Star } from 'lucide-react';
 import Sidebar from './Sidebar';
 import type { BusinessUserRole } from '../../auth/types';
 import { FavoritesProvider, useFavorites } from '../../navigation/FavoritesContext';
+import { Button } from '../ui';
 
 interface AppLayoutProps {
   userName: string;
@@ -15,20 +16,17 @@ function FavoritePageButton() {
   const { currentPage, isCurrentPageFavorited, toggleCurrentPageFavorite } = useFavorites();
 
   return (
-    <button
+    <Button
       type="button"
+      variant="secondary"
       onClick={toggleCurrentPageFavorite}
       title={isCurrentPageFavorited ? `Remove ${currentPage.label} from favorites` : `Add ${currentPage.label} to favorites`}
       aria-label={isCurrentPageFavorited ? `Remove ${currentPage.label} from favorites` : `Add ${currentPage.label} to favorites`}
-      className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-        isCurrentPageFavorited
-          ? 'bg-amber-50 border-amber-200 text-amber-700'
-          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-      }`}
+      className={isCurrentPageFavorited ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' : ''}
     >
       <Star size={15} className={isCurrentPageFavorited ? 'fill-current' : ''} />
       Favorite
-    </button>
+    </Button>
   );
 }
 

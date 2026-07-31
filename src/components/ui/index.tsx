@@ -7,7 +7,7 @@ interface BadgeProps {
 
 export function Badge({ label, className = '' }: BadgeProps) {
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${className}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-tight ${className}`}>
       {label.replace(/_/g, ' ')}
     </span>
   );
@@ -20,7 +20,7 @@ interface CardProps {
 
 export function Card({ children, className = '' }: CardProps) {
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 shadow-sm ${className}`}>
+    <div className={`bg-white rounded-2xl border border-gray-200/90 shadow-sm ${className}`}>
       {children}
     </div>
   );
@@ -39,11 +39,11 @@ export function StatCard({ label, value, sub, icon, color = 'text-brand-600' }: 
     <Card className="p-5">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-gray-500 mb-1">{label}</p>
-          <p className={`text-2xl font-bold ${color}`}>{value}</p>
-          {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-1">{label}</p>
+          <p className={`text-[1.65rem] leading-8 font-bold ${color}`}>{value}</p>
+          {sub && <p className="text-xs text-gray-400 mt-1 leading-5">{sub}</p>}
         </div>
-        {icon && <div className="text-gray-300">{icon}</div>}
+        {icon && <div className="text-gray-300 mt-0.5 [&>svg]:h-7 [&>svg]:w-7">{icon}</div>}
       </div>
     </Card>
   );
@@ -57,10 +57,10 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
   return (
-    <div className="flex items-start justify-between mb-6 gap-4">
+    <div className="flex items-start justify-between mb-7 gap-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+        <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{title}</h1>
+        {subtitle && <p className="text-sm text-gray-500 mt-1 leading-6">{subtitle}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -74,12 +74,12 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ variant = 'primary', size = 'md', children, className = '', ...rest }: ButtonProps) {
-  const base = 'inline-flex items-center gap-1.5 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-  const sizes = { sm: 'px-3 py-1.5 text-sm', md: 'px-4 py-2 text-sm' };
+  const base = 'inline-flex items-center justify-center gap-1.5 font-medium rounded-xl transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-1 [&>svg]:h-4 [&>svg]:w-4';
+  const sizes = { sm: 'h-9 px-3 text-sm', md: 'h-10 px-4 text-sm' };
   const variants = {
-    primary: 'bg-brand-600 text-white hover:bg-brand-700',
-    secondary: 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50',
-    danger: 'bg-red-600 text-white hover:bg-red-700',
+    primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700',
+    secondary: 'bg-white border border-gray-300 text-gray-700 shadow-sm hover:bg-gray-50',
+    danger: 'bg-red-600 text-white shadow-sm hover:bg-red-700',
     ghost: 'text-gray-600 hover:bg-gray-100',
   };
   return (
@@ -96,10 +96,10 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 export function Input({ label, error, className = '', ...rest }: InputProps) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <input
-        className={`border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${error ? 'border-red-400' : ''} ${className}`}
+        className={`h-10 border border-gray-300 rounded-xl bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 ${error ? 'border-red-400' : ''} ${className}`}
         {...rest}
       />
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -115,10 +115,10 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 
 export function Select({ label, error, className = '', children, ...rest }: SelectProps) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <select
-        className={`border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white ${className}`}
+        className={`h-10 border border-gray-300 rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 bg-white shadow-sm ${className}`}
         {...rest}
       >
         {children}
@@ -134,11 +134,11 @@ interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 export function TextArea({ label, className = '', ...rest }: TextAreaProps) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <textarea
         rows={3}
-        className={`border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-none ${className}`}
+        className={`border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 resize-none bg-white shadow-sm ${className}`}
         {...rest}
       />
     </div>
@@ -159,13 +159,13 @@ export function Modal({ open, onClose, title, children, footer, wide = false }: 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className={`relative bg-white rounded-xl shadow-xl w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col`}>
+      <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col border border-gray-200`}>
         <div className="flex items-center justify-between p-5 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none h-8 w-8 rounded-lg hover:bg-gray-100">&times;</button>
         </div>
         <div className="overflow-y-auto flex-1 p-5">{children}</div>
-        {footer && <div className="p-5 border-t border-gray-200 flex justify-end gap-2">{footer}</div>}
+        {footer && <div className="p-5 border-t border-gray-200 flex justify-end gap-2 bg-gray-50/50">{footer}</div>}
       </div>
     </div>
   );
@@ -179,9 +179,9 @@ interface EmptyStateProps {
 
 export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <p className="text-gray-400 text-lg font-medium mb-2">{title}</p>
-      {description && <p className="text-gray-400 text-sm mb-4">{description}</p>}
+    <div className="flex flex-col items-center justify-center py-14 text-center px-4">
+      <p className="text-gray-500 text-base font-medium mb-2">{title}</p>
+      {description && <p className="text-gray-400 text-sm mb-4 max-w-md leading-6">{description}</p>}
       {action}
     </div>
   );
