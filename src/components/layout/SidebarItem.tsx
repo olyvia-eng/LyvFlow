@@ -68,7 +68,6 @@ export default function SidebarItem({
         <NavLink
           to={item.to}
           end={item.end}
-          onClick={() => onNavigate?.()}
           className={({ isActive }) =>
             `group relative flex min-w-0 flex-1 items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} pl-3 rounded-lg text-sm font-medium transition-colors ${
               isActive
