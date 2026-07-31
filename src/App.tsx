@@ -21,6 +21,7 @@ import FinanceDashboardPage from './pages/department-dashboards/FinanceDashboard
 import OperationsDashboardPage from './pages/department-dashboards/OperationsDashboardPage';
 import EmployeesDashboardPage from './pages/department-dashboards/EmployeesDashboardPage';
 import DataCenterDashboardPage from './pages/department-dashboards/DataCenterDashboardPage';
+import ModulePlaceholderPage from './pages/placeholders/ModulePlaceholderPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
 import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
@@ -419,10 +420,150 @@ export default function App() {
               <Route index element={<Dashboard />} />
               <Route path="crm" element={<CRMPage />} />
               <Route path="revenue/dashboard" element={<RevenueDashboardPage />} />
+              <Route
+                path="revenue/leads"
+                element={
+                  <ModulePlaceholderPage
+                    title="Leads"
+                    question="Which leads should we prioritize this week to protect future revenue?"
+                    summary="Track and rank pipeline opportunities by value, close probability, and urgency so sales focus stays clear and measurable."
+                  />
+                }
+              />
+              <Route
+                path="revenue/change-orders"
+                element={
+                  <ModulePlaceholderPage
+                    title="Change Orders"
+                    question="Which scope changes are waiting for approval and what revenue is at risk?"
+                    summary="Review pending and approved change orders in one place to keep job margin and billing aligned with real field work."
+                  />
+                }
+              />
               <Route path="finance/dashboard" element={<FinanceDashboardPage />} />
+              <Route
+                path="finance/invoices"
+                element={
+                  <ModulePlaceholderPage
+                    title="Invoices"
+                    question="What should be invoiced now and what cash is still outstanding?"
+                    summary="Manage invoice readiness, issued invoices, and overdue balances so your team can move quickly from completed work to collected cash."
+                  />
+                }
+              />
+              <Route
+                path="finance/expenses"
+                element={
+                  <ModulePlaceholderPage
+                    title="Expenses"
+                    question="Where is money being spent and are costs staying inside plan?"
+                    summary="Capture and categorize expenses with simple controls so cost trends are easy to review and decisions can be made early."
+                  />
+                }
+              />
+              <Route
+                path="finance/profit-loss"
+                element={
+                  <ModulePlaceholderPage
+                    title="Profit & Loss"
+                    question="Are we profitable this period, and what is driving the result?"
+                    summary="Summarize revenue, direct costs, overhead, and margin in a contractor-friendly view for fast executive review."
+                  />
+                }
+              />
               <Route path="operations/dashboard" element={<OperationsDashboardPage />} />
+              <Route
+                path="operations/equipment"
+                element={
+                  <ModulePlaceholderPage
+                    title="Equipment"
+                    question="What equipment is available, assigned, or underutilized right now?"
+                    summary="Coordinate field equipment status and assignments so crews have what they need without unnecessary rental or idle cost."
+                  />
+                }
+              />
+              <Route
+                path="operations/inventory"
+                element={
+                  <ModulePlaceholderPage
+                    title="Inventory"
+                    question="Which materials are running low and could delay upcoming work?"
+                    summary="Monitor key stock levels and reorder signals to prevent job delays while avoiding over-purchasing."
+                  />
+                }
+              />
+              <Route
+                path="operations/purchase-orders"
+                element={
+                  <ModulePlaceholderPage
+                    title="Purchase Orders"
+                    question="What purchases are approved, pending, and tied to active jobs?"
+                    summary="Track PO lifecycle clearly so project commitments, vendor communication, and budget control stay in sync."
+                  />
+                }
+              />
               <Route path="employees/dashboard" element={<EmployeesDashboardPage />} />
+              <Route
+                path="employees/payroll"
+                element={
+                  <ModulePlaceholderPage
+                    title="Payroll"
+                    question="Are labour hours and pay ready for accurate payroll processing?"
+                    summary="Review payable hours, adjustments, and payroll readiness so finance can process confidently without manual reconciliation."
+                  />
+                }
+              />
+              <Route
+                path="employees/certifications"
+                element={
+                  <ModulePlaceholderPage
+                    title="Certifications"
+                    question="Who is certified for upcoming work and who needs renewal soon?"
+                    summary="Surface expiration risk and qualification coverage so job staffing decisions remain compliant and practical."
+                  />
+                }
+              />
               <Route path="data-center/dashboard" element={<DataCenterDashboardPage />} />
+              <Route
+                path="data-center/documents"
+                element={
+                  <ModulePlaceholderPage
+                    title="Documents"
+                    question="Where are the latest project documents and who can access them?"
+                    summary="Centralize important files by department and job context to reduce searching and keep teams aligned on current information."
+                  />
+                }
+              />
+              <Route
+                path="data-center/forms"
+                element={
+                  <ModulePlaceholderPage
+                    title="Forms"
+                    question="Which operational forms are required and are they being completed consistently?"
+                    summary="Standardize field and office form workflows to improve accountability and reduce missed compliance steps."
+                  />
+                }
+              />
+              <Route
+                path="data-center/photos"
+                element={
+                  <ModulePlaceholderPage
+                    title="Photos"
+                    question="Do we have visual records of project progress and key field conditions?"
+                    summary="Organize photo evidence by job and timeline so teams can quickly reference progress, quality, and issues."
+                  />
+                }
+              />
+              <Route
+                path="data-center/settings"
+                element={
+                  <ModulePlaceholderPage
+                    title="Data Center Settings"
+                    question="Are data organization rules and access settings configured for reliable operations?"
+                    summary="Manage retention, structure, and permissions so business data stays organized, secure, and easy to use."
+                  />
+                }
+              />
               <Route path="estimates" element={<EstimatesPage />} />
               <Route path="estimates/templates" element={<TemplatesPage />} />
               <Route path="jobs" element={<JobsPage />} />

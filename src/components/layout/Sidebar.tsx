@@ -6,6 +6,7 @@ import {
   Star,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { BusinessUserRole } from '../../auth/types';
 import { getSidebarConfig, getSidebarLinkItems } from '../../navigation/sidebarConfig';
 import type { SidebarNavItem } from '../../navigation/types';
@@ -15,6 +16,23 @@ import { useFavorites } from '../../navigation/FavoritesContext';
 
 const EXPANDED_SECTIONS_STORAGE_KEY = 'oliveops.sidebar.expanded-sections.v1';
 
+const ACTION_ROUTE_MAP: Record<string, string> = {
+  'placeholder-leads': '/revenue/leads',
+  'placeholder-change-orders': '/revenue/change-orders',
+  'placeholder-invoices': '/finance/invoices',
+  'placeholder-expenses': '/finance/expenses',
+  'placeholder-profit-loss': '/finance/profit-loss',
+  'placeholder-equipment': '/operations/equipment',
+  'placeholder-inventory': '/operations/inventory',
+  'placeholder-purchase-orders': '/operations/purchase-orders',
+  'placeholder-payroll': '/employees/payroll',
+  'placeholder-certifications': '/employees/certifications',
+  'placeholder-documents': '/data-center/documents',
+  'placeholder-forms': '/data-center/forms',
+  'placeholder-photos': '/data-center/photos',
+  'placeholder-settings': '/data-center/settings',
+};
+
 interface SidebarProps {
   userName: string;
   businessName: string;
@@ -23,6 +41,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ userName, businessName, userRole, onLogout }: SidebarProps) {
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const navigation = getSidebarConfig(userRole);
@@ -59,7 +78,10 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   }, [expandedSectionIds]);
 
   const handleAction = (actionId: string) => {
-    void actionId;
+    const path = ACTION_ROUTE_MAP[actionId];
+    if (!path) return;
+    navigate(path);
+    setMobileOpen(false);
   };
 
   const isExpanded = (sectionId: string) => expandedSectionIds.includes(sectionId);
