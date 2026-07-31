@@ -1,0 +1,186 @@
+import {
+  BarChart3,
+  Briefcase,
+  CalendarDays,
+  Calculator,
+  ClipboardList,
+  Clock,
+  FileBox,
+  FileText,
+  FolderOpen,
+  HandCoins,
+  HardHat,
+  Image,
+  Package,
+  Receipt,
+  Settings,
+  LayoutDashboard,
+  ScrollText,
+  Shield,
+  ShoppingCart,
+  UserCheck,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react';
+import type { BusinessUserRole } from '../auth/types';
+import type { SidebarConfig, SidebarNavItem, SidebarSectionConfig } from './types';
+
+const ownerAdminRoles: BusinessUserRole[] = ['owner', 'admin'];
+
+const icon = (value: LucideIcon): LucideIcon => value;
+
+const NAVIGATION_CONFIG: SidebarConfig = {
+  topLevel: [
+    { id: 'company-dashboard', type: 'link', to: '/', end: true, label: 'Company Dashboard', icon: icon(LayoutDashboard) },
+  ],
+  favorites: [
+    { id: 'fav-labour', type: 'link', to: '/budget', label: 'Labour Planner', icon: icon(Wallet) },
+    { id: 'fav-calendar', type: 'link', to: '/calendar', label: 'Calendar', icon: icon(CalendarDays) },
+    { id: 'fav-clients', type: 'link', to: '/crm', label: 'Clients', icon: icon(Users) },
+    { id: 'fav-templates', type: 'link', to: '/estimates/templates', label: 'Estimate Templates', icon: icon(FileText) },
+    { id: 'fav-jobs', type: 'link', to: '/jobs', label: "Today's Jobs", icon: icon(Briefcase) },
+  ],
+  sections: [
+    {
+      id: 'revenue',
+      title: 'Revenue',
+      collapsible: true,
+      defaultExpanded: true,
+      items: [
+        { id: 'revenue-dashboard', type: 'link', to: '/', end: true, label: 'Dashboard', icon: icon(LayoutDashboard) },
+        { id: 'revenue-leads', type: 'action', actionId: 'placeholder-leads', label: 'Leads', icon: icon(Users) },
+        { id: 'revenue-clients', type: 'link', to: '/crm', label: 'Clients', icon: icon(Users) },
+        { id: 'revenue-estimates', type: 'link', to: '/estimates', label: 'Estimates', icon: icon(FileText) },
+        { id: 'revenue-estimate-templates', type: 'link', to: '/estimates/templates', label: 'Estimate Templates', icon: icon(ClipboardList) },
+        { id: 'revenue-change-orders', type: 'action', actionId: 'placeholder-change-orders', label: 'Change Orders', icon: icon(ScrollText) },
+      ],
+    },
+    {
+      id: 'finance',
+      title: 'Finance',
+      collapsible: true,
+      defaultExpanded: false,
+      items: [
+        { id: 'finance-dashboard', type: 'action', actionId: 'placeholder-finance-dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
+        { id: 'finance-labour-planner', type: 'link', to: '/budget', label: 'Labour Planner', icon: icon(Calculator) },
+        { id: 'finance-company-budget', type: 'link', to: '/budget', label: 'Company Budget', icon: icon(Wallet) },
+        { id: 'finance-invoices', type: 'action', actionId: 'placeholder-invoices', label: 'Invoices', icon: icon(Receipt) },
+        { id: 'finance-expenses', type: 'action', actionId: 'placeholder-expenses', label: 'Expenses', icon: icon(HandCoins) },
+        { id: 'finance-profit-loss', type: 'action', actionId: 'placeholder-profit-loss', label: 'Profit & Loss', icon: icon(FileText) },
+        {
+          id: 'finance-reports',
+          type: 'link',
+          to: '/time-reports',
+          label: 'Reports',
+          icon: icon(Clock),
+          roles: ownerAdminRoles,
+        },
+      ],
+    },
+    {
+      id: 'operations',
+      title: 'Operations',
+      collapsible: true,
+      defaultExpanded: false,
+      items: [
+        { id: 'operations-dashboard', type: 'action', actionId: 'placeholder-operations-dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
+        { id: 'operations-jobs', type: 'link', to: '/jobs', label: 'Jobs', icon: icon(Briefcase) },
+        { id: 'operations-calendar', type: 'link', to: '/calendar', label: 'Calendar', icon: icon(CalendarDays) },
+        { id: 'operations-equipment', type: 'action', actionId: 'placeholder-equipment', label: 'Equipment', icon: icon(HardHat) },
+        { id: 'operations-inventory', type: 'action', actionId: 'placeholder-inventory', label: 'Inventory', icon: icon(Package) },
+        { id: 'operations-purchase-orders', type: 'action', actionId: 'placeholder-purchase-orders', label: 'Purchase Orders', icon: icon(ShoppingCart) },
+      ],
+    },
+    {
+      id: 'employees',
+      title: 'Employees',
+      collapsible: true,
+      defaultExpanded: false,
+      items: [
+        { id: 'employees-dashboard', type: 'action', actionId: 'placeholder-employees-dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
+        { id: 'employees-list', type: 'link', to: '/employees', label: 'Employees', icon: icon(UserCheck) },
+        {
+          id: 'employees-time-tracking',
+          type: 'link',
+          to: '/time-reports',
+          label: 'Time Tracking',
+          icon: icon(Clock),
+          roles: ownerAdminRoles,
+        },
+        { id: 'employees-payroll', type: 'action', actionId: 'placeholder-payroll', label: 'Payroll', icon: icon(Wallet) },
+        { id: 'employees-certifications', type: 'action', actionId: 'placeholder-certifications', label: 'Certifications', icon: icon(Shield) },
+      ],
+    },
+    {
+      id: 'data-center',
+      title: 'Data Center',
+      collapsible: true,
+      defaultExpanded: false,
+      items: [
+        { id: 'data-center-dashboard', type: 'link', to: '/data-center', label: 'Dashboard', icon: icon(BarChart3) },
+        { id: 'data-center-documents', type: 'action', actionId: 'placeholder-documents', label: 'Documents', icon: icon(FolderOpen) },
+        { id: 'data-center-forms', type: 'action', actionId: 'placeholder-forms', label: 'Forms', icon: icon(FileBox) },
+        { id: 'data-center-photos', type: 'action', actionId: 'placeholder-photos', label: 'Photos', icon: icon(Image) },
+        { id: 'data-center-settings', type: 'action', actionId: 'placeholder-settings', label: 'Settings', icon: icon(Settings) },
+        {
+          id: 'data-center-user-access',
+          type: 'link',
+          to: '/user-access',
+          label: 'User Access',
+          icon: icon(Shield),
+          roles: ownerAdminRoles,
+        },
+      ],
+    },
+  ],
+};
+
+const includesRole = (roles: BusinessUserRole[] | undefined, userRole: BusinessUserRole) => {
+  if (!roles || roles.length === 0) return true;
+  return roles.includes(userRole);
+};
+
+const filterNavItem = (item: SidebarNavItem, userRole: BusinessUserRole): SidebarNavItem | null => {
+  if (!includesRole(item.roles, userRole)) return null;
+
+  if (item.type !== 'group') return item;
+
+  const children = item.children
+    .map((child) => filterNavItem(child, userRole))
+    .filter((child): child is SidebarNavItem => child !== null);
+
+  if (children.length === 0) return null;
+  return { ...item, children };
+};
+
+const filterSection = (section: SidebarSectionConfig, userRole: BusinessUserRole): SidebarSectionConfig | null => {
+  if (!includesRole(section.roles, userRole)) return null;
+
+  const items = section.items
+    .map((item) => filterNavItem(item, userRole))
+    .filter((item): item is SidebarNavItem => item !== null);
+
+  if (items.length === 0) return null;
+  return { ...section, items };
+};
+
+export const getSidebarConfig = (userRole: BusinessUserRole): SidebarConfig => {
+  const topLevel = NAVIGATION_CONFIG.topLevel
+    .map((item) => filterNavItem(item, userRole))
+    .filter((item): item is SidebarNavItem => item !== null);
+
+  const favorites = NAVIGATION_CONFIG.favorites
+    .map((item) => filterNavItem(item, userRole))
+    .filter((item): item is SidebarNavItem => item !== null);
+
+  const sections = NAVIGATION_CONFIG.sections
+    .map((section) => filterSection(section, userRole))
+    .filter((section): section is SidebarSectionConfig => section !== null);
+
+  return {
+    topLevel,
+    favorites,
+    sections,
+  };
+};

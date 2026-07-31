@@ -1,86 +1,18 @@
-import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Users,
-  Shield,
-  FileText,
-  Briefcase,
-  Wallet,
-  UserCheck,
-  CalendarDays,
-  BarChart3,
-  Clock,
   LogOut,
   Menu,
   X,
   Leaf,
   Star,
-  Settings,
-  ClipboardList,
-  Calculator,
-  ChevronDown,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { BusinessUserRole } from '../../auth/types';
+import { getSidebarConfig } from '../../navigation/sidebarConfig';
+import type { SidebarNavItem } from '../../navigation/types';
+import SidebarItem from './SidebarItem';
+import SidebarSection from './SidebarSection';
 
-type NavItem = {
-  to: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  end?: boolean;
-};
-
-type NavSection = {
-  title: string;
-  items: NavItem[];
-};
-
-const FAVORITES: NavItem[] = [
-  { to: '/budget', label: 'Labour Planner', icon: Wallet },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { to: '/crm', label: 'Clients', icon: Users },
-  { to: '/estimates/templates', label: 'Estimate Templates', icon: FileText },
-  { to: '/jobs', label: "Today's Jobs", icon: Briefcase },
-];
-
-const buildSections = (role: BusinessUserRole): NavSection[] => {
-  const canManage = role === 'owner' || role === 'admin';
-
-  return [
-    {
-      title: 'Revenue',
-      items: [
-        { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-        { to: '/crm', label: 'Leads & Clients', icon: Users },
-        { to: '/estimates', label: 'Estimates', icon: FileText },
-        { to: '/estimates/templates', label: 'Estimate Templates', icon: ClipboardList },
-      ],
-    },
-    {
-      title: 'Finance',
-      items: [
-        { to: '/budget', label: 'Labour Planner', icon: Calculator },
-        ...(canManage ? [{ to: '/time-reports', label: 'Profit & Payroll Reports', icon: Clock }] : []),
-      ],
-    },
-    {
-      title: 'Operations',
-      items: [
-        { to: '/jobs', label: 'Jobs', icon: Briefcase },
-        { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-        { to: '/employees', label: 'Employees', icon: UserCheck },
-        ...(canManage ? [{ to: '/time-reports', label: 'Time Reports', icon: Clock }] : []),
-      ],
-    },
-    {
-      title: 'Data Center',
-      items: [
-        { to: '/data-center', label: 'Dashboard', icon: BarChart3 },
-        ...(canManage ? [{ to: '/user-access', label: 'User Access', icon: Shield }] : []),
-      ],
-    },
-  ];
-};
+const EXPANDED_SECTIONS_STORAGE_KEY = 'oliveops.sidebar.expanded-sections.v1';
 
 interface SidebarProps {
   userName: string;
@@ -91,72 +23,67 @@ interface SidebarProps {
 
 export default function Sidebar({ userName, businessName, userRole, onLogout }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const sections = buildSections(userRole);
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const navigation = getSidebarConfig(userRole);
+
+  const allSectionIds = useMemo(() => {
+    return ['favorites', ...navigation.sections.map((section) => section.id)];
+  }, [navigation.sections]);
+
+  const defaultExpandedSectionId = useMemo(() => {
+    const preferred = navigation.sections.find((section) => section.defaultExpanded)?.id;
+    return preferred ?? navigation.sections[0]?.id ?? '';
+  }, [navigation.sections]);
+
+  const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+
+    try {
+      const raw = window.localStorage.getItem(EXPANDED_SECTIONS_STORAGE_KEY);
+      if (!raw) return [];
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((value): value is string => typeof value === 'string');
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
-    setCollapsedSections((current) => {
-      const next = { ...current };
-      for (const section of sections) {
-        if (typeof next[section.title] === 'undefined') {
-          next[section.title] = false;
-        }
-      }
-      return next;
+    setExpandedSectionIds((current) => {
+      const filtered = current.filter((id) => allSectionIds.includes(id));
+      if (filtered.length > 0) return filtered;
+      return defaultExpandedSectionId ? [defaultExpandedSectionId] : [];
     });
-  }, [sections]);
+  }, [allSectionIds, defaultExpandedSectionId]);
 
-  const navLink = (item: NavItem, compact = false) => (
-    <NavLink
-      key={item.to}
-      to={item.to}
-      end={item.end}
-      onClick={() => setMobileOpen(false)}
-      className={({ isActive }) =>
-        `group relative flex items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} pl-3 rounded-lg text-sm font-medium transition-colors ${
-          isActive
-            ? 'bg-emerald-50 text-emerald-700'
-            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-        }`
+  useEffect(() => {
+    window.localStorage.setItem(EXPANDED_SECTIONS_STORAGE_KEY, JSON.stringify(expandedSectionIds));
+  }, [expandedSectionIds]);
+
+  const handleAction = (actionId: string) => {
+    void actionId;
+  };
+
+  const isExpanded = (sectionId: string) => expandedSectionIds.includes(sectionId);
+  const toggleSection = (sectionId: string) => {
+    setExpandedSectionIds((current) => {
+      if (current.includes(sectionId)) {
+        return current.filter((id) => id !== sectionId);
       }
-    >
-      {({ isActive }) => (
-        <>
-          <span
-            className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r ${
-              isActive ? 'bg-emerald-500' : 'bg-transparent group-hover:bg-gray-200'
-            }`}
-          />
-          <item.icon size={compact ? 14 : 15} />
-          <span className="truncate">{item.label}</span>
-        </>
-      )}
-    </NavLink>
-  );
+      return [...current, sectionId];
+    });
+  };
 
-  const sectionBlock = (section: NavSection) => (
-    <div key={section.title} className="mb-3">
-      <button
-        type="button"
-        className="w-full flex items-center justify-between px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-600"
-        onClick={() =>
-          setCollapsedSections((current) => ({
-            ...current,
-            [section.title]: !current[section.title],
-          }))
-        }
-      >
-        <span>{section.title}</span>
-        <ChevronDown
-          size={13}
-          className={`transition-transform ${collapsedSections[section.title] ? '-rotate-90' : 'rotate-0'}`}
-        />
-      </button>
-      {!collapsedSections[section.title] && (
-        <div className="space-y-0.5 mt-0.5">
-          {section.items.map((item) => navLink(item, true))}
-        </div>
-      )}
+  const renderFavoriteItem = (item: SidebarNavItem) => (
+    <div key={`fav-${item.id}`} className="flex items-center">
+      <Star size={12} className="mr-2 text-amber-400" />
+      <SidebarItem
+        item={item}
+        compact
+        onNavigate={() => setMobileOpen(false)}
+        onAction={handleAction}
+      />
     </div>
   );
 
@@ -198,19 +125,44 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
         }`}
       >
         <div className="flex-1 overflow-y-auto pr-1">
-          <div className="rounded-xl border border-gray-200 p-3 mb-4">
-            <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Favorites</p>
-            <div className="space-y-0.5">
-              {FAVORITES.map((item) => (
-                <div key={`fav-${item.to}-${item.label}`} className="flex items-center">
-                  <Star size={12} className="mr-2 text-amber-400" />
-                  {navLink(item, true)}
-                </div>
-              ))}
-            </div>
+          <div className="mb-3 space-y-0.5">
+            {navigation.topLevel.map((item) => (
+              <SidebarItem
+                key={item.id}
+                item={item}
+                compact
+                onNavigate={() => setMobileOpen(false)}
+                onAction={handleAction}
+              />
+            ))}
           </div>
 
-          {sections.map(sectionBlock)}
+          <div className="rounded-xl border border-gray-200 p-3 mb-4">
+            <button
+              type="button"
+              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1"
+              onClick={() => toggleSection('favorites')}
+            >
+              Favorites
+            </button>
+            {isExpanded('favorites') && (
+              <div className="space-y-0.5">
+                {navigation.favorites.map(renderFavoriteItem)}
+              </div>
+            )}
+          </div>
+
+          {navigation.sections.map((section) => (
+            <SidebarSection
+              key={section.id}
+              section={section}
+              compact
+              collapsed={!isExpanded(section.id)}
+              onToggle={toggleSection}
+              onNavigate={() => setMobileOpen(false)}
+              onAction={handleAction}
+            />
+          ))}
         </div>
         <div className="pt-3 border-t border-gray-200 mt-3">
           <div className="flex items-center gap-3 px-1 mb-2">
@@ -240,28 +192,44 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
         </div>
 
         <div className="flex-1 overflow-y-auto pr-1">
-          <div className="rounded-xl border border-gray-200 p-3 mb-4">
-            <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Favorites</p>
-            <div className="space-y-0.5">
-              {FAVORITES.map((item) => (
-                <div key={`fav-desktop-${item.to}-${item.label}`} className="flex items-center">
-                  <Star size={12} className="mr-2 text-amber-400" />
-                  {navLink(item, true)}
-                </div>
-              ))}
-            </div>
+          <div className="mb-3 space-y-0.5">
+            {navigation.topLevel.map((item) => (
+              <SidebarItem
+                key={`desktop-${item.id}`}
+                item={item}
+                compact
+                onNavigate={() => setMobileOpen(false)}
+                onAction={handleAction}
+              />
+            ))}
           </div>
 
-          {sections.map(sectionBlock)}
-
-          <div className="mt-2 px-2">
+          <div className="rounded-xl border border-gray-200 p-3 mb-4">
             <button
               type="button"
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1"
+              onClick={() => toggleSection('favorites')}
             >
-              <Settings size={14} /> Settings
+              Favorites
             </button>
+            {isExpanded('favorites') && (
+              <div className="space-y-0.5">
+                {navigation.favorites.map(renderFavoriteItem)}
+              </div>
+            )}
           </div>
+
+          {navigation.sections.map((section) => (
+            <SidebarSection
+              key={section.id}
+              section={section}
+              compact
+              collapsed={!isExpanded(section.id)}
+              onToggle={toggleSection}
+              onNavigate={() => setMobileOpen(false)}
+              onAction={handleAction}
+            />
+          ))}
         </div>
 
         <div className="pt-3 border-t border-gray-200">
