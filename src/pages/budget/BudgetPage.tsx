@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PageHeader, Button, Card, Modal, Input, Select, EmptyState } from '../../components/ui';
-import { Plus, Pencil, Trash2, FileDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileDown, Info, Users, Target, BadgeDollarSign } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 import type { BudgetItem, BudgetCategory, LabourBudgetPlan, LabourCompType, EquipmentCostType, RevenueSalesGoal } from '../../types';
 import { jsPDF } from 'jspdf';
@@ -72,6 +73,7 @@ export default function BudgetPage() {
   const [exportKind, setExportKind] = useState<ExportKind>('budget');
   const [labourTableView, setLabourTableView] = useState<LabourTableView>('all');
   const [equipmentTableView, setEquipmentTableView] = useState<EquipmentTableView>('all');
+  const [showLabourCalcDetails, setShowLabourCalcDetails] = useState(false);
   const [pricingInputs, setPricingInputs] = useState({
     payrollBurdenPct: 18,
     overheadRecoveryPct: 15,
@@ -661,30 +663,57 @@ export default function BudgetPage() {
     ? targetLabourRevenue / labourPlannerTotalsAll.billableHoursYear
     : 0;
 
+  const labourSummary = useMemo(() => {
+    const teamSize = labourPlannerRows.length;
+    const totalRevenue = labourPlannerTotalsAll.annualRevenueGenerated;
+    const totalGrossProfit = labourPlannerTotalsAll.grossProfitGenerated;
+    const grossProfitMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+
+    return {
+      teamSize,
+      totalBillableHours: labourPlannerTotalsAll.billableHoursYear,
+      totalRevenue,
+      totalGrossProfit,
+      grossProfitMargin,
+    };
+  }, [labourPlannerRows.length, labourPlannerTotalsAll]);
+
   const renderLabourPlannerRow = (row: typeof labourPlannerRows[number]) => (
     <tr key={row.employee.id} className="hover:bg-gray-50">
-      <td className="px-4 py-2">
-        <p className="font-medium text-gray-900">{row.employee.name}</p>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-[10px] font-semibold uppercase text-brand-700">
+            {row.employee.name
+              .split(' ')
+              .map((part) => part[0])
+              .join('')
+              .slice(0, 2)}
+          </div>
+          <div>
+            <p className="font-medium text-gray-900 leading-tight">{row.employee.name}</p>
+            <p className="text-xs text-gray-500 leading-tight">{row.employee.role.replace('_', ' ')}</p>
+          </div>
+        </div>
       </td>
-      <td className="px-4 py-2 text-right">
-        <div className="inline-flex border border-gray-200 rounded-lg p-0.5">
+      <td className="px-4 py-3 text-center">
+        <div className="inline-flex border border-gray-200 rounded-lg p-0.5 bg-white">
           <button
             type="button"
             onClick={() => updateLabourPlan(row.employee.id, 'compType', 'hourly')}
-            className={`px-2 py-1 text-xs rounded ${row.plan.compType === 'hourly' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`px-2 py-0.5 text-xs rounded ${row.plan.compType === 'hourly' ? 'bg-brand-100 text-brand-700' : 'text-gray-500 hover:bg-gray-100'}`}
           >
             Hourly
           </button>
           <button
             type="button"
             onClick={() => updateLabourPlan(row.employee.id, 'compType', 'salaried')}
-            className={`px-2 py-1 text-xs rounded ${row.plan.compType === 'salaried' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`px-2 py-0.5 text-xs rounded ${row.plan.compType === 'salaried' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            Salaried
+            Salary
           </button>
         </div>
       </td>
-      <td className="px-4 py-2 text-right">
+      <td className="px-4 py-3 text-right">
         {row.plan.compType === 'hourly' ? (
           <input
             type="number"
@@ -703,7 +732,12 @@ export default function BudgetPage() {
           />
         )}
       </td>
-      <td className="px-4 py-2 text-right">
+      <td className="px-4 py-3 text-center text-sm text-gray-700">{(row.plan.billableHoursYear / 50).toFixed(0)}</td>
+      <td className="px-4 py-3 text-center text-sm text-gray-700">{(row.plan.unbillableHoursYear / 40).toFixed(1)}</td>
+      <td className="px-4 py-3 text-center text-sm text-gray-700">
+        {((row.plan.billableHoursYear / Math.max(1, row.plan.billableHoursYear + row.plan.unbillableHoursYear + row.plan.overtimeHoursYear)) * 100).toFixed(0)}%
+      </td>
+      <td className="px-4 py-3 text-right">
         <input
           type="number"
           min={0}
@@ -713,8 +747,8 @@ export default function BudgetPage() {
           className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
       </td>
-      <td className="px-4 py-2 text-right">{formatCurrency(row.trueCostPerHour)}</td>
-      <td className="px-4 py-2 text-right">
+      <td className="px-4 py-3 text-right">{formatCurrency(row.trueCostPerHour)}</td>
+      <td className="px-4 py-3 text-right">
         <input
           type="number"
           min={0}
@@ -723,11 +757,16 @@ export default function BudgetPage() {
           className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
       </td>
-      <td className="px-4 py-2 text-right">{formatCurrency(row.suggestedChargeOutRate)}</td>
-      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(row.annualLabourCost)}</td>
-      <td className="px-4 py-2 text-right">{formatCurrency(row.annualRevenueGenerated)}</td>
-      <td className={`px-4 py-2 text-right font-semibold ${row.grossProfitGenerated >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+      <td className="px-4 py-3 text-right font-semibold text-brand-700">{formatCurrency(row.suggestedChargeOutRate)}</td>
+      <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.annualLabourCost)}</td>
+      <td className="px-4 py-3 text-right">{formatCurrency(row.annualRevenueGenerated)}</td>
+      <td className={`px-4 py-3 text-right font-semibold ${row.grossProfitGenerated >= 0 ? 'text-green-700' : 'text-red-600'}`}>
         {formatCurrency(row.grossProfitGenerated)}
+      </td>
+      <td className="px-4 py-3 text-center">
+        <Link to="/employees" className="text-gray-500 hover:text-brand-700" aria-label="Edit employee">
+          <Pencil size={14} />
+        </Link>
       </td>
     </tr>
   );
@@ -748,14 +787,20 @@ export default function BudgetPage() {
   return (
     <div>
       <PageHeader
-        title="Budget"
-        subtitle="Track your company budget by month or year, with category breakdowns for pricing and planning."
+        title={activeTab === 'labour' ? 'Labour Planner' : 'Budget'}
+        subtitle={activeTab === 'labour'
+          ? 'Plan your team, understand true cost, and set charge-out rates to hit your revenue goals.'
+          : 'Track your company budget by month or year, with category breakdowns for pricing and planning.'}
         action={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => openExportModal('pnl_condensed')}><FileDown size={16} /> Export P&L 1-Page</Button>
             <Button variant="secondary" onClick={() => openExportModal('pnl_detailed')}><FileDown size={16} /> Export P&L PDF</Button>
             <Button variant="secondary" onClick={() => openExportModal('budget')}><FileDown size={16} /> Export PDF</Button>
-            <Button onClick={openNew}><Plus size={16} /> Add Budget Item</Button>
+            {activeTab === 'labour' ? (
+              <Button onClick={() => { window.location.href = '/employees'; }}><Plus size={16} /> Add Employee</Button>
+            ) : (
+              <Button onClick={openNew}><Plus size={16} /> Add Budget Item</Button>
+            )}
           </div>
         }
       />
@@ -951,18 +996,45 @@ export default function BudgetPage() {
 
       {activeTab === 'labour' && (
         <>
+          <div className="flex justify-end mb-2">
+            <button
+              type="button"
+              onClick={() => setShowLabourCalcDetails((current) => !current)}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              {showLabourCalcDetails ? 'Hide calculation details' : 'Show calculation details'}
+            </button>
+          </div>
+
+          {showLabourCalcDetails && renderCalculationDetails()}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Total Annual Labour Cost</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(labourPlannerTotalsAll.annualLabourCost)}</p>
+            <Card className="p-4 border border-green-100 bg-gradient-to-r from-green-50 to-white">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Total Annual Labour Cost</p>
+                  <p className="text-3xl font-bold text-green-700">{formatCurrency(labourPlannerTotalsAll.annualLabourCost)}</p>
+                </div>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-green-700"><Users size={18} /></span>
+              </div>
             </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Target Labour Revenue</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(targetLabourRevenue)}</p>
+            <Card className="p-4 border border-blue-100 bg-gradient-to-r from-blue-50 to-white">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Target Labour Revenue</p>
+                  <p className="text-3xl font-bold text-blue-700">{formatCurrency(targetLabourRevenue)}</p>
+                </div>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700"><Target size={18} /></span>
+              </div>
             </Card>
-            <Card className="p-4">
-              <p className="text-xs text-gray-500">Required Average Charge-Out Rate</p>
-              <p className="text-xl font-bold text-brand-700">{formatCurrency(requiredAverageChargeOutRate)}/hr</p>
+            <Card className="p-4 border border-violet-100 bg-gradient-to-r from-violet-50 to-white">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Required Avg Charge-Out Rate</p>
+                  <p className="text-3xl font-bold text-violet-700">{formatCurrency(requiredAverageChargeOutRate)}<span className="text-xl">/hr</span></p>
+                </div>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-violet-700"><BadgeDollarSign size={18} /></span>
+              </div>
             </Card>
           </div>
 
@@ -979,21 +1051,21 @@ export default function BudgetPage() {
                     onClick={() => setLabourTableView('all')}
                     className={`px-3 py-1 text-xs rounded ${labourTableView === 'all' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    All
+                    All ({labourPlannerRows.length})
                   </button>
                   <button
                     type="button"
                     onClick={() => setLabourTableView('hourly')}
                     className={`px-3 py-1 text-xs rounded ${labourTableView === 'hourly' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    Hourly
+                    Hourly ({labourPlannerRows.filter((row) => row.plan.compType === 'hourly').length})
                   </button>
                   <button
                     type="button"
                     onClick={() => setLabourTableView('salaried')}
                     className={`px-3 py-1 text-xs rounded ${labourTableView === 'salaried' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    Salaried
+                    Salaried ({labourPlannerRows.filter((row) => row.plan.compType === 'salaried').length})
                   </button>
                 </div>
               </div>
@@ -1002,19 +1074,23 @@ export default function BudgetPage() {
               <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees first to build your labour planner.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[1300px]">
+                <table className="w-full text-sm min-w-[1600px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                       <th className="px-4 py-3 font-medium">Employee</th>
-                      <th className="px-4 py-3 font-medium text-right">Comp Type</th>
+                      <th className="px-4 py-3 font-medium text-center">Wage Type</th>
                       <th className="px-4 py-3 font-medium text-right">Hourly Wage / Salary</th>
+                      <th className="px-4 py-3 font-medium text-center">Hours / Week</th>
+                      <th className="px-4 py-3 font-medium text-center">Vacation Weeks / Yr</th>
+                      <th className="px-4 py-3 font-medium text-center">Billable %</th>
                       <th className="px-4 py-3 font-medium text-right">Labour Burden (%)</th>
                       <th className="px-4 py-3 font-medium text-right">True Cost / Hr</th>
-                      <th className="px-4 py-3 font-medium text-right">Billable Hrs / Yr</th>
+                      <th className="px-4 py-3 font-medium text-right">Annual Billable Hours</th>
                       <th className="px-4 py-3 font-medium text-right">Suggested Charge-Out Rate</th>
                       <th className="px-4 py-3 font-medium text-right">Annual Labour Cost</th>
                       <th className="px-4 py-3 font-medium text-right">Annual Revenue Generated</th>
                       <th className="px-4 py-3 font-medium text-right">Gross Profit Generated</th>
+                      <th className="px-4 py-3 font-medium text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1034,26 +1110,61 @@ export default function BudgetPage() {
                     )}
                     {visibleLabourPlannerRows.length === 0 && (
                       <tr>
-                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={10}>No employees in this compensation type view yet.</td>
+                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={14}>No employees in this compensation type view yet.</td>
                       </tr>
                     )}
                     <tr className="bg-gray-50">
-                      <td className="px-4 py-2 font-semibold" colSpan={3}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
+                      <td className="px-4 py-2 font-semibold" colSpan={8}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
                       <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.billableHoursYear.toFixed(0)}</td>
-                      <td className="px-4 py-2 text-right">—</td>
                       <td className="px-4 py-2 text-right">—</td>
                       <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualLabourCost)}</td>
                       <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualRevenueGenerated)}</td>
                       <td className={`px-4 py-2 text-right font-semibold ${visibleLabourPlannerTotals.grossProfitGenerated >= 0 ? 'text-green-700' : 'text-red-600'}`}>
                         {formatCurrency(visibleLabourPlannerTotals.grossProfitGenerated)}
                       </td>
+                      <td className="px-4 py-2 text-center">—</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             )}
-            {renderCalculationDetails()}
+            <div className="border-t border-gray-100 bg-gray-50/50 px-4 py-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-6 text-center">
+                <div>
+                  <p className="text-xs text-gray-500">Team Size</p>
+                  <p className="font-semibold text-gray-900">{labourSummary.teamSize}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Total Labour Cost</p>
+                  <p className="font-semibold text-green-700">{formatCurrency(labourPlannerTotalsAll.annualLabourCost)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Total Billable Hours</p>
+                  <p className="font-semibold text-gray-900">{labourSummary.totalBillableHours.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Total Revenue</p>
+                  <p className="font-semibold text-gray-900">{formatCurrency(labourSummary.totalRevenue)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Total Gross Profit</p>
+                  <p className={`font-semibold ${labourSummary.totalGrossProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{formatCurrency(labourSummary.totalGrossProfit)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Gross Profit Margin</p>
+                  <p className={`font-semibold ${labourSummary.grossProfitMargin >= 0 ? 'text-green-700' : 'text-red-600'}`}>{labourSummary.grossProfitMargin.toFixed(1)}%</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 py-3 border-t border-gray-100">
+              <Link to="/employees" className="inline-flex items-center gap-2 rounded-lg border border-dashed border-brand-300 px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50">
+                <Plus size={14} /> Add Employee
+              </Link>
+            </div>
           </Card>
+
+          <p className="text-xs text-gray-500 flex items-center gap-1 -mt-2 mb-4"><Info size={12} /> True Cost per Hour includes wage plus burden components configured in your assumptions.</p>
         </>
       )}
 
