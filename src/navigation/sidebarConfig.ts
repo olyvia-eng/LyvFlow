@@ -48,7 +48,7 @@ const NAVIGATION_CONFIG: SidebarConfig = {
       collapsible: true,
       defaultExpanded: true,
       items: [
-        { id: 'revenue-dashboard', type: 'link', to: '/', end: true, label: 'Dashboard', icon: icon(LayoutDashboard) },
+        { id: 'revenue-dashboard', type: 'link', to: '/revenue/dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
         { id: 'revenue-leads', type: 'action', actionId: 'placeholder-leads', label: 'Leads', icon: icon(Users) },
         { id: 'revenue-clients', type: 'link', to: '/crm', label: 'Clients', icon: icon(Users) },
         { id: 'revenue-estimates', type: 'link', to: '/estimates', label: 'Estimates', icon: icon(FileText) },
@@ -62,7 +62,7 @@ const NAVIGATION_CONFIG: SidebarConfig = {
       collapsible: true,
       defaultExpanded: false,
       items: [
-        { id: 'finance-dashboard', type: 'action', actionId: 'placeholder-finance-dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
+        { id: 'finance-dashboard', type: 'link', to: '/finance/dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
         { id: 'finance-labour-planner', type: 'link', to: '/budget', label: 'Labour Planner', icon: icon(Calculator) },
         { id: 'finance-company-budget', type: 'link', to: '/budget', label: 'Company Budget', icon: icon(Wallet) },
         { id: 'finance-invoices', type: 'action', actionId: 'placeholder-invoices', label: 'Invoices', icon: icon(Receipt) },
@@ -84,7 +84,7 @@ const NAVIGATION_CONFIG: SidebarConfig = {
       collapsible: true,
       defaultExpanded: false,
       items: [
-        { id: 'operations-dashboard', type: 'action', actionId: 'placeholder-operations-dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
+        { id: 'operations-dashboard', type: 'link', to: '/operations/dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
         { id: 'operations-jobs', type: 'link', to: '/jobs', label: 'Jobs', icon: icon(Briefcase) },
         { id: 'operations-calendar', type: 'link', to: '/calendar', label: 'Calendar', icon: icon(CalendarDays) },
         { id: 'operations-equipment', type: 'action', actionId: 'placeholder-equipment', label: 'Equipment', icon: icon(HardHat) },
@@ -98,7 +98,7 @@ const NAVIGATION_CONFIG: SidebarConfig = {
       collapsible: true,
       defaultExpanded: false,
       items: [
-        { id: 'employees-dashboard', type: 'action', actionId: 'placeholder-employees-dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
+        { id: 'employees-dashboard', type: 'link', to: '/employees/dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
         { id: 'employees-list', type: 'link', to: '/employees', label: 'Employees', icon: icon(UserCheck) },
         {
           id: 'employees-time-tracking',
@@ -118,7 +118,7 @@ const NAVIGATION_CONFIG: SidebarConfig = {
       collapsible: true,
       defaultExpanded: false,
       items: [
-        { id: 'data-center-dashboard', type: 'link', to: '/data-center', label: 'Dashboard', icon: icon(BarChart3) },
+        { id: 'data-center-dashboard', type: 'link', to: '/data-center/dashboard', label: 'Dashboard', icon: icon(BarChart3) },
         { id: 'data-center-documents', type: 'action', actionId: 'placeholder-documents', label: 'Documents', icon: icon(FolderOpen) },
         { id: 'data-center-forms', type: 'action', actionId: 'placeholder-forms', label: 'Forms', icon: icon(FileBox) },
         { id: 'data-center-photos', type: 'action', actionId: 'placeholder-photos', label: 'Photos', icon: icon(Image) },

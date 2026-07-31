@@ -16,6 +16,11 @@ import CalendarPage from './pages/calendar/CalendarPage';
 import LoginPage from './pages/auth/LoginPage';
 import SignupPage from './pages/auth/SignupPage';
 import UserAccessPage from './pages/users/UserAccessPage';
+import RevenueDashboardPage from './pages/department-dashboards/RevenueDashboardPage';
+import FinanceDashboardPage from './pages/department-dashboards/FinanceDashboardPage';
+import OperationsDashboardPage from './pages/department-dashboards/OperationsDashboardPage';
+import EmployeesDashboardPage from './pages/department-dashboards/EmployeesDashboardPage';
+import DataCenterDashboardPage from './pages/department-dashboards/DataCenterDashboardPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
 import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
@@ -413,6 +418,11 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="crm" element={<CRMPage />} />
+              <Route path="revenue/dashboard" element={<RevenueDashboardPage />} />
+              <Route path="finance/dashboard" element={<FinanceDashboardPage />} />
+              <Route path="operations/dashboard" element={<OperationsDashboardPage />} />
+              <Route path="employees/dashboard" element={<EmployeesDashboardPage />} />
+              <Route path="data-center/dashboard" element={<DataCenterDashboardPage />} />
               <Route path="estimates" element={<EstimatesPage />} />
               <Route path="estimates/templates" element={<TemplatesPage />} />
               <Route path="jobs" element={<JobsPage />} />
