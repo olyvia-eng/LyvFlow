@@ -44,8 +44,8 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const navigation = getSidebarConfig(userRole);
-  const linkCandidates = getSidebarLinkItems(userRole);
+  const navigation = useMemo(() => getSidebarConfig(userRole), [userRole]);
+  const linkCandidates = useMemo(() => getSidebarLinkItems(userRole), [userRole]);
   const { favorites, reorderFavorites } = useFavorites();
   const previousFavoritesCountRef = useRef(favorites.length);
 
@@ -70,7 +70,11 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
 
   useEffect(() => {
     setExpandedSectionIds((current) => {
-      return current.filter((id) => allSectionIds.includes(id));
+      const filtered = current.filter((id) => allSectionIds.includes(id));
+      if (filtered.length === current.length && filtered.every((id, index) => id === current[index])) {
+        return current;
+      }
+      return filtered;
     });
   }, [allSectionIds]);
 
