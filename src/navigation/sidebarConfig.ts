@@ -35,11 +35,11 @@ const NAVIGATION_CONFIG: SidebarConfig = {
     { id: 'company-dashboard', type: 'link', to: '/', end: true, label: 'Company Dashboard', icon: icon(LayoutDashboard) },
   ],
   pinnedPages: [
-    { id: 'fav-labour', type: 'link', to: '/budget', label: 'Labour Planner', icon: icon(Wallet) },
-    { id: 'fav-calendar', type: 'link', to: '/calendar', label: 'Calendar', icon: icon(CalendarDays) },
-    { id: 'fav-clients', type: 'link', to: '/crm', label: 'Clients', icon: icon(Users) },
-    { id: 'fav-templates', type: 'link', to: '/estimates/templates', label: 'Estimate Templates', icon: icon(FileText) },
-    { id: 'fav-jobs', type: 'link', to: '/jobs', label: "Today's Jobs", icon: icon(Briefcase) },
+    { id: 'pin-labour', type: 'link', to: '/budget', label: 'Labour Planner', icon: icon(Wallet) },
+    { id: 'pin-calendar', type: 'link', to: '/calendar', label: 'Calendar', icon: icon(CalendarDays) },
+    { id: 'pin-clients', type: 'link', to: '/crm', label: 'Clients', icon: icon(Users) },
+    { id: 'pin-templates', type: 'link', to: '/estimates/templates', label: 'Estimate Templates', icon: icon(FileText) },
+    { id: 'pin-jobs', type: 'link', to: '/jobs', label: "Today's Jobs", icon: icon(Briefcase) },
   ],
   sections: [
     {
