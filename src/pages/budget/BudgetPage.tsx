@@ -704,8 +704,6 @@ export default function BudgetPage() {
           />
         )}
       </td>
-      <td className="px-4 py-3 text-center text-sm text-gray-700">{(row.plan.billableHoursYear / 50).toFixed(0)}</td>
-      <td className="px-4 py-3 text-center text-sm text-gray-700">{(row.plan.unbillableHoursYear / 40).toFixed(1)}</td>
       <td className="px-4 py-3 text-center text-sm text-gray-700">
         {((row.plan.billableHoursYear / Math.max(1, row.plan.billableHoursYear + row.plan.unbillableHoursYear + row.plan.overtimeHoursYear)) * 100).toFixed(0)}%
       </td>
@@ -1037,14 +1035,12 @@ export default function BudgetPage() {
               <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees first to build your labour planner.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[1600px]">
+                <table className="w-full text-sm min-w-[1400px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                       <th className="px-4 py-3 font-medium">Employee</th>
                       <th className="px-4 py-3 font-medium text-center">Wage Type</th>
                       <th className="px-4 py-3 font-medium text-right">Hourly Wage / Salary</th>
-                      <th className="px-4 py-3 font-medium text-center">Hours / Week</th>
-                      <th className="px-4 py-3 font-medium text-center">Vacation Weeks / Yr</th>
                       <th className="px-4 py-3 font-medium text-center">Billable %</th>
                       <th className="px-4 py-3 font-medium text-right">Labour Burden (%)</th>
                       <th className="px-4 py-3 font-medium text-right">True Cost / Hr</th>
@@ -1060,11 +1056,11 @@ export default function BudgetPage() {
                     {labourTableView === 'all' ? (
                       <>
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={10}>Hourly Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={12}>Hourly Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'hourly').map((row) => renderLabourPlannerRow(row))}
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={10}>Salaried Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={12}>Salaried Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'salaried').map((row) => renderLabourPlannerRow(row))}
                       </>
@@ -1073,11 +1069,11 @@ export default function BudgetPage() {
                     )}
                     {visibleLabourPlannerRows.length === 0 && (
                       <tr>
-                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={14}>No employees in this compensation type view yet.</td>
+                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={12}>No employees in this compensation type view yet.</td>
                       </tr>
                     )}
                     <tr className="bg-gray-50">
-                      <td className="px-4 py-2 font-semibold" colSpan={8}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
+                      <td className="px-4 py-2 font-semibold" colSpan={6}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
                       <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.billableHoursYear.toFixed(0)}</td>
                       <td className="px-4 py-2 text-right">—</td>
                       <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualLabourCost)}</td>
