@@ -30,8 +30,8 @@ const empty = (): Omit<BudgetItem, 'id'> => ({
 
 const yearlyHoursBase = 2080;
 const buildLabourPlanId = (employeeId: string, year: string) => `${employeeId}-${year}`;
-const buildRevenueSalesGoalId = (scopeType: 'month' | 'year', scopeValue: string) => `revenue-goal-${scopeType}-${scopeValue}`;
-const defaultWorkingDaysByViewMode = (mode: 'month' | 'year') => (mode === 'month' ? 22 : 260);
+const buildRevenueSalesGoalId = (scopeType: 'year', scopeValue: string) => `revenue-goal-${scopeType}-${scopeValue}`;
+const DEFAULT_WORKING_DAYS_YEAR = 260;
 
 const defaultLabourPlan = (employeeId: string, year: string, hourlyRate: number): LabourBudgetPlan => ({
   id: buildLabourPlanId(employeeId, year),
@@ -59,8 +59,6 @@ export default function BudgetPage() {
     upsertLabourBudgetPlan,
     upsertRevenueSalesGoal,
   } = useStore();
-  const [period, setPeriod] = useState(currentPeriod());
-  const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
   const [year, setYear] = useState(currentPeriod().slice(0, 4));
   const [activeTab, setActiveTab] = useState<BudgetTab>('revenue');
   const [modalOpen, setModalOpen] = useState(false);
@@ -83,19 +81,16 @@ export default function BudgetPage() {
     subcontractorRiskPct: 10,
   });
 
-  const allPeriods = [...new Set(budgetItems.map((b) => b.period))].sort().reverse();
   const allYears = [...new Set(budgetItems.map((b) => b.period.slice(0, 4)))].sort().reverse();
 
-  const items = viewMode === 'month'
-    ? budgetItems.filter((b) => b.period === period)
-    : budgetItems.filter((b) => b.period.startsWith(`${year}-`));
-  const scopeLabel = viewMode === 'month' ? period : year;
-  const revenueScopeType = viewMode;
+  const items = budgetItems.filter((b) => b.period.startsWith(`${year}-`));
+  const scopeLabel = year;
+  const revenueScopeType: 'year' = 'year';
   const revenueScopeValue = scopeLabel;
-  const plannerYear = viewMode === 'year' ? year : period.slice(0, 4);
+  const plannerYear = year;
 
   const openNew = () => {
-    const defaultPeriod = viewMode === 'year' ? `${year}-01` : period;
+    const defaultPeriod = `${year}-01`;
     setEditing(null);
     setForm({ ...empty(), period: defaultPeriod });
     setModalOpen(true);
@@ -114,8 +109,9 @@ export default function BudgetPage() {
   };
   const handleSave = () => {
     if (!form.description.trim()) return;
-    if (editing) updateBudgetItem(editing.id, form);
-    else addBudgetItem(form);
+    const yearlyForm = { ...form, period: `${year}-01` };
+    if (editing) updateBudgetItem(editing.id, yearlyForm);
+    else addBudgetItem(yearlyForm);
     setModalOpen(false);
   };
   const set = (key: keyof typeof form, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
@@ -137,7 +133,7 @@ export default function BudgetPage() {
       return;
     }
 
-    const defaultPeriod = viewMode === 'year' ? `${year}-01` : period;
+    const defaultPeriod = `${year}-01`;
     setEditing(null);
     setForm({ ...empty(), category, period: defaultPeriod });
     setModalOpen(true);
@@ -261,7 +257,7 @@ export default function BudgetPage() {
     scopeType: revenueScopeType,
     scopeValue: revenueScopeValue,
     goalRevenue: totalBudgetedRevenue > 0 ? totalBudgetedRevenue : totalActualRevenue,
-    workingDays: defaultWorkingDaysByViewMode(viewMode),
+    workingDays: DEFAULT_WORKING_DAYS_YEAR,
   };
 
   const revenuePerDayNeeded = currentRevenuePlan.workingDays > 0
@@ -275,7 +271,7 @@ export default function BudgetPage() {
       scopeType: revenueScopeType,
       scopeValue: revenueScopeValue,
       goalRevenue: totalBudgetedRevenue > 0 ? totalBudgetedRevenue : totalActualRevenue,
-      workingDays: defaultWorkingDaysByViewMode(viewMode),
+      workingDays: DEFAULT_WORKING_DAYS_YEAR,
     });
   }, [
     currentRevenuePlanRecord,
@@ -283,7 +279,6 @@ export default function BudgetPage() {
     revenueScopeValue,
     totalBudgetedRevenue,
     totalActualRevenue,
-    viewMode,
     upsertRevenueSalesGoal,
   ]);
 
@@ -340,7 +335,7 @@ export default function BudgetPage() {
 
   const exportToPdf = (mode: ExportColumnMode = 'budgeted') => {
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-    const scopeTypeLabel = viewMode === 'month' ? 'Monthly' : 'Yearly';
+    const scopeTypeLabel = 'Yearly';
     const generatedAt = new Date().toLocaleString();
 
     doc.setFontSize(16);
@@ -376,14 +371,12 @@ export default function BudgetPage() {
       autoTable(doc, {
         startY: 390,
         head: [[
-          ...(viewMode === 'year' ? ['Period'] : []),
           'Category',
           'Description',
           ...exportMetricHeaders(),
         ]],
         body: items.map((item) => {
           return [
-            ...(viewMode === 'year' ? [item.period] : []),
             item.category.replace(/_/g, ' '),
             item.description,
             ...exportMetricCells(item.budgeted),
@@ -405,13 +398,11 @@ export default function BudgetPage() {
       autoTable(doc, {
         startY: 170,
         head: [[
-          ...(viewMode === 'year' ? ['Period'] : []),
           'Description',
           ...exportMetricHeaders(),
         ]],
         body: selectedCategoryItems.map((item) => {
           return [
-            ...(viewMode === 'year' ? [item.period] : []),
             item.description,
             ...exportMetricCells(item.budgeted),
           ];
@@ -425,7 +416,7 @@ export default function BudgetPage() {
 
   const exportProfitAndLossPdf = (condensed = false, mode: ExportColumnMode = 'budgeted') => {
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-    const scopeTypeLabel = viewMode === 'month' ? 'Monthly' : 'Yearly';
+    const scopeTypeLabel = 'Yearly';
     const generatedAt = new Date().toLocaleString();
 
     doc.setFontSize(16);
@@ -477,9 +468,8 @@ export default function BudgetPage() {
 
     autoTable(doc, {
       startY: 314,
-      head: [[...(viewMode === 'year' ? ['Period'] : []), 'Revenue Description', ...exportMetricHeaders()]],
+      head: [['Revenue Description', ...exportMetricHeaders()]],
       body: revenueItems.map((item) => [
-        ...(viewMode === 'year' ? [item.period] : []),
         item.description,
         ...exportMetricCells(item.budgeted),
       ]),
@@ -492,9 +482,8 @@ export default function BudgetPage() {
 
     autoTable(doc, {
       startY: cogsStartY,
-      head: [[...(viewMode === 'year' ? ['Period'] : []), 'Direct Cost Description', 'Category', ...exportMetricHeaders()]],
+      head: [['Direct Cost Description', 'Category', ...exportMetricHeaders()]],
       body: directCostItems.map((item) => [
-        ...(viewMode === 'year' ? [item.period] : []),
         item.description,
         item.category.replace(/_/g, ' '),
         ...exportMetricCells(item.budgeted),
@@ -508,9 +497,8 @@ export default function BudgetPage() {
 
     autoTable(doc, {
       startY: opexStartY,
-      head: [[...(viewMode === 'year' ? ['Period'] : []), 'Operating Expense Description', 'Category', ...exportMetricHeaders()]],
+      head: [['Operating Expense Description', 'Category', ...exportMetricHeaders()]],
       body: operatingExpenseItems.map((item) => [
-        ...(viewMode === 'year' ? [item.period] : []),
         item.description,
         item.category.replace(/_/g, ' '),
         ...exportMetricCells(item.budgeted),
@@ -562,6 +550,23 @@ export default function BudgetPage() {
     const existing = plansByEmployeeId[employeeId] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate);
     const next = { ...existing, [key]: value };
     upsertLabourBudgetPlan(next);
+  };
+
+  const updateBillablePct = (employeeId: string, billablePct: number) => {
+    const employee = activeEmployees.find((value) => value.id === employeeId);
+    if (!employee) return;
+
+    const existing = plansByEmployeeId[employeeId] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate);
+    const clampedPct = Math.max(0, Math.min(100, Number.isFinite(billablePct) ? billablePct : 0));
+    const nonOvertimeHours = Math.max(1, existing.billableHoursYear + existing.unbillableHoursYear);
+    const nextBillableHours = Math.round((clampedPct / 100) * nonOvertimeHours);
+    const nextUnbillableHours = Math.max(0, nonOvertimeHours - nextBillableHours);
+
+    upsertLabourBudgetPlan({
+      ...existing,
+      billableHoursYear: nextBillableHours,
+      unbillableHoursYear: nextUnbillableHours,
+    });
   };
 
   const labourPlannerRows = useMemo(() => {
@@ -704,8 +709,16 @@ export default function BudgetPage() {
           />
         )}
       </td>
-      <td className="px-4 py-3 text-center text-sm text-gray-700">
-        {((row.plan.billableHoursYear / Math.max(1, row.plan.billableHoursYear + row.plan.unbillableHoursYear + row.plan.overtimeHoursYear)) * 100).toFixed(0)}%
+      <td className="px-4 py-3 text-center">
+        <input
+          type="number"
+          min={0}
+          max={100}
+          step={1}
+          value={((row.plan.billableHoursYear / Math.max(1, row.plan.billableHoursYear + row.plan.unbillableHoursYear + row.plan.overtimeHoursYear)) * 100).toFixed(0)}
+          onChange={(e) => updateBillablePct(row.employee.id, Number(e.target.value))}
+          className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
       </td>
       <td className="px-4 py-3 text-right">
         <input
@@ -727,7 +740,6 @@ export default function BudgetPage() {
           className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
       </td>
-      <td className="px-4 py-3 text-right font-semibold text-brand-700">{formatCurrency(row.suggestedChargeOutRate)}</td>
       <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.annualLabourCost)}</td>
       <td className="px-4 py-3 text-right">{formatCurrency(row.annualRevenueGenerated)}</td>
       <td className={`px-4 py-3 text-right font-semibold ${row.grossProfitGenerated >= 0 ? 'text-green-700' : 'text-red-600'}`}>
@@ -778,44 +790,25 @@ export default function BudgetPage() {
       {/* Scope selector */}
       <div className="flex flex-col gap-3 mb-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant={viewMode === 'month' ? 'primary' : 'secondary'} size="sm" onClick={() => setViewMode('month')}>Monthly</Button>
-          <Button variant={viewMode === 'year' ? 'primary' : 'secondary'} size="sm" onClick={() => setViewMode('year')}>Yearly</Button>
+          <span className="inline-flex items-center rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Yearly</span>
           <span className="text-xs text-gray-500">Current scope: {scopeLabel}</span>
         </div>
-        {viewMode === 'month' ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="text-sm font-medium text-gray-700">Period:</label>
-            <input
-              type="month"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
-            {allPeriods.filter((p) => p !== period).length > 0 && (
-              <select onChange={(e) => setPeriod(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-500">
-                <option value="">Jump to period…</option>
-                {allPeriods.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="text-sm font-medium text-gray-700">Year:</label>
-            <Input
-              type="number"
-              min={2000}
-              max={2100}
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              className="w-32"
-            />
-            {allYears.length > 0 && (
-              <select value={year} onChange={(e) => setYear(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-500">
-                {allYears.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-sm font-medium text-gray-700">Year:</label>
+          <Input
+            type="number"
+            min={2000}
+            max={2100}
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            className="w-32"
+          />
+          {allYears.length > 0 && (
+            <select value={year} onChange={(e) => setYear(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-500">
+              {allYears.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="mb-6 overflow-x-auto">
@@ -895,7 +888,7 @@ export default function BudgetPage() {
                 onChange={(e) => updatePricingInput('targetMarginPct', Number(e.target.value))}
               />
               <Input
-                label="Machine Utilization (hrs/month)"
+                label="Machine Utilization (hrs/year)"
                 type="number"
                 min={1}
                 value={pricingInputs.equipmentUtilizationHours}
@@ -1045,7 +1038,6 @@ export default function BudgetPage() {
                       <th className="px-4 py-3 font-medium text-right">Labour Burden (%)</th>
                       <th className="px-4 py-3 font-medium text-right">True Cost / Hr</th>
                       <th className="px-4 py-3 font-medium text-right">Annual Billable Hours</th>
-                      <th className="px-4 py-3 font-medium text-right">Suggested Charge-Out Rate</th>
                       <th className="px-4 py-3 font-medium text-right">Annual Labour Cost</th>
                       <th className="px-4 py-3 font-medium text-right">Annual Revenue Generated</th>
                       <th className="px-4 py-3 font-medium text-right">Gross Profit Generated</th>
@@ -1056,11 +1048,11 @@ export default function BudgetPage() {
                     {labourTableView === 'all' ? (
                       <>
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={12}>Hourly Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={11}>Hourly Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'hourly').map((row) => renderLabourPlannerRow(row))}
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={12}>Salaried Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={11}>Salaried Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'salaried').map((row) => renderLabourPlannerRow(row))}
                       </>
@@ -1069,13 +1061,12 @@ export default function BudgetPage() {
                     )}
                     {visibleLabourPlannerRows.length === 0 && (
                       <tr>
-                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={12}>No employees in this compensation type view yet.</td>
+                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={11}>No employees in this compensation type view yet.</td>
                       </tr>
                     )}
                     <tr className="bg-gray-50">
                       <td className="px-4 py-2 font-semibold" colSpan={6}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
                       <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.billableHoursYear.toFixed(0)}</td>
-                      <td className="px-4 py-2 text-right">—</td>
                       <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualLabourCost)}</td>
                       <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualRevenueGenerated)}</td>
                       <td className={`px-4 py-2 text-right font-semibold ${visibleLabourPlannerTotals.grossProfitGenerated >= 0 ? 'text-green-700' : 'text-red-600'}`}>
@@ -1350,7 +1341,6 @@ export default function BudgetPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                   <th className="px-4 py-3 font-medium">Category</th>
-                  {viewMode === 'year' && <th className="px-4 py-3 font-medium">Period</th>}
                   <th className="px-4 py-3 font-medium">Description</th>
                   <th className="px-4 py-3 font-medium text-right">Budgeted</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
@@ -1361,7 +1351,6 @@ export default function BudgetPage() {
                   return (
                     <tr key={b.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2 capitalize">{b.category}</td>
-                      {viewMode === 'year' && <td className="px-4 py-2 text-gray-500">{b.period}</td>}
                       <td className="px-4 py-2 text-gray-700">
                         <div className="flex items-center gap-2">
                           <span>{b.description}</span>
@@ -1404,7 +1393,6 @@ export default function BudgetPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
-                    {viewMode === 'year' && <th className="px-4 py-3 font-medium">Period</th>}
                     <th className="px-4 py-3 font-medium">Description</th>
                     <th className="px-4 py-3 font-medium text-right">Budgeted</th>
                     <th className="px-4 py-3 font-medium">Actions</th>
@@ -1414,7 +1402,6 @@ export default function BudgetPage() {
                   {displayCategoryItems.map((b) => {
                     return (
                       <tr key={b.id} className="hover:bg-gray-50">
-                        {viewMode === 'year' && <td className="px-4 py-2 text-gray-500">{b.period}</td>}
                         <td className="px-4 py-2 text-gray-700">
                           <div className="flex items-center gap-2">
                             <span>{b.description}</span>
@@ -1454,7 +1441,7 @@ export default function BudgetPage() {
             <Select label="Category" value={form.category} onChange={(e) => setCategory(e.target.value as BudgetCategory)}>
               {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
             </Select>
-            <Input label="Period (YYYY-MM)" value={form.period} onChange={(e) => set('period', e.target.value)} />
+            <Input label="Year" value={year} disabled />
           </div>
           {form.category === 'equipment' && (
             <Select
@@ -1515,7 +1502,7 @@ export default function BudgetPage() {
             onChange={(e) => updatePricingInput('targetMarginPct', Number(e.target.value))}
           />
           <Input
-            label="Machine Utilization (hrs/month)"
+            label="Machine Utilization (hrs/year)"
             type="number"
             min={1}
             value={pricingInputs.equipmentUtilizationHours}

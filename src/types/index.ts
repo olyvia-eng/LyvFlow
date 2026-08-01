@@ -199,8 +199,8 @@ export interface LabourHoursSalesGoal {
 
 export interface RevenueSalesGoal {
   id: ID;
-  scopeType: 'month' | 'year';
-  scopeValue: string; // YYYY-MM for month, YYYY for year
+  scopeType: 'year';
+  scopeValue: string; // YYYY
   goalRevenue: number;
   workingDays: number;
 }
