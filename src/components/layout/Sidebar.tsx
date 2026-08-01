@@ -3,7 +3,7 @@ import {
   Menu,
   X,
   Leaf,
-  Star,
+  Pin,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { getSidebarConfig, getSidebarLinkItems } from '../../navigation/sidebarC
 import type { SidebarNavItem } from '../../navigation/types';
 import SidebarItem from './SidebarItem';
 import SidebarSection from './SidebarSection';
-import { useFavorites } from '../../navigation/FavoritesContext';
+import { usePinnedPages } from '../../navigation/PinnedPagesContext';
 
 const EXPANDED_SECTIONS_STORAGE_KEY = 'oliveops.sidebar.expanded-sections.v1';
 
@@ -46,11 +46,11 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const navigation = useMemo(() => getSidebarConfig(userRole), [userRole]);
   const linkCandidates = useMemo(() => getSidebarLinkItems(userRole), [userRole]);
-  const { favorites, reorderFavorites } = useFavorites();
-  const previousFavoritesCountRef = useRef(favorites.length);
+  const { pinnedPages, reorderPinnedPages } = usePinnedPages();
+  const previousPinnedCountRef = useRef(pinnedPages.length);
 
   const allSectionIds = useMemo(() => {
-    return ['favorites', ...navigation.sections.map((section) => section.id)];
+    return ['pinned', ...navigation.sections.map((section) => section.id)];
   }, [navigation.sections]);
 
   const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>(() => {
@@ -83,15 +83,15 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   }, [expandedSectionIds]);
 
   useEffect(() => {
-    const previousCount = previousFavoritesCountRef.current;
-    const currentCount = favorites.length;
+    const previousCount = previousPinnedCountRef.current;
+    const currentCount = pinnedPages.length;
 
     if (currentCount > previousCount) {
-      setExpandedSectionIds(['favorites']);
+      setExpandedSectionIds(['pinned']);
     }
 
-    previousFavoritesCountRef.current = currentCount;
-  }, [favorites.length]);
+    previousPinnedCountRef.current = currentCount;
+  }, [pinnedPages.length]);
 
   const handleNavigate = () => {
     setMobileOpen(false);
@@ -113,20 +113,20 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
     });
   };
 
-  const favoriteItems: SidebarNavItem[] = useMemo(() => {
-    return favorites.map((favorite) => ({
-      ...(linkCandidates.find((candidate) => candidate.to === favorite.to && candidate.label === favorite.label) ?? {}),
-      id: `fav-${favorite.id}`,
+  const pinnedItems: SidebarNavItem[] = useMemo(() => {
+    return pinnedPages.map((pinnedPage) => ({
+      ...(linkCandidates.find((candidate) => candidate.to === pinnedPage.to && candidate.label === pinnedPage.label) ?? {}),
+      id: `pin-${pinnedPage.id}`,
       type: 'link' as const,
-      to: favorite.to,
-      end: favorite.end,
-      label: favorite.label,
+      to: pinnedPage.to,
+      end: pinnedPage.end,
+      label: pinnedPage.label,
     }));
-  }, [favorites, linkCandidates]);
+  }, [pinnedPages, linkCandidates]);
 
-  const renderFavoriteItem = (item: SidebarNavItem, index: number) => (
+  const renderPinnedItem = (item: SidebarNavItem, index: number) => (
     <div
-      key={`fav-${item.id}`}
+      key={`pin-${item.id}`}
       className="flex items-center"
       draggable
       onDragStart={() => setDragIndex(index)}
@@ -135,12 +135,12 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       }}
       onDrop={() => {
         if (dragIndex === null) return;
-        reorderFavorites(dragIndex, index);
+        reorderPinnedPages(dragIndex, index);
         setDragIndex(null);
       }}
       onDragEnd={() => setDragIndex(null)}
     >
-      <Star size={12} className="mr-2 text-amber-400" />
+      <Pin size={12} className="mr-2 text-emerald-500" />
       <SidebarItem
         item={item}
         compact
@@ -204,13 +204,13 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             <button
               type="button"
               className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1"
-              onClick={() => toggleSection('favorites')}
+              onClick={() => toggleSection('pinned')}
             >
-              Favorites
+              Pinned
             </button>
-            {isExpanded('favorites') && (
+            {isExpanded('pinned') && (
               <div className="space-y-0.5">
-                {favoriteItems.map((item, index) => renderFavoriteItem(item, index))}
+                {pinnedItems.map((item, index) => renderPinnedItem(item, index))}
               </div>
             )}
           </div>
@@ -271,13 +271,13 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             <button
               type="button"
               className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1"
-              onClick={() => toggleSection('favorites')}
+              onClick={() => toggleSection('pinned')}
             >
-              Favorites
+              Pinned
             </button>
-            {isExpanded('favorites') && (
+            {isExpanded('pinned') && (
               <div className="space-y-0.5">
-                {favoriteItems.map((item, index) => renderFavoriteItem(item, index))}
+                {pinnedItems.map((item, index) => renderPinnedItem(item, index))}
               </div>
             )}
           </div>

@@ -1,7 +1,7 @@
-import { ChevronDown, Star } from 'lucide-react';
+import { ChevronDown, Pin } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { useFavorites } from '../../navigation/FavoritesContext';
+import { usePinnedPages } from '../../navigation/PinnedPagesContext';
 import type { SidebarNavItem } from '../../navigation/types';
 
 interface SidebarItemProps {
@@ -32,7 +32,7 @@ export default function SidebarItem({
   onAction,
 }: SidebarItemProps) {
   const { pathname } = useLocation();
-  const { isPageFavorited, toggleFavoritePage } = useFavorites();
+  const { isPagePinned, togglePinnedPage } = usePinnedPages();
   const isBranchActive = useMemo(() => hasActiveDescendant(item, pathname), [item, pathname]);
 
   const [expanded, setExpanded] = useState(item.type === 'group' ? (item.defaultExpanded ?? true) : false);
@@ -61,7 +61,7 @@ export default function SidebarItem({
 
   if (item.type === 'link') {
     const Icon = item.icon;
-    const favorited = isPageFavorited(item.to);
+    const pinned = isPagePinned(item.to);
 
     return (
       <div style={indentStyle} className="group relative flex items-center gap-1">
@@ -90,17 +90,17 @@ export default function SidebarItem({
         </NavLink>
         <button
           type="button"
-          aria-label={favorited ? `Remove ${item.label} from favorites` : `Add ${item.label} to favorites`}
-          title={favorited ? 'Remove from favorites' : 'Add to favorites'}
+          aria-label={pinned ? `Unpin ${item.label}` : `Pin ${item.label}`}
+          title={pinned ? 'Unpin page' : 'Pin page'}
           className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
-            favorited
-              ? 'text-amber-500 hover:bg-amber-50'
-              : 'text-gray-300 hover:text-amber-500 hover:bg-gray-100'
+            pinned
+              ? 'text-emerald-600 hover:bg-emerald-50'
+              : 'text-gray-300 hover:text-emerald-600 hover:bg-gray-100'
           }`}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            toggleFavoritePage({
+            togglePinnedPage({
               id: item.id,
               label: item.label,
               to: item.to,
@@ -108,7 +108,7 @@ export default function SidebarItem({
             });
           }}
         >
-          <Star size={14} className={favorited ? 'fill-current' : ''} />
+          <Pin size={14} className={pinned ? 'fill-current' : ''} />
         </button>
       </div>
     );

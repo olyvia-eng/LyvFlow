@@ -41,6 +41,6 @@ export type SidebarSectionConfig = {
 
 export type SidebarConfig = {
   topLevel: SidebarNavItem[];
-  favorites: SidebarNavItem[];
+  pinnedPages: SidebarNavItem[];
   sections: SidebarSectionConfig[];
 };

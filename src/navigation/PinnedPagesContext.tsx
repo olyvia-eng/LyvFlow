@@ -3,31 +3,32 @@ import { useLocation } from 'react-router-dom';
 import type { BusinessUserRole } from '../auth/types';
 import { getSidebarLinkItems } from './sidebarConfig';
 
-const FAVORITES_STORAGE_KEY = 'oliveops.navigation.favorites.v1';
+const PINNED_PAGES_STORAGE_KEY = 'oliveops.navigation.pinned-pages.v1';
+const LEGACY_FAVORITES_STORAGE_KEY = 'oliveops.navigation.favorites.v1';
 
-const saveFavorites = (favorites: FavoritePage[]) => {
+const savePinnedPages = (pinnedPages: PinnedPage[]) => {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+  window.localStorage.setItem(PINNED_PAGES_STORAGE_KEY, JSON.stringify(pinnedPages));
 };
 
-type FavoritePage = {
+type PinnedPage = {
   id: string;
   label: string;
   to: string;
   end?: boolean;
 };
 
-type FavoritesContextValue = {
-  favorites: FavoritePage[];
-  currentPage: FavoritePage;
-  isCurrentPageFavorited: boolean;
-  toggleCurrentPageFavorite: () => void;
-  isPageFavorited: (to: string) => boolean;
-  toggleFavoritePage: (page: FavoritePage) => void;
-  reorderFavorites: (fromIndex: number, toIndex: number) => void;
+type PinnedPagesContextValue = {
+  pinnedPages: PinnedPage[];
+  currentPage: PinnedPage;
+  isCurrentPagePinned: boolean;
+  toggleCurrentPagePinned: () => void;
+  isPagePinned: (to: string) => boolean;
+  togglePinnedPage: (page: PinnedPage) => void;
+  reorderPinnedPages: (fromIndex: number, toIndex: number) => void;
 };
 
-const FavoritesContext = createContext<FavoritesContextValue | null>(null);
+const PinnedPagesContext = createContext<PinnedPagesContextValue | null>(null);
 
 const normalizePath = (value: string) => {
   if (!value) return '/';
@@ -54,37 +55,38 @@ const toFallbackLabel = (pathname: string) => {
     .join(' / ');
 };
 
-interface FavoritesProviderProps {
+interface PinnedPagesProviderProps {
   userRole: BusinessUserRole;
   children: ReactNode;
 }
 
-export function FavoritesProvider({ userRole, children }: FavoritesProviderProps) {
+export function PinnedPagesProvider({ userRole, children }: PinnedPagesProviderProps) {
   const location = useLocation();
   const candidates = useMemo(() => getSidebarLinkItems(userRole), [userRole]);
 
-  const [favorites, setFavorites] = useState<FavoritePage[]>([]);
+  const [pinnedPages, setPinnedPages] = useState<PinnedPage[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     try {
-      const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+      const raw = window.localStorage.getItem(PINNED_PAGES_STORAGE_KEY)
+        ?? window.localStorage.getItem(LEGACY_FAVORITES_STORAGE_KEY);
       if (!raw) {
-        setFavorites([]);
+        setPinnedPages([]);
         setHydrated(true);
         return;
       }
 
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) {
-        setFavorites([]);
+        setPinnedPages([]);
         setHydrated(true);
         return;
       }
 
-      const loaded = parsed.filter((value): value is FavoritePage => {
+      const loaded = parsed.filter((value): value is PinnedPage => {
         return (
           typeof value?.id === 'string' &&
           typeof value?.label === 'string' &&
@@ -92,9 +94,9 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
         );
       });
 
-      setFavorites(loaded);
+      setPinnedPages(loaded);
     } catch {
-      setFavorites([]);
+      setPinnedPages([]);
     } finally {
       setHydrated(true);
     }
@@ -102,10 +104,10 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return;
-    saveFavorites(favorites);
-  }, [favorites, hydrated]);
+    savePinnedPages(pinnedPages);
+  }, [pinnedPages, hydrated]);
 
-  const currentPage = useMemo<FavoritePage>(() => {
+  const currentPage = useMemo<PinnedPage>(() => {
     const pathname = normalizePath(location.pathname);
 
     const match = [...candidates]
@@ -129,40 +131,40 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
     };
   }, [candidates, location.pathname]);
 
-  const isCurrentPageFavorited = useMemo(() => {
-    return favorites.some((favorite) => normalizePath(favorite.to) === normalizePath(currentPage.to));
-  }, [currentPage.to, favorites]);
+  const isCurrentPagePinned = useMemo(() => {
+    return pinnedPages.some((pinnedPage) => normalizePath(pinnedPage.to) === normalizePath(currentPage.to));
+  }, [currentPage.to, pinnedPages]);
 
-  const toggleCurrentPageFavorite = () => {
-    setFavorites((current) => {
+  const toggleCurrentPagePinned = () => {
+    setPinnedPages((current) => {
       const currentPath = normalizePath(currentPage.to);
-      const exists = current.some((favorite) => normalizePath(favorite.to) === currentPath);
+      const exists = current.some((pinnedPage) => normalizePath(pinnedPage.to) === currentPath);
 
       if (exists) {
-        const next = current.filter((favorite) => normalizePath(favorite.to) !== currentPath);
-        saveFavorites(next);
+        const next = current.filter((pinnedPage) => normalizePath(pinnedPage.to) !== currentPath);
+        savePinnedPages(next);
         return next;
       }
 
       const next = [...current, currentPage];
-      saveFavorites(next);
+      savePinnedPages(next);
       return next;
     });
   };
 
-  const isPageFavorited = (to: string) => {
+  const isPagePinned = (to: string) => {
     const path = normalizePath(to);
-    return favorites.some((favorite) => normalizePath(favorite.to) === path);
+    return pinnedPages.some((pinnedPage) => normalizePath(pinnedPage.to) === path);
   };
 
-  const toggleFavoritePage = (page: FavoritePage) => {
-    setFavorites((current) => {
+  const togglePinnedPage = (page: PinnedPage) => {
+    setPinnedPages((current) => {
       const targetPath = normalizePath(page.to);
-      const exists = current.some((favorite) => normalizePath(favorite.to) === targetPath);
+      const exists = current.some((pinnedPage) => normalizePath(pinnedPage.to) === targetPath);
 
       if (exists) {
-        const next = current.filter((favorite) => normalizePath(favorite.to) !== targetPath);
-        saveFavorites(next);
+        const next = current.filter((pinnedPage) => normalizePath(pinnedPage.to) !== targetPath);
+        savePinnedPages(next);
         return next;
       }
 
@@ -173,13 +175,13 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
           to: targetPath,
         },
       ];
-      saveFavorites(next);
+      savePinnedPages(next);
       return next;
     });
   };
 
-  const reorderFavorites = (fromIndex: number, toIndex: number) => {
-    setFavorites((current) => {
+  const reorderPinnedPages = (fromIndex: number, toIndex: number) => {
+    setPinnedPages((current) => {
       if (fromIndex === toIndex) return current;
       if (fromIndex < 0 || fromIndex >= current.length) return current;
       if (toIndex < 0 || toIndex >= current.length) return current;
@@ -187,32 +189,32 @@ export function FavoritesProvider({ userRole, children }: FavoritesProviderProps
       const next = [...current];
       const [moved] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, moved);
-      saveFavorites(next);
+      savePinnedPages(next);
       return next;
     });
   };
 
   return (
-    <FavoritesContext.Provider
+    <PinnedPagesContext.Provider
       value={{
-        favorites,
+        pinnedPages,
         currentPage,
-        isCurrentPageFavorited,
-        toggleCurrentPageFavorite,
-        isPageFavorited,
-        toggleFavoritePage,
-        reorderFavorites,
+        isCurrentPagePinned,
+        toggleCurrentPagePinned,
+        isPagePinned,
+        togglePinnedPage,
+        reorderPinnedPages,
       }}
     >
       {children}
-    </FavoritesContext.Provider>
+    </PinnedPagesContext.Provider>
   );
 }
 
-export function useFavorites() {
-  const context = useContext(FavoritesContext);
+export function usePinnedPages() {
+  const context = useContext(PinnedPagesContext);
   if (!context) {
-    throw new Error('useFavorites must be used within FavoritesProvider');
+    throw new Error('usePinnedPages must be used within PinnedPagesProvider');
   }
   return context;
 }

@@ -34,7 +34,7 @@ const NAVIGATION_CONFIG: SidebarConfig = {
   topLevel: [
     { id: 'company-dashboard', type: 'link', to: '/', end: true, label: 'Company Dashboard', icon: icon(LayoutDashboard) },
   ],
-  favorites: [
+  pinnedPages: [
     { id: 'fav-labour', type: 'link', to: '/budget', label: 'Labour Planner', icon: icon(Wallet) },
     { id: 'fav-calendar', type: 'link', to: '/calendar', label: 'Calendar', icon: icon(CalendarDays) },
     { id: 'fav-clients', type: 'link', to: '/crm', label: 'Clients', icon: icon(Users) },
@@ -178,7 +178,7 @@ export const getSidebarConfig = (userRole: BusinessUserRole): SidebarConfig => {
     .map((item) => filterNavItem(item, userRole))
     .filter((item): item is SidebarNavItem => item !== null);
 
-  const favorites = NAVIGATION_CONFIG.favorites
+  const pinnedPages = NAVIGATION_CONFIG.pinnedPages
     .map((item) => filterNavItem(item, userRole))
     .filter((item): item is SidebarNavItem => item !== null);
 
@@ -188,7 +188,7 @@ export const getSidebarConfig = (userRole: BusinessUserRole): SidebarConfig => {
 
   return {
     topLevel,
-    favorites,
+    pinnedPages,
     sections,
   };
 };

@@ -1,8 +1,8 @@
 import { Outlet } from 'react-router-dom';
-import { Star } from 'lucide-react';
+import { Pin } from 'lucide-react';
 import Sidebar from './Sidebar';
 import type { BusinessUserRole } from '../../auth/types';
-import { FavoritesProvider, useFavorites } from '../../navigation/FavoritesContext';
+import { PinnedPagesProvider, usePinnedPages } from '../../navigation/PinnedPagesContext';
 import { Button } from '../ui';
 
 interface AppLayoutProps {
@@ -12,39 +12,39 @@ interface AppLayoutProps {
   onLogout: () => void | Promise<void>;
 }
 
-function FavoritePageButton() {
-  const { currentPage, isCurrentPageFavorited, toggleCurrentPageFavorite } = useFavorites();
+function PinPageButton() {
+  const { currentPage, isCurrentPagePinned, toggleCurrentPagePinned } = usePinnedPages();
 
   return (
     <Button
       type="button"
       variant="secondary"
-      onClick={toggleCurrentPageFavorite}
-      title={isCurrentPageFavorited ? `Remove ${currentPage.label} from favorites` : `Add ${currentPage.label} to favorites`}
-      aria-label={isCurrentPageFavorited ? `Remove ${currentPage.label} from favorites` : `Add ${currentPage.label} to favorites`}
-      className={isCurrentPageFavorited ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' : ''}
+      onClick={toggleCurrentPagePinned}
+      title={isCurrentPagePinned ? `Unpin ${currentPage.label}` : `Pin ${currentPage.label}`}
+      aria-label={isCurrentPagePinned ? `Unpin ${currentPage.label}` : `Pin ${currentPage.label}`}
+      className={isCurrentPagePinned ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' : ''}
     >
-      <Star size={15} className={isCurrentPageFavorited ? 'fill-current' : ''} />
-      Favorite
+      <Pin size={15} className={isCurrentPagePinned ? 'fill-current' : ''} />
+      Pin
     </Button>
   );
 }
 
 export default function AppLayout({ userName, businessName, userRole, onLogout }: AppLayoutProps) {
   return (
-    <FavoritesProvider userRole={userRole}>
+    <PinnedPagesProvider userRole={userRole}>
       <div className="min-h-screen bg-gray-50">
         <Sidebar userName={userName} businessName={businessName} userRole={userRole} onLogout={onLogout} />
         {/* Content area shifts right on desktop, down on mobile */}
         <main className="lg:ml-72 pt-14 lg:pt-0 min-h-screen">
           <div className="p-4 sm:p-6 max-w-7xl mx-auto">
             <div className="flex justify-end mb-3">
-              <FavoritePageButton />
+              <PinPageButton />
             </div>
             <Outlet />
           </div>
         </main>
       </div>
-    </FavoritesProvider>
+    </PinnedPagesProvider>
   );
 }
