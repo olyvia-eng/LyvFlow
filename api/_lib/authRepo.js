@@ -959,6 +959,7 @@ export async function listBudgetItemsForBusiness(businessId) {
     id: item.budgetItemId,
     category: item.category,
     equipmentCostType: item.equipmentCostType,
+    costCode: item.costCode,
     description: item.description,
     budgeted: item.budgeted,
     actual: item.actual,
@@ -1000,7 +1001,8 @@ export async function getBudgetItemForBusiness(businessId, budgetItemId) {
     ? {
         id: result.Item.budgetItemId,
         category: result.Item.category,
-      equipmentCostType: result.Item.equipmentCostType,
+        equipmentCostType: result.Item.equipmentCostType,
+        costCode: result.Item.costCode,
         description: result.Item.description,
         budgeted: result.Item.budgeted,
         actual: result.Item.actual,

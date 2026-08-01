@@ -169,6 +169,7 @@ export interface BudgetItem {
   id: ID;
   category: BudgetCategory;
   equipmentCostType?: EquipmentCostType;
+  costCode?: string;
   description: string;
   budgeted: number;
   actual: number;

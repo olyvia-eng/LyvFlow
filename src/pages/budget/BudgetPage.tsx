@@ -22,6 +22,7 @@ const currentPeriod = () => new Date().toISOString().slice(0, 7);
 const empty = (): Omit<BudgetItem, 'id'> => ({
   category: 'labour',
   equipmentCostType: undefined,
+  costCode: '',
   description: '',
   budgeted: 0,
   actual: 0,
@@ -100,6 +101,7 @@ export default function BudgetPage() {
     setForm({
       category: b.category,
       equipmentCostType: b.equipmentCostType,
+      costCode: b.costCode ?? '',
       description: b.description,
       budgeted: b.budgeted,
       actual: b.actual,
@@ -109,7 +111,12 @@ export default function BudgetPage() {
   };
   const handleSave = () => {
     if (!form.description.trim()) return;
-    const yearlyForm = { ...form, period: `${year}-01` };
+    const normalizedCostCode = form.costCode?.trim();
+    const yearlyForm = {
+      ...form,
+      costCode: normalizedCostCode ? normalizedCostCode.toUpperCase() : undefined,
+      period: `${year}-01`,
+    };
     if (editing) updateBudgetItem(editing.id, yearlyForm);
     else addBudgetItem(yearlyForm);
     setModalOpen(false);
@@ -372,12 +379,14 @@ export default function BudgetPage() {
         startY: 390,
         head: [[
           'Category',
+          'Cost Code',
           'Description',
           ...exportMetricHeaders(),
         ]],
         body: items.map((item) => {
           return [
             item.category.replace(/_/g, ' '),
+            item.costCode ?? '—',
             item.description,
             ...exportMetricCells(item.budgeted),
           ];
@@ -398,11 +407,13 @@ export default function BudgetPage() {
       autoTable(doc, {
         startY: 170,
         head: [[
+          'Cost Code',
           'Description',
           ...exportMetricHeaders(),
         ]],
         body: selectedCategoryItems.map((item) => {
           return [
+            item.costCode ?? '—',
             item.description,
             ...exportMetricCells(item.budgeted),
           ];
@@ -468,8 +479,9 @@ export default function BudgetPage() {
 
     autoTable(doc, {
       startY: 314,
-      head: [['Revenue Description', ...exportMetricHeaders()]],
+      head: [['Cost Code', 'Revenue Description', ...exportMetricHeaders()]],
       body: revenueItems.map((item) => [
+        item.costCode ?? '—',
         item.description,
         ...exportMetricCells(item.budgeted),
       ]),
@@ -482,8 +494,9 @@ export default function BudgetPage() {
 
     autoTable(doc, {
       startY: cogsStartY,
-      head: [['Direct Cost Description', 'Category', ...exportMetricHeaders()]],
+      head: [['Cost Code', 'Direct Cost Description', 'Category', ...exportMetricHeaders()]],
       body: directCostItems.map((item) => [
+        item.costCode ?? '—',
         item.description,
         item.category.replace(/_/g, ' '),
         ...exportMetricCells(item.budgeted),
@@ -497,8 +510,9 @@ export default function BudgetPage() {
 
     autoTable(doc, {
       startY: opexStartY,
-      head: [['Operating Expense Description', 'Category', ...exportMetricHeaders()]],
+      head: [['Cost Code', 'Operating Expense Description', 'Category', ...exportMetricHeaders()]],
       body: operatingExpenseItems.map((item) => [
+        item.costCode ?? '—',
         item.description,
         item.category.replace(/_/g, ' '),
         ...exportMetricCells(item.budgeted),
@@ -997,7 +1011,6 @@ export default function BudgetPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="font-semibold text-gray-900">Employee Labour Planner</h2>
-                  <p className="text-sm text-gray-500 mt-1">Set each employee pay and billable hours. The table automatically calculates cost, charge-out rate, revenue, and profit.</p>
                 </div>
                 <div className="inline-flex border border-gray-200 rounded-lg p-0.5 self-start">
                   <button
@@ -1341,6 +1354,7 @@ export default function BudgetPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                   <th className="px-4 py-3 font-medium">Category</th>
+                  <th className="px-4 py-3 font-medium">Cost Code</th>
                   <th className="px-4 py-3 font-medium">Description</th>
                   <th className="px-4 py-3 font-medium text-right">Budgeted</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
@@ -1351,6 +1365,7 @@ export default function BudgetPage() {
                   return (
                     <tr key={b.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2 capitalize">{b.category}</td>
+                      <td className="px-4 py-2 text-gray-700">{b.costCode?.trim() ? b.costCode : '—'}</td>
                       <td className="px-4 py-2 text-gray-700">
                         <div className="flex items-center gap-2">
                           <span>{b.description}</span>
@@ -1393,6 +1408,7 @@ export default function BudgetPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
+                    <th className="px-4 py-3 font-medium">Cost Code</th>
                     <th className="px-4 py-3 font-medium">Description</th>
                     <th className="px-4 py-3 font-medium text-right">Budgeted</th>
                     <th className="px-4 py-3 font-medium">Actions</th>
@@ -1402,6 +1418,7 @@ export default function BudgetPage() {
                   {displayCategoryItems.map((b) => {
                     return (
                       <tr key={b.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 text-gray-700">{b.costCode?.trim() ? b.costCode : '—'}</td>
                         <td className="px-4 py-2 text-gray-700">
                           <div className="flex items-center gap-2">
                             <span>{b.description}</span>
@@ -1454,6 +1471,12 @@ export default function BudgetPage() {
               ))}
             </Select>
           )}
+          <Input
+            label="Cost Code"
+            value={form.costCode ?? ''}
+            onChange={(e) => set('costCode', e.target.value)}
+            placeholder="e.g. 06-200"
+          />
           <Input label="Description *" value={form.description} onChange={(e) => set('description', e.target.value)} />
           <div className="grid grid-cols-1 gap-3">
             <Input label="Budgeted ($)" type="number" min={0} value={form.budgeted} onChange={(e) => set('budgeted', Number(e.target.value))} />
