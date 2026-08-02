@@ -87,7 +87,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
     const currentCount = pinnedPages.length;
 
     if (currentCount > previousCount) {
-      setExpandedSectionIds(['pinned']);
+      setExpandedSectionIds((current) => (current.includes('pinned') ? current : [...current, 'pinned']));
     }
 
     previousPinnedCountRef.current = currentCount;
@@ -106,10 +106,19 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   const isExpanded = (sectionId: string) => expandedSectionIds.includes(sectionId);
   const toggleSection = (sectionId: string) => {
     setExpandedSectionIds((current) => {
-      if (current.includes(sectionId)) {
-        return [];
+      if (sectionId === 'pinned') {
+        if (current.includes('pinned')) {
+          return current.filter((id) => id !== 'pinned');
+        }
+        return [...current, 'pinned'];
       }
-      return [sectionId];
+
+      const pinnedExpanded = current.includes('pinned');
+      if (current.includes(sectionId)) {
+        return pinnedExpanded ? ['pinned'] : [];
+      }
+
+      return pinnedExpanded ? ['pinned', sectionId] : [sectionId];
     });
   };
 
