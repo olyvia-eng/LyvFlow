@@ -3,16 +3,34 @@ import { useStore } from '../../store';
 import { PageHeader, Button, Card, Badge, Modal, Input, Select, TextArea, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Search, Phone, Mail, MapPin } from 'lucide-react';
 import { statusColor } from '../../utils';
-import type { Customer, CustomerStatus } from '../../types';
+import type { Address, Customer, CustomerStatus } from '../../types';
 
 const STATUSES: CustomerStatus[] = ['lead', 'prospect', 'active', 'inactive'];
+
+const emptyProperty = (): Address => ({
+  street: '',
+  city: '',
+  province: '',
+  postalCode: '',
+  country: 'Canada',
+});
+
+const normalizeProperties = (properties?: Address[], legacyAddress?: Address): Address[] => {
+  if (Array.isArray(properties) && properties.length > 0) {
+    return properties.map((property) => ({ ...emptyProperty(), ...property }));
+  }
+  if (legacyAddress) {
+    return [{ ...emptyProperty(), ...legacyAddress }];
+  }
+  return [emptyProperty()];
+};
 
 const emptyCustomer = (): Omit<Customer, 'id' | 'createdAt' | 'updatedAt'> => ({
   name: '',
   company: '',
   email: '',
   phone: '',
-  address: { street: '', city: '', province: '', postalCode: '', country: 'Canada' },
+  properties: [emptyProperty()],
   status: 'lead',
   notes: '',
   tags: [],
@@ -46,7 +64,7 @@ export default function CRMPage() {
     setEditing(c);
     setForm({
       name: c.name, company: c.company, email: c.email, phone: c.phone,
-      address: { ...c.address }, status: c.status, notes: c.notes, tags: c.tags,
+      properties: normalizeProperties(c.properties, c.address), status: c.status, notes: c.notes, tags: c.tags,
     });
     setModalOpen(true);
   };
@@ -63,8 +81,36 @@ export default function CRMPage() {
 
   const set = (key: keyof typeof form, value: unknown) =>
     setForm((f) => ({ ...f, [key]: value }));
-  const setAddr = (key: keyof typeof form.address, value: string) =>
-    setForm((f) => ({ ...f, address: { ...f.address, [key]: value } }));
+  const setProperty = (index: number, key: keyof Address, value: string) =>
+    setForm((current) => ({
+      ...current,
+      properties: current.properties.map((property, propertyIndex) => (
+        propertyIndex === index ? { ...property, [key]: value } : property
+      )),
+    }));
+
+  const addProperty = () => {
+    setForm((current) => ({
+      ...current,
+      properties: [...current.properties, emptyProperty()],
+    }));
+  };
+
+  const removeProperty = (index: number) => {
+    setForm((current) => {
+      if (current.properties.length <= 1) {
+        return {
+          ...current,
+          properties: [emptyProperty()],
+        };
+      }
+
+      return {
+        ...current,
+        properties: current.properties.filter((_, propertyIndex) => propertyIndex !== index),
+      };
+    });
+  };
 
   return (
     <div>
@@ -100,6 +146,11 @@ export default function CRMPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((c) => (
+            (() => {
+              const properties = normalizeProperties(c.properties, c.address);
+              const primaryProperty = properties[0];
+
+              return (
             <Card key={c.id} className="p-4">
               <div className="flex items-start justify-between mb-2">
                 <div className="min-w-0">
@@ -121,12 +172,13 @@ export default function CRMPage() {
                     <a href={`tel:${c.phone}`} className="hover:text-brand-600">{c.phone}</a>
                   </div>
                 )}
-                {c.address.city && (
+                {primaryProperty.city && (
                   <div className="flex items-center gap-2">
                     <MapPin size={13} className="text-gray-400" />
-                    <span>{c.address.city}, {c.address.province}</span>
+                    <span>{primaryProperty.city}, {primaryProperty.province}</span>
                   </div>
                 )}
+                <p className="text-xs text-gray-500">{properties.length} {properties.length === 1 ? 'property' : 'properties'}</p>
               </div>
               {c.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3">
@@ -145,6 +197,8 @@ export default function CRMPage() {
                 </Button>
               </div>
             </Card>
+              );
+            })()
           ))}
         </div>
       )}
@@ -174,17 +228,40 @@ export default function CRMPage() {
             {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
           </Select>
           <fieldset className="border border-gray-200 rounded-lg p-3">
-            <legend className="text-sm font-medium text-gray-700 px-1">Address</legend>
-            <div className="space-y-3 mt-2">
-              <Input label="Street" value={form.address.street} onChange={(e) => setAddr('street', e.target.value)} />
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="City" value={form.address.city} onChange={(e) => setAddr('city', e.target.value)} />
-                <Input label="Province" value={form.address.province} onChange={(e) => setAddr('province', e.target.value)} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Postal Code" value={form.address.postalCode} onChange={(e) => setAddr('postalCode', e.target.value)} />
-                <Input label="Country" value={form.address.country} onChange={(e) => setAddr('country', e.target.value)} />
-              </div>
+            <div className="flex items-center justify-between px-1">
+              <legend className="text-sm font-medium text-gray-700">Properties</legend>
+              <Button type="button" variant="secondary" size="sm" onClick={addProperty}>
+                <Plus size={13} /> Add Property
+              </Button>
+            </div>
+            <div className="space-y-4 mt-3">
+              {form.properties.map((property, index) => (
+                <div key={`property-${index}`} className="rounded-lg border border-gray-100 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Property {index + 1}</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeProperty(index)}
+                      className="text-red-500 hover:bg-red-50"
+                    >
+                      <Trash2 size={12} /> Remove
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    <Input label="Street" value={property.street} onChange={(e) => setProperty(index, 'street', e.target.value)} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input label="City" value={property.city} onChange={(e) => setProperty(index, 'city', e.target.value)} />
+                      <Input label="Province" value={property.province} onChange={(e) => setProperty(index, 'province', e.target.value)} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input label="Postal Code" value={property.postalCode} onChange={(e) => setProperty(index, 'postalCode', e.target.value)} />
+                      <Input label="Country" value={property.country} onChange={(e) => setProperty(index, 'country', e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </fieldset>
           <Input

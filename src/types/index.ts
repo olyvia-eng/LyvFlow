@@ -20,7 +20,8 @@ export interface Customer {
   company: string;
   email: string;
   phone: string;
-  address: Address;
+  properties: Address[];
+  address?: Address;
   status: CustomerStatus;
   notes: string;
   tags: string[];

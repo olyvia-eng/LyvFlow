@@ -624,6 +624,9 @@ export async function listCustomersForBusiness(businessId) {
     company: item.company,
     email: item.email,
     phone: item.phone,
+    properties: Array.isArray(item.properties)
+      ? item.properties
+      : (item.address ? [item.address] : []),
     address: item.address,
     status: item.status,
     notes: item.notes,
@@ -670,6 +673,9 @@ export async function getCustomerForBusiness(businessId, customerId) {
         company: result.Item.company,
         email: result.Item.email,
         phone: result.Item.phone,
+        properties: Array.isArray(result.Item.properties)
+          ? result.Item.properties
+          : (result.Item.address ? [result.Item.address] : []),
         address: result.Item.address,
         status: result.Item.status,
         notes: result.Item.notes,
