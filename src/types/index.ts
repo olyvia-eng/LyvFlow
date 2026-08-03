@@ -202,6 +202,12 @@ export interface LabourBudgetPlan {
   employeeId: ID;
   year: string; // YYYY
   compType: LabourCompType;
+  roleTitle?: string;
+  hoursPerYear?: number;
+  billablePct?: number;
+  payrollBurdenPct?: number;
+  benefitsExtraCost?: number;
+  bonus?: number;
   billableHoursYear: number;
   unbillableHoursYear: number;
   overtimeHoursYear: number;

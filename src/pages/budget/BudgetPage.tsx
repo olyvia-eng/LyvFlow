@@ -102,11 +102,17 @@ const buildLabourPlanId = (employeeId: string, year: string) => `${employeeId}-$
 const buildRevenueSalesGoalId = (scopeType: 'year', scopeValue: string) => `revenue-goal-${scopeType}-${scopeValue}`;
 const DEFAULT_WORKING_DAYS_YEAR = 260;
 
-const defaultLabourPlan = (employeeId: string, year: string, hourlyRate: number): LabourBudgetPlan => ({
+const defaultLabourPlan = (employeeId: string, year: string, hourlyRate: number, role: EmployeeRole): LabourBudgetPlan => ({
   id: buildLabourPlanId(employeeId, year),
   employeeId,
   year,
   compType: 'hourly',
+  roleTitle: toOptionLabel(role),
+  hoursPerYear: 1900,
+  billablePct: 84,
+  payrollBurdenPct: 18,
+  benefitsExtraCost: 0,
+  bonus: 0,
   billableHoursYear: 1600,
   unbillableHoursYear: 300,
   overtimeHoursYear: 0,
@@ -632,7 +638,7 @@ export default function BudgetPage() {
   useEffect(() => {
     for (const employee of employees.filter((value) => value.active)) {
       if (plansByEmployeeId[employee.id]) continue;
-      upsertLabourBudgetPlan(defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate));
+      upsertLabourBudgetPlan(defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate, employee.role));
     }
   }, [employees, plannerYear, plansByEmployeeId, upsertLabourBudgetPlan]);
 
@@ -872,59 +878,67 @@ export default function BudgetPage() {
     (1 + pricingInputs.subcontractorRiskPct / 100) * (1 + pricingInputs.overheadRecoveryPct / 100) / marginDivisor;
   const suggestedSubcontractorMarkupPct = (subcontractorSellMultiplier - 1) * 100;
 
-  const updateLabourPlan = (employeeId: string, key: keyof LabourBudgetPlan, value: number | LabourCompType) => {
+  const updateLabourPlan = (employeeId: string, key: keyof LabourBudgetPlan, value: LabourBudgetPlan[keyof LabourBudgetPlan]) => {
     const employee = activeEmployees.find((value) => value.id === employeeId);
     if (!employee) return;
 
-    const existing = plansByEmployeeId[employeeId] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate);
+    const existing = plansByEmployeeId[employeeId] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate, employee.role);
     const next = { ...existing, [key]: value };
     upsertLabourBudgetPlan(next);
   };
 
-  const updateBillablePct = (employeeId: string, billablePct: number) => {
-    const employee = activeEmployees.find((value) => value.id === employeeId);
-    if (!employee) return;
-
-    const existing = plansByEmployeeId[employeeId] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate);
-    const clampedPct = Math.max(0, Math.min(100, Number.isFinite(billablePct) ? billablePct : 0));
-    const nonOvertimeHours = Math.max(1, existing.billableHoursYear + existing.unbillableHoursYear);
-    const nextBillableHours = Math.round((clampedPct / 100) * nonOvertimeHours);
-    const nextUnbillableHours = Math.max(0, nonOvertimeHours - nextBillableHours);
-
-    upsertLabourBudgetPlan({
-      ...existing,
-      billableHoursYear: nextBillableHours,
-      unbillableHoursYear: nextUnbillableHours,
-    });
-  };
-
   const labourPlannerRows = useMemo(() => {
     return activeEmployees.map((employee) => {
-      const plan = plansByEmployeeId[employee.id] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate);
+      const plan = plansByEmployeeId[employee.id] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate, employee.role);
 
-      const baseHourlyRate = plan.compType === 'hourly'
-        ? plan.hourlyRate
-        : (plan.annualSalary / yearlyHoursBase);
+      const hoursPerYear = Math.max(
+        0,
+        Number.isFinite(plan.hoursPerYear ?? 0)
+          ? (plan.hoursPerYear ?? 0)
+          : 0
+      );
+      const fallbackBillablePct = (plan.billableHoursYear / Math.max(1, plan.billableHoursYear + plan.unbillableHoursYear + plan.overtimeHoursYear)) * 100;
+      const billablePct = Math.max(
+        0,
+        Math.min(100, Number.isFinite(plan.billablePct ?? fallbackBillablePct) ? (plan.billablePct ?? fallbackBillablePct) : 0)
+      );
+      const annualBillableHours = hoursPerYear * (billablePct / 100);
+
+      const wageValue = plan.compType === 'hourly'
+        ? Math.max(0, Number.isFinite(plan.hourlyRate) ? plan.hourlyRate : 0)
+        : Math.max(0, Number.isFinite(plan.annualSalary) ? plan.annualSalary : 0);
       const annualBasePay = plan.compType === 'hourly'
-        ? plan.billableHoursYear * baseHourlyRate
-        : plan.annualSalary;
-      const labourBurdenAmount = annualBasePay * (plan.labourBurdenPct / 100);
-      const annualLabourCost = annualBasePay + labourBurdenAmount;
-      const trueCostPerHour = plan.billableHoursYear > 0
-        ? annualLabourCost / plan.billableHoursYear
+        ? wageValue * hoursPerYear
+        : wageValue;
+
+      const payrollBurdenPct = Math.max(0, Number.isFinite(plan.payrollBurdenPct ?? plan.labourBurdenPct ?? 0) ? (plan.payrollBurdenPct ?? plan.labourBurdenPct ?? 0) : 0);
+      const benefitsExtraCost = Math.max(0, Number.isFinite(plan.benefitsExtraCost ?? 0) ? (plan.benefitsExtraCost ?? 0) : 0);
+      const bonus = Math.max(0, Number.isFinite(plan.bonus ?? 0) ? (plan.bonus ?? 0) : 0);
+      const payrollBurdenAmount = annualBasePay * (payrollBurdenPct / 100);
+      const totalEmployeeCostPerYear = annualBasePay + payrollBurdenAmount + benefitsExtraCost + bonus;
+      const hourlyRate = hoursPerYear > 0
+        ? totalEmployeeCostPerYear / hoursPerYear
         : 0;
-      const suggestedChargeOutRate = (trueCostPerHour * (1 + pricingInputs.overheadRecoveryPct / 100)) / marginDivisor;
-      const annualRevenueGenerated = suggestedChargeOutRate * plan.billableHoursYear;
-      const grossProfitGenerated = annualRevenueGenerated - annualLabourCost;
+
+      const suggestedChargeOutRate = (hourlyRate * (1 + pricingInputs.overheadRecoveryPct / 100)) / marginDivisor;
+      const annualRevenueGenerated = suggestedChargeOutRate * annualBillableHours;
+      const grossProfitGenerated = annualRevenueGenerated - totalEmployeeCostPerYear;
+      const roleTitle = plan.roleTitle?.trim() || toOptionLabel(employee.role);
 
       return {
         employee,
         plan,
-        payBasisRate: baseHourlyRate,
-        labourBurdenAmount,
-        trueCostPerHour,
+        roleTitle,
+        hoursPerYear,
+        billablePct,
+        annualBillableHours,
+        payrollBurdenPct,
+        benefitsExtraCost,
+        bonus,
+        totalEmployeeCostPerYear,
+        hourlyRate,
         suggestedChargeOutRate,
-        annualLabourCost,
+        annualLabourCost: totalEmployeeCostPerYear,
         annualRevenueGenerated,
         grossProfitGenerated,
       };
@@ -938,10 +952,10 @@ export default function BudgetPage() {
 
   const visibleLabourPlannerTotals = useMemo(() => {
     return visibleLabourPlannerRows.reduce((acc, row) => ({
-      annualLabourCost: acc.annualLabourCost + row.annualLabourCost,
+      annualLabourCost: acc.annualLabourCost + row.totalEmployeeCostPerYear,
       annualRevenueGenerated: acc.annualRevenueGenerated + row.annualRevenueGenerated,
       grossProfitGenerated: acc.grossProfitGenerated + row.grossProfitGenerated,
-      billableHoursYear: acc.billableHoursYear + row.plan.billableHoursYear,
+      billableHoursYear: acc.billableHoursYear + row.annualBillableHours,
     }), {
       annualLabourCost: 0,
       annualRevenueGenerated: 0,
@@ -952,10 +966,10 @@ export default function BudgetPage() {
 
   const labourPlannerTotalsAll = useMemo(() => {
     return labourPlannerRows.reduce((acc, row) => ({
-      annualLabourCost: acc.annualLabourCost + row.annualLabourCost,
+      annualLabourCost: acc.annualLabourCost + row.totalEmployeeCostPerYear,
       annualRevenueGenerated: acc.annualRevenueGenerated + row.annualRevenueGenerated,
       grossProfitGenerated: acc.grossProfitGenerated + row.grossProfitGenerated,
-      billableHoursYear: acc.billableHoursYear + row.plan.billableHoursYear,
+      billableHoursYear: acc.billableHoursYear + row.annualBillableHours,
     }), {
       annualLabourCost: 0,
       annualRevenueGenerated: 0,
@@ -997,9 +1011,17 @@ export default function BudgetPage() {
           </div>
           <div>
             <p className="font-medium text-gray-900 leading-tight">{row.employee.name}</p>
-            <p className="text-xs text-gray-500 leading-tight">{row.employee.role.replace('_', ' ')}</p>
+            <p className="text-xs text-gray-500 leading-tight">{row.employee.labourType?.replace('_', ' ') ?? 'field producing'}</p>
           </div>
         </div>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <input
+          type="text"
+          value={row.roleTitle}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'roleTitle', e.target.value)}
+          className="w-32 border border-gray-300 rounded px-2 py-1 text-xs"
+        />
       </td>
       <td className="px-4 py-3 text-center">
         <div className="inline-flex border border-gray-200 rounded-lg p-0.5 bg-white">
@@ -1042,6 +1064,17 @@ export default function BudgetPage() {
           />
         )}
       </td>
+      <td className="px-4 py-3 text-right">
+        <input
+          type="text"
+          inputMode="decimal"
+          min={0}
+          value={formatNumericDisplayValue(row.hoursPerYear)}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'hoursPerYear', parseNumericInputValue(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
       <td className="px-4 py-3 text-center">
         <input
           type="text"
@@ -1049,8 +1082,8 @@ export default function BudgetPage() {
           min={0}
           max={100}
           step={1}
-          value={formatNumericDisplayValue(((row.plan.billableHoursYear / Math.max(1, row.plan.billableHoursYear + row.plan.unbillableHoursYear + row.plan.overtimeHoursYear)) * 100).toFixed(0))}
-          onChange={(e) => updateBillablePct(row.employee.id, parseNumericInputValue(e.target.value))}
+          value={formatNumericDisplayValue(row.billablePct.toFixed(2))}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'billablePct', parseNumericInputValue(e.target.value))}
           onFocus={(e) => e.currentTarget.select()}
           className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
@@ -1061,25 +1094,36 @@ export default function BudgetPage() {
           inputMode="decimal"
           min={0}
           step={0.1}
-          value={formatNumericDisplayValue(row.plan.labourBurdenPct)}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'labourBurdenPct', parseNumericInputValue(e.target.value))}
+          value={formatNumericDisplayValue(row.payrollBurdenPct)}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'payrollBurdenPct', parseNumericInputValue(e.target.value))}
           onFocus={(e) => e.currentTarget.select()}
           className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
       </td>
-      <td className="px-4 py-3 text-right">{formatCurrency(row.trueCostPerHour)}</td>
       <td className="px-4 py-3 text-right">
         <input
           type="text"
           inputMode="decimal"
           min={0}
-          value={formatNumericDisplayValue(row.plan.billableHoursYear)}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'billableHoursYear', parseNumericInputValue(e.target.value))}
+          value={formatNumericDisplayValue(row.benefitsExtraCost)}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'benefitsExtraCost', parseNumericInputValue(e.target.value))}
           onFocus={(e) => e.currentTarget.select()}
           className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
       </td>
-      <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.annualLabourCost)}</td>
+      <td className="px-4 py-3 text-right">
+        <input
+          type="text"
+          inputMode="decimal"
+          min={0}
+          value={formatNumericDisplayValue(row.bonus)}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'bonus', parseNumericInputValue(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
+      <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.totalEmployeeCostPerYear)}</td>
+      <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.hourlyRate)}</td>
       <td className="px-4 py-3 text-center">
         <Link to="/employees" className="text-gray-500 hover:text-brand-700" aria-label="Edit employee">
           <Pencil size={14} />
@@ -1092,8 +1136,9 @@ export default function BudgetPage() {
     <details className="rounded-lg border border-gray-200 bg-white mt-4">
       <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-gray-700">Show Calculation Details</summary>
       <div className="px-4 pb-4 text-sm text-gray-600 space-y-2">
-        <p>True Cost per Hour = Annual Labour Cost / Annual Billable Hours</p>
-        <p>Suggested Charge-Out Rate = True Cost per Hour x (1 + Overhead Recovery %) / (1 - Target Margin %)</p>
+        <p>Total Cost per Employee per Year = Annual Wage + Payroll Burden + Benefits/Extra Cost + Bonus</p>
+        <p>Hourly Rate = Total Cost per Employee per Year / Hours per Year</p>
+        <p>Suggested Charge-Out Rate = Hourly Rate x (1 + Overhead Recovery %) / (1 - Target Margin %)</p>
         <p>Annual Revenue Generated = Annual Billable Hours x Suggested Charge-Out Rate</p>
         <p>Gross Profit Generated = Annual Revenue Generated - Annual Labour Cost</p>
         <p className="text-xs text-gray-500 mt-2">Current assumptions: Overhead Recovery {pricingInputs.overheadRecoveryPct.toFixed(1)}%, Target Margin {pricingInputs.targetMarginPct.toFixed(1)}%.</p>
@@ -1114,7 +1159,7 @@ export default function BudgetPage() {
             <Button variant="secondary" onClick={() => openExportModal('pnl_detailed')}><FileDown size={16} /> Export P&L PDF</Button>
             <Button variant="secondary" onClick={() => openExportModal('budget')}><FileDown size={16} /> Export PDF</Button>
             {activeTab === 'labour' ? (
-              <Button onClick={() => { window.location.href = '/employees'; }}><Plus size={16} /> Add Employee</Button>
+              <Button onClick={openLabourItemModal}><Plus size={16} /> Add Labour Item</Button>
             ) : (
               <Button onClick={openNew}><Plus size={16} /> Add Budget Item</Button>
             )}
@@ -1385,17 +1430,20 @@ export default function BudgetPage() {
               <p className="text-sm text-gray-400 p-4">No active labour items yet. Add a labour item to start your planner.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[1400px]">
+                <table className="w-full text-sm min-w-[1750px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                       <th className="px-4 py-3 font-medium">Employee</th>
+                      <th className="px-4 py-3 font-medium text-right">Role</th>
                       <th className="px-4 py-3 font-medium text-center">Wage Type</th>
-                      <th className="px-4 py-3 font-medium text-right">Hourly Wage / Salary</th>
+                      <th className="px-4 py-3 font-medium text-right">Wage</th>
+                      <th className="px-4 py-3 font-medium text-right">Hours per Year</th>
                       <th className="px-4 py-3 font-medium text-center">Billable %</th>
-                      <th className="px-4 py-3 font-medium text-right">Labour Burden (%)</th>
-                      <th className="px-4 py-3 font-medium text-right">True Cost / Hr</th>
-                      <th className="px-4 py-3 font-medium text-right">Annual Billable Hours</th>
-                      <th className="px-4 py-3 font-medium text-right">Annual Labour Cost</th>
+                      <th className="px-4 py-3 font-medium text-right">Payroll Burden (%)</th>
+                      <th className="px-4 py-3 font-medium text-right">Benefits / Extra Cost</th>
+                      <th className="px-4 py-3 font-medium text-right">Bonus</th>
+                      <th className="px-4 py-3 font-medium text-right">Total Cost per Year</th>
+                      <th className="px-4 py-3 font-medium text-right">Hourly Rate</th>
                       <th className="px-4 py-3 font-medium text-center">Actions</th>
                     </tr>
                   </thead>
@@ -1403,11 +1451,11 @@ export default function BudgetPage() {
                     {labourTableView === 'all' ? (
                       <>
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={9}>Hourly Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={12}>Hourly Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'hourly').map((row) => renderLabourPlannerRow(row))}
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={9}>Salaried Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={12}>Salaried Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'salaried').map((row) => renderLabourPlannerRow(row))}
                       </>
@@ -1416,13 +1464,17 @@ export default function BudgetPage() {
                     )}
                     {visibleLabourPlannerRows.length === 0 && (
                       <tr>
-                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={9}>No employees in this compensation type view yet.</td>
+                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={12}>No employees in this compensation type view yet.</td>
                       </tr>
                     )}
                     <tr className="bg-gray-50">
-                      <td className="px-4 py-2 font-semibold" colSpan={6}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
-                      <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.billableHoursYear.toFixed(0)}</td>
+                      <td className="px-4 py-2 font-semibold" colSpan={9}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
                       <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualLabourCost)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">
+                        {visibleLabourPlannerTotals.billableHoursYear > 0
+                          ? formatCurrency(visibleLabourPlannerTotals.annualLabourCost / visibleLabourPlannerTotals.billableHoursYear)
+                          : formatCurrency(0)}
+                      </td>
                       <td className="px-4 py-2 text-center">—</td>
                     </tr>
                   </tbody>
@@ -1465,7 +1517,7 @@ export default function BudgetPage() {
             </div>
           </Card>
 
-          <p className="text-xs text-gray-500 flex items-center gap-1 -mt-2 mb-4"><Info size={12} /> True Cost per Hour includes wage plus burden components configured in your assumptions.</p>
+          <p className="text-xs text-gray-500 flex items-center gap-1 -mt-2 mb-4"><Info size={12} /> Hourly Rate = Total Cost of Employee per Year / Hours per Year.</p>
         </>
       )}
 
