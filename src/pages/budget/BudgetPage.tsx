@@ -17,6 +17,15 @@ type EquipmentTableView = 'all' | EquipmentCostType;
 
 const EQUIPMENT_COST_TYPES: EquipmentCostType[] = ['financed', 'leased', 'other'];
 
+const CATEGORY_BY_TAB: Record<Exclude<BudgetTab, 'analysis'>, BudgetCategory> = {
+  revenue: 'revenue',
+  labour: 'labour',
+  materials: 'materials',
+  equipment: 'equipment',
+  subcontractors: 'subcontractors',
+  overhead: 'overhead',
+};
+
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
 
 const empty = (): Omit<BudgetItem, 'id'> => ({
@@ -92,8 +101,14 @@ export default function BudgetPage() {
 
   const openNew = () => {
     const defaultPeriod = `${year}-01`;
+    const defaultCategory = activeTab === 'analysis' ? 'revenue' : CATEGORY_BY_TAB[activeTab];
     setEditing(null);
-    setForm({ ...empty(), period: defaultPeriod });
+    setForm({
+      ...empty(),
+      category: defaultCategory,
+      equipmentCostType: defaultCategory === 'equipment' ? 'financed' : undefined,
+      period: defaultPeriod,
+    });
     setModalOpen(true);
   };
   const openEdit = (b: BudgetItem) => {
@@ -122,16 +137,6 @@ export default function BudgetPage() {
     setModalOpen(false);
   };
   const set = (key: keyof typeof form, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
-
-  const setCategory = (category: BudgetCategory) => {
-    setForm((current) => ({
-      ...current,
-      category,
-      equipmentCostType: category === 'equipment'
-        ? (current.equipmentCostType ?? 'financed')
-        : undefined,
-    }));
-  };
 
   const openCategoryEditor = (category: BudgetCategory) => {
     const existingItem = items.find((item) => item.category === category);
@@ -1438,9 +1443,11 @@ export default function BudgetPage() {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Select label="Category" value={form.category} onChange={(e) => setCategory(e.target.value as BudgetCategory)}>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-            </Select>
+            <Input
+              label="Category"
+              value={form.category.charAt(0).toUpperCase() + form.category.slice(1)}
+              disabled
+            />
             <Input label="Year" value={year} disabled />
           </div>
           {form.category === 'equipment' && (
