@@ -113,6 +113,8 @@ export interface Job {
 // ─── Employees & Time Tracking ───────────────────────────────────────────────
 
 export type EmployeeRole = 'admin' | 'foreman' | 'crew_member';
+export type EmployeeCompensationType = 'hourly' | 'salary';
+export type EmployeeLabourType = 'field_producing' | 'overhead';
 
 export interface Employee {
   id: ID;
@@ -121,6 +123,8 @@ export interface Employee {
   phone: string;
   role: EmployeeRole;
   hourlyRate: number;
+  compensationType?: EmployeeCompensationType;
+  labourType?: EmployeeLabourType;
   active: boolean;
   createdAt: string;
 }

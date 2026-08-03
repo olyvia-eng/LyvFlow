@@ -1362,6 +1362,8 @@ export async function listEmployeesForBusiness(businessId) {
     phone: item.phone,
     role: item.role,
     hourlyRate: item.hourlyRate,
+    compensationType: item.compensationType ?? 'hourly',
+    labourType: item.labourType ?? 'field_producing',
     active: item.active,
     createdAt: item.createdAt,
   }));
@@ -1405,6 +1407,8 @@ export async function getEmployeeForBusiness(businessId, employeeId) {
         phone: result.Item.phone,
         role: normalizeEmployeeRole(result.Item.role),
         hourlyRate: result.Item.hourlyRate,
+        compensationType: result.Item.compensationType ?? 'hourly',
+        labourType: result.Item.labourType ?? 'field_producing',
         active: result.Item.active,
         createdAt: result.Item.createdAt,
       }

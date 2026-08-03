@@ -48,6 +48,8 @@ async function ensureEmployeeProfileForUser({ businessId, name, email, role }) {
       phone: '',
       role,
       hourlyRate: 0,
+      compensationType: 'hourly',
+      labourType: 'field_producing',
       active: true,
       createdAt: nowIso(),
     },

@@ -308,7 +308,7 @@ export default function JobDetailPage() {
               {assignedEmployees.map((emp) => (
                 <li key={emp.id} className="flex items-center justify-between text-sm">
                   <span>{emp.name}</span>
-                  <span className="text-gray-400 capitalize">{emp.role} · ${emp.hourlyRate}/hr</span>
+                  <span className="text-gray-400 capitalize">{emp.role.replace('_', ' ')} · ${emp.hourlyRate}/hr</span>
                 </li>
               ))}
             </ul>

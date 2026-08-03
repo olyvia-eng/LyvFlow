@@ -7,20 +7,67 @@ import type { Employee, EmployeeRole } from '../../types';
 import ClockInModal from './ClockInModal';
 
 const ROLES: EmployeeRole[] = ['admin', 'foreman', 'crew_member'];
+const COMPENSATION_TYPES = ['hourly', 'salary'] as const;
+const LABOUR_TYPES = ['field_producing', 'overhead'] as const;
+
+type CompensationType = (typeof COMPENSATION_TYPES)[number];
+type LabourType = (typeof LABOUR_TYPES)[number];
+
+type EmployeeForm = Omit<Employee, 'id' | 'createdAt' | 'name'> & {
+  firstName: string;
+  lastName: string;
+  compensationType: CompensationType;
+  labourType: LabourType;
+};
+
+const roleLabel: Record<EmployeeRole, string> = {
+  admin: 'admin',
+  foreman: 'foreman',
+  crew_member: 'crew member',
+};
+
+const labourTypeLabel: Record<LabourType, string> = {
+  field_producing: 'field producing',
+  overhead: 'overhead',
+};
+
 const roleColor: Record<EmployeeRole, string> = {
   admin: 'bg-purple-100 text-purple-700',
   foreman: 'bg-blue-100 text-blue-700',
   crew_member: 'bg-green-100 text-green-700',
 };
 
-const empty = (): Omit<Employee, 'id' | 'createdAt'> => ({
-  name: '',
+const compensationTypeLabel: Record<CompensationType, string> = {
+  hourly: 'hourly',
+  salary: 'salary',
+};
+
+const compensationTypeColor: Record<CompensationType, string> = {
+  hourly: 'bg-gray-100 text-gray-700',
+  salary: 'bg-indigo-100 text-indigo-700',
+};
+
+const empty = (): EmployeeForm => ({
+  firstName: '',
+  lastName: '',
   email: '',
   phone: '',
   role: 'crew_member',
   hourlyRate: 30,
+  compensationType: 'hourly',
+  labourType: 'field_producing',
   active: true,
 });
+
+const parseName = (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) return { firstName: '', lastName: '' };
+  const [firstName, ...rest] = trimmed.split(/\s+/);
+  return {
+    firstName,
+    lastName: rest.join(' '),
+  };
+};
 
 export default function EmployeesPage() {
   const { employees, timeEntries, jobs, addEmployee, updateEmployee, deleteEmployee, clockOut } = useStore();
@@ -42,8 +89,19 @@ export default function EmployeesPage() {
     setModalOpen(true);
   };
   const openEdit = (e: Employee) => {
+    const parsed = parseName(e.name);
     setEditing(e);
-    setForm({ name: e.name, email: e.email, phone: e.phone, role: e.role, hourlyRate: e.hourlyRate, active: e.active });
+    setForm({
+      firstName: parsed.firstName,
+      lastName: parsed.lastName,
+      email: e.email,
+      phone: e.phone,
+      role: e.role,
+      hourlyRate: e.hourlyRate,
+      compensationType: e.compensationType ?? 'hourly',
+      labourType: e.labourType ?? 'field_producing',
+      active: e.active,
+    });
     setNewPassword('');
     setFormError('');
     setModalOpen(true);
@@ -52,8 +110,10 @@ export default function EmployeesPage() {
   const handleSave = async () => {
     setFormError('');
 
-    if (!form.name.trim()) {
-      setFormError('Full name is required.');
+    const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim();
+
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setFormError('First and last name are required.');
       return;
     }
 
@@ -62,8 +122,19 @@ export default function EmployeesPage() {
       return;
     }
 
+    const employeePayload: Omit<Employee, 'id' | 'createdAt'> = {
+      name: fullName,
+      email: form.email,
+      phone: form.phone,
+      role: form.role,
+      hourlyRate: form.hourlyRate,
+      compensationType: form.compensationType,
+      labourType: form.labourType,
+      active: form.active,
+    };
+
     if (editing) {
-      updateEmployee(editing.id, form);
+      updateEmployee(editing.id, employeePayload);
       setModalOpen(false);
       return;
     }
@@ -82,7 +153,7 @@ export default function EmployeesPage() {
         },
         credentials: 'include',
         body: JSON.stringify({
-          name: form.name,
+          name: fullName,
           email: form.email,
           password: newPassword,
           role: form.role,
@@ -113,7 +184,7 @@ export default function EmployeesPage() {
       return;
     }
 
-    addEmployee(form);
+    addEmployee(employeePayload);
     setModalOpen(false);
   };
 
@@ -187,6 +258,7 @@ export default function EmployeesPage() {
               (s, te) => s + durationHours(te.clockIn, te.clockOut, te.breakMinutes),
               0
             );
+            const compensationType = emp.compensationType ?? 'hourly';
 
             return (
               <Card key={emp.id} className="p-4">
@@ -195,10 +267,14 @@ export default function EmployeesPage() {
                     <p className="font-semibold text-gray-900">{emp.name}</p>
                     <p className="text-sm text-gray-500">{emp.email}</p>
                   </div>
-                  <Badge label={emp.role} className={roleColor[emp.role]} />
+                  <div className="flex items-center gap-2">
+                    <Badge label={compensationTypeLabel[compensationType]} className={compensationTypeColor[compensationType]} />
+                    <Badge label={roleLabel[emp.role]} className={roleColor[emp.role]} />
+                  </div>
                 </div>
                 <div className="text-sm text-gray-600 space-y-1">
-                  <p>{formatCurrency(emp.hourlyRate)}/hr</p>
+                  <p>{formatCurrency(emp.hourlyRate)}{compensationType === 'salary' ? '/yr' : '/hr'}</p>
+                  <p className="text-xs text-gray-500 capitalize">{labourTypeLabel[emp.labourType ?? 'field_producing']}</p>
                   <p className="text-xs text-gray-400">Today: {todayHours.toFixed(2)} hrs</p>
                 </div>
 
@@ -285,16 +361,43 @@ export default function EmployeesPage() {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Full Name *" value={form.name} onChange={(e) => set('name', e.target.value)} />
+            <Input label="First Name *" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
+            <Input label="Last Name *" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Select label="Role" value={form.role} onChange={(e) => set('role', e.target.value as EmployeeRole)}>
-              {ROLES.map((r) => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+              {ROLES.map((r) => <option key={r} value={r}>{roleLabel[r]}</option>)}
+            </Select>
+            <Select label="Labour Type" value={form.labourType} onChange={(e) => set('labourType', e.target.value as LabourType)}>
+              {LABOUR_TYPES.map((type) => <option key={type} value={type}>{labourTypeLabel[type]}</option>)}
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Input label="Email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
             <Input label="Phone" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
           </div>
-          <Input label="Hourly Rate ($)" type="number" min={0} value={form.hourlyRate} onChange={(e) => set('hourlyRate', Number(e.target.value))} />
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-gray-700">Pay Type</p>
+            <div className="inline-flex border border-gray-200 rounded-lg p-0.5 bg-white">
+              {COMPENSATION_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => set('compensationType', type)}
+                  className={`px-3 py-1 text-xs rounded ${form.compensationType === type ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  {type === 'salary' ? 'Salary' : 'Hourly'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Input
+            label={form.compensationType === 'salary' ? 'Salary Rate ($)' : 'Hourly Rate ($)'}
+            type="number"
+            min={0}
+            value={form.hourlyRate}
+            onChange={(e) => set('hourlyRate', Number(e.target.value))}
+          />
           {!editing && (
             <Input
               label="Employee Login Password *"
