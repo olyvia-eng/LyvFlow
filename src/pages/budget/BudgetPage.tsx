@@ -755,10 +755,6 @@ export default function BudgetPage() {
         />
       </td>
       <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.annualLabourCost)}</td>
-      <td className="px-4 py-3 text-right">{formatCurrency(row.annualRevenueGenerated)}</td>
-      <td className={`px-4 py-3 text-right font-semibold ${row.grossProfitGenerated >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-        {formatCurrency(row.grossProfitGenerated)}
-      </td>
       <td className="px-4 py-3 text-center">
         <Link to="/employees" className="text-gray-500 hover:text-brand-700" aria-label="Edit employee">
           <Pencil size={14} />
@@ -871,6 +867,37 @@ export default function BudgetPage() {
               </Card>
             </button>
           </div>
+
+          <Card className="p-4 mb-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Revenue Goal Planner</h2>
+              <p className="text-sm text-gray-500 mt-1">Set a revenue goal and working days for {scopeLabel} to see daily revenue required to hit target.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <Input
+                label="Revenue Goal"
+                type="number"
+                min={0}
+                value={currentRevenuePlan.goalRevenue}
+                onChange={(e) => updateRevenuePlan('goalRevenue', Number(e.target.value))}
+              />
+              <Input
+                label="Working Days"
+                type="number"
+                min={1}
+                value={currentRevenuePlan.workingDays}
+                onChange={(e) => updateRevenuePlan('workingDays', Number(e.target.value))}
+              />
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Revenue / Day Needed</p>
+                <p className="text-lg font-semibold text-gray-900">{formatCurrency(revenuePerDayNeeded)}</p>
+              </Card>
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Working Days</p>
+                <p className="text-lg font-semibold text-gray-900">{currentRevenuePlan.workingDays}</p>
+              </Card>
+            </div>
+          </Card>
 
           <Card className="p-4 mb-6">
             <div className="mb-4">
@@ -1052,8 +1079,6 @@ export default function BudgetPage() {
                       <th className="px-4 py-3 font-medium text-right">True Cost / Hr</th>
                       <th className="px-4 py-3 font-medium text-right">Annual Billable Hours</th>
                       <th className="px-4 py-3 font-medium text-right">Annual Labour Cost</th>
-                      <th className="px-4 py-3 font-medium text-right">Annual Revenue Generated</th>
-                      <th className="px-4 py-3 font-medium text-right">Gross Profit Generated</th>
                       <th className="px-4 py-3 font-medium text-center">Actions</th>
                     </tr>
                   </thead>
@@ -1061,11 +1086,11 @@ export default function BudgetPage() {
                     {labourTableView === 'all' ? (
                       <>
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={11}>Hourly Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={9}>Hourly Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'hourly').map((row) => renderLabourPlannerRow(row))}
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={11}>Salaried Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={9}>Salaried Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'salaried').map((row) => renderLabourPlannerRow(row))}
                       </>
@@ -1074,17 +1099,13 @@ export default function BudgetPage() {
                     )}
                     {visibleLabourPlannerRows.length === 0 && (
                       <tr>
-                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={11}>No employees in this compensation type view yet.</td>
+                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={9}>No employees in this compensation type view yet.</td>
                       </tr>
                     )}
                     <tr className="bg-gray-50">
                       <td className="px-4 py-2 font-semibold" colSpan={6}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
                       <td className="px-4 py-2 text-right font-semibold">{visibleLabourPlannerTotals.billableHoursYear.toFixed(0)}</td>
                       <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualLabourCost)}</td>
-                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualRevenueGenerated)}</td>
-                      <td className={`px-4 py-2 text-right font-semibold ${visibleLabourPlannerTotals.grossProfitGenerated >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                        {formatCurrency(visibleLabourPlannerTotals.grossProfitGenerated)}
-                      </td>
                       <td className="px-4 py-2 text-center">—</td>
                     </tr>
                   </tbody>
@@ -1141,45 +1162,7 @@ export default function BudgetPage() {
               <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
-            <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-              <Card className="p-4 hover:border-brand-300 cursor-pointer">
-                <p className="text-xs text-gray-500">Revenue Goal</p>
-                <p className="text-xl font-bold text-gray-900">{formatCurrency(currentRevenuePlan.goalRevenue)}</p>
-              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-              </Card>
-            </button>
           </div>
-
-          <Card className="p-4 mb-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Revenue Goal Planner</h2>
-              <p className="text-sm text-gray-500 mt-1">Set a revenue goal and working days for {scopeLabel} to see daily revenue required to hit target.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              <Input
-                label="Revenue Goal"
-                type="number"
-                min={0}
-                value={currentRevenuePlan.goalRevenue}
-                onChange={(e) => updateRevenuePlan('goalRevenue', Number(e.target.value))}
-              />
-              <Input
-                label="Working Days"
-                type="number"
-                min={1}
-                value={currentRevenuePlan.workingDays}
-                onChange={(e) => updateRevenuePlan('workingDays', Number(e.target.value))}
-              />
-              <Card className="p-3 border border-gray-100">
-                <p className="text-xs text-gray-500">Revenue / Day Needed</p>
-                <p className="text-lg font-semibold text-gray-900">{formatCurrency(revenuePerDayNeeded)}</p>
-              </Card>
-              <Card className="p-3 border border-gray-100">
-                <p className="text-xs text-gray-500">Working Days</p>
-                <p className="text-lg font-semibold text-gray-900">{currentRevenuePlan.workingDays}</p>
-              </Card>
-            </div>
-          </Card>
         </>
       )}
 
