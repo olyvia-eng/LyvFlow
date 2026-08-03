@@ -5,7 +5,17 @@ import { PageHeader, Button, Card, Modal, Input, Select, EmptyState } from '../.
 import { Plus, Pencil, Trash2, FileDown, Info, Users, Target, BadgeDollarSign } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
-import type { BudgetItem, BudgetCategory, LabourBudgetPlan, LabourCompType, EquipmentCostType, RevenueSalesGoal } from '../../types';
+import type {
+  BudgetItem,
+  BudgetCategory,
+  LabourBudgetPlan,
+  LabourCompType,
+  EquipmentCostType,
+  RevenueSalesGoal,
+  Employee,
+  EmployeeRole,
+  EmployeeLabourType,
+} from '../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -106,12 +116,50 @@ const defaultLabourPlan = (employeeId: string, year: string, hourlyRate: number)
   labourBurdenPct: 18,
 });
 
+const LABOUR_ITEM_ROLES: EmployeeRole[] = ['admin', 'foreman', 'crew_member'];
+const LABOUR_ITEM_COMP_TYPES = ['hourly', 'salary'] as const;
+const LABOUR_ITEM_TYPES: EmployeeLabourType[] = ['field_producing', 'overhead'];
+
+type LabourItemCompType = (typeof LABOUR_ITEM_COMP_TYPES)[number];
+
+type LabourItemForm = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  role: EmployeeRole;
+  hourlyRate: number;
+  compensationType: LabourItemCompType;
+  labourType: EmployeeLabourType;
+  active: boolean;
+};
+
+const emptyLabourItemForm = (): LabourItemForm => ({
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  role: 'crew_member',
+  hourlyRate: 30,
+  compensationType: 'hourly',
+  labourType: 'field_producing',
+  active: true,
+});
+
+const toOptionLabel = (value: string) => value
+  .split('_')
+  .join(' ')
+  .split(' ')
+  .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+  .join(' ');
+
 export default function BudgetPage() {
   const {
     budgetItems,
     labourBudgetPlans,
     revenueSalesGoals,
     employees,
+    addEmployee,
     addBudgetItem,
     updateBudgetItem,
     deleteBudgetItem,
@@ -134,6 +182,11 @@ export default function BudgetPage() {
   const [showEquipmentCalcDetails, setShowEquipmentCalcDetails] = useState(false);
   const [averageFuelPriceInput, setAverageFuelPriceInput] = useState('0');
   const [averageFuelBurnPerHourInput, setAverageFuelBurnPerHourInput] = useState('0');
+  const [labourItemModalOpen, setLabourItemModalOpen] = useState(false);
+  const [labourItemForm, setLabourItemForm] = useState<LabourItemForm>(emptyLabourItemForm());
+  const [createAsEmployee, setCreateAsEmployee] = useState(false);
+  const [labourItemPassword, setLabourItemPassword] = useState('');
+  const [labourItemError, setLabourItemError] = useState('');
   const [pricingInputs, setPricingInputs] = useState({
     payrollBurdenPct: 18,
     overheadRecoveryPct: 15,
@@ -297,6 +350,96 @@ export default function BudgetPage() {
       setShowEquipmentCalcDetails(false);
     }
     setModalOpen(true);
+  };
+
+  const setLabourField = (key: keyof LabourItemForm, value: unknown) => {
+    setLabourItemForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const openLabourItemModal = () => {
+    setLabourItemForm(emptyLabourItemForm());
+    setCreateAsEmployee(false);
+    setLabourItemPassword('');
+    setLabourItemError('');
+    setLabourItemModalOpen(true);
+  };
+
+  const handleCreateLabourItem = async () => {
+    setLabourItemError('');
+    const firstName = labourItemForm.firstName.trim();
+    const lastName = labourItemForm.lastName.trim();
+    if (!firstName || !lastName) {
+      setLabourItemError('First and last name are required.');
+      return;
+    }
+
+    const fullName = `${firstName} ${lastName}`.trim();
+    const normalizedEmail = labourItemForm.email.trim();
+
+    if (createAsEmployee) {
+      if (!normalizedEmail) {
+        setLabourItemError('Email is required when creating as employee.');
+        return;
+      }
+      if (labourItemPassword.length < 8) {
+        setLabourItemError('Password must be at least 8 characters.');
+        return;
+      }
+
+      let response: Response;
+      try {
+        response = await fetch('/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: fullName,
+            email: normalizedEmail,
+            password: labourItemPassword,
+            role: labourItemForm.role,
+          }),
+        });
+      } catch {
+        setLabourItemError('Could not reach the API. Run npm run dev:full for local API routes.');
+        return;
+      }
+
+      let apiError = 'Could not create employee login.';
+      try {
+        const payload = await response.json();
+        if (typeof payload?.error === 'string') apiError = payload.error;
+      } catch {
+        // Ignore JSON parsing errors and use generic message.
+      }
+
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') ?? '';
+        if (
+          apiError === 'Could not create employee login.'
+          && (response.status === 404 || !contentType.includes('application/json'))
+        ) {
+          apiError = 'API route unavailable. Run npm run dev:full for local API routes.';
+        }
+        setLabourItemError(apiError);
+        return;
+      }
+    }
+
+    const employeePayload: Omit<Employee, 'id' | 'createdAt'> = {
+      name: fullName,
+      email: createAsEmployee ? normalizedEmail : '',
+      phone: labourItemForm.phone,
+      role: labourItemForm.role,
+      hourlyRate: labourItemForm.hourlyRate,
+      compensationType: labourItemForm.compensationType,
+      labourType: labourItemForm.labourType,
+      active: labourItemForm.active,
+    };
+
+    addEmployee(employeePayload);
+    setLabourItemModalOpen(false);
   };
 
   // Summaries
@@ -1239,7 +1382,7 @@ export default function BudgetPage() {
               </div>
             </div>
             {labourPlannerRows.length === 0 ? (
-              <p className="text-sm text-gray-400 p-4">No active employees yet. Add employees first to build your labour planner.</p>
+              <p className="text-sm text-gray-400 p-4">No active labour items yet. Add a labour item to start your planner.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[1400px]">
@@ -1316,9 +1459,9 @@ export default function BudgetPage() {
             </div>
 
             <div className="px-4 py-3 border-t border-gray-100">
-              <Link to="/employees" className="inline-flex items-center gap-2 rounded-lg border border-dashed border-brand-300 px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50">
-                <Plus size={14} /> Add Employee
-              </Link>
+              <Button variant="secondary" onClick={openLabourItemModal}>
+                <Plus size={14} /> Add Labour Item
+              </Button>
             </div>
           </Card>
 
@@ -1870,6 +2013,108 @@ export default function BudgetPage() {
               />
             )}
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={labourItemModalOpen}
+        onClose={() => setLabourItemModalOpen(false)}
+        title="Add Labour Item"
+        footer={<>
+          <Button variant="secondary" onClick={() => setLabourItemModalOpen(false)}>Cancel</Button>
+          <Button onClick={() => void handleCreateLabourItem()}>Save Labour Item</Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="First Name *" value={labourItemForm.firstName} onChange={(e) => setLabourField('firstName', e.target.value)} />
+            <Input label="Last Name *" value={labourItemForm.lastName} onChange={(e) => setLabourField('lastName', e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Select label="Role" value={labourItemForm.role} onChange={(e) => setLabourField('role', e.target.value as EmployeeRole)}>
+              {LABOUR_ITEM_ROLES.map((role) => (
+                <option key={role} value={role}>{toOptionLabel(role)}</option>
+              ))}
+            </Select>
+            <Select
+              label="Labour Type"
+              value={labourItemForm.labourType}
+              onChange={(e) => setLabourField('labourType', e.target.value as EmployeeLabourType)}
+            >
+              {LABOUR_ITEM_TYPES.map((labourType) => (
+                <option key={labourType} value={labourType}>{toOptionLabel(labourType)}</option>
+              ))}
+            </Select>
+          </div>
+
+          <Input label="Phone" value={labourItemForm.phone} onChange={(e) => setLabourField('phone', e.target.value)} />
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-gray-700">Pay Type</p>
+            <div className="inline-flex border border-gray-200 rounded-lg p-0.5 bg-white">
+              {LABOUR_ITEM_COMP_TYPES.map((compType) => (
+                <button
+                  key={compType}
+                  type="button"
+                  onClick={() => setLabourField('compensationType', compType)}
+                  className={`px-3 py-1 text-xs rounded ${labourItemForm.compensationType === compType ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  {toOptionLabel(compType)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Input
+            label={labourItemForm.compensationType === 'salary' ? 'Salary Rate ($)' : 'Hourly Rate ($)'}
+            type="number"
+            min={0}
+            value={labourItemForm.hourlyRate}
+            onChange={(e) => setLabourField('hourlyRate', parseNumericInputValue(e.target.value))}
+          />
+
+          <div className="flex items-center gap-2">
+            <input
+              id="labour-item-active"
+              type="checkbox"
+              checked={labourItemForm.active}
+              onChange={(e) => setLabourField('active', e.target.checked)}
+            />
+            <label htmlFor="labour-item-active" className="text-sm text-gray-700">Active Labour Item</label>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex items-center gap-2">
+              <input
+                id="create-as-employee"
+                type="checkbox"
+                checked={createAsEmployee}
+                onChange={(e) => setCreateAsEmployee(e.target.checked)}
+              />
+              <label htmlFor="create-as-employee" className="text-sm font-medium text-gray-700">Create as Employee</label>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Enable this to also create a login account for this labour item.</p>
+          </div>
+
+          {createAsEmployee && (
+            <div className="grid grid-cols-1 gap-3">
+              <Input
+                label="Email *"
+                type="email"
+                value={labourItemForm.email}
+                onChange={(e) => setLabourField('email', e.target.value)}
+              />
+              <Input
+                label="Employee Login Password *"
+                type="password"
+                value={labourItemPassword}
+                onChange={(e) => setLabourItemPassword(e.target.value)}
+              />
+            </div>
+          )}
+
+          {labourItemError && <p className="text-sm text-red-600">{labourItemError}</p>}
         </div>
       </Modal>
 
