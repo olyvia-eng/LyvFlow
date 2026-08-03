@@ -55,6 +55,9 @@ const empty = (): Omit<BudgetItem, 'id'> => ({
   averageFuelPrice: undefined,
   averageFuelBurnPerHour: undefined,
   fuelCostPerHour: undefined,
+  yearlyInsuranceCost: undefined,
+  yearlyMaintenanceCost: undefined,
+  equipmentHoursPerDay: undefined,
   monthlyInsuranceCost: undefined,
   monthlyMaintenanceCost: undefined,
   sellableHoursPerYear: undefined,
@@ -72,8 +75,9 @@ const equipmentInfoDefaults = () => ({
   averageFuelPrice: 0,
   averageFuelBurnPerHour: 0,
   fuelCostPerHour: 0,
-  monthlyInsuranceCost: 0,
-  monthlyMaintenanceCost: 0,
+  yearlyInsuranceCost: 0,
+  yearlyMaintenanceCost: 0,
+  equipmentHoursPerDay: 8,
   sellableHoursPerYear: 0,
   actualMachineHoursPerYear: 0,
 });
@@ -183,8 +187,9 @@ export default function BudgetPage() {
       averageFuelPrice,
       averageFuelBurnPerHour,
       fuelCostPerHour: b.fuelCostPerHour,
-      monthlyInsuranceCost: b.monthlyInsuranceCost,
-      monthlyMaintenanceCost: b.monthlyMaintenanceCost,
+      yearlyInsuranceCost: b.yearlyInsuranceCost ?? ((b.monthlyInsuranceCost ?? 0) * 12),
+      yearlyMaintenanceCost: b.yearlyMaintenanceCost ?? ((b.monthlyMaintenanceCost ?? 0) * 12),
+      equipmentHoursPerDay: b.equipmentHoursPerDay ?? 8,
       sellableHoursPerYear: b.sellableHoursPerYear,
       actualMachineHoursPerYear: b.actualMachineHoursPerYear,
       description: b.description,
@@ -207,14 +212,15 @@ export default function BudgetPage() {
     const normalizedFuelCostPerHour = normalizedFuelPrice * normalizedFuelBurnPerHour;
     const normalizedEquipmentPayment = normalizeNumber(form.equipmentPayment);
     const normalizedEquipmentPaymentFrequencyPerYear = normalizeNumber(form.equipmentPaymentFrequencyPerYear);
-    const normalizedMonthlyInsuranceCost = normalizeNumber(form.monthlyInsuranceCost);
-    const normalizedMonthlyMaintenanceCost = normalizeNumber(form.monthlyMaintenanceCost);
+    const normalizedYearlyInsuranceCost = normalizeNumber(form.yearlyInsuranceCost);
+    const normalizedYearlyMaintenanceCost = normalizeNumber(form.yearlyMaintenanceCost);
+    const normalizedEquipmentHoursPerDay = normalizeNumber(form.equipmentHoursPerDay);
     const normalizedBillableHoursPerYear = normalizeNumber(form.sellableHoursPerYear);
     const normalizedTotalEquipmentCostPerYear =
       (normalizedEquipmentPayment * normalizedEquipmentPaymentFrequencyPerYear)
       + (normalizedFuelCostPerHour * normalizedBillableHoursPerYear)
-      + (normalizedMonthlyInsuranceCost * 12)
-      + (normalizedMonthlyMaintenanceCost * 12);
+      + normalizedYearlyInsuranceCost
+      + normalizedYearlyMaintenanceCost;
     const equipmentFields = form.category === 'equipment'
       ? {
           equipmentPayment: normalizedEquipmentPayment,
@@ -223,8 +229,11 @@ export default function BudgetPage() {
           averageFuelPrice: normalizedFuelPrice,
           averageFuelBurnPerHour: normalizedFuelBurnPerHour,
           fuelCostPerHour: normalizedFuelCostPerHour,
-          monthlyInsuranceCost: normalizedMonthlyInsuranceCost,
-          monthlyMaintenanceCost: normalizedMonthlyMaintenanceCost,
+          yearlyInsuranceCost: normalizedYearlyInsuranceCost,
+          yearlyMaintenanceCost: normalizedYearlyMaintenanceCost,
+          equipmentHoursPerDay: normalizedEquipmentHoursPerDay,
+          monthlyInsuranceCost: undefined,
+          monthlyMaintenanceCost: undefined,
           sellableHoursPerYear: normalizedBillableHoursPerYear,
           actualMachineHoursPerYear: normalizeNumber(form.actualMachineHoursPerYear),
         }
@@ -235,6 +244,9 @@ export default function BudgetPage() {
           averageFuelPrice: undefined,
           averageFuelBurnPerHour: undefined,
           fuelCostPerHour: undefined,
+          yearlyInsuranceCost: undefined,
+          yearlyMaintenanceCost: undefined,
+          equipmentHoursPerDay: undefined,
           monthlyInsuranceCost: undefined,
           monthlyMaintenanceCost: undefined,
           sellableHoursPerYear: undefined,
@@ -672,18 +684,25 @@ export default function BudgetPage() {
     0,
     Number.isFinite(form.equipmentPaymentFrequencyPerYear ?? 0) ? (form.equipmentPaymentFrequencyPerYear ?? 0) : 0
   );
-  const normalizedMonthlyInsuranceCost = Math.max(0, Number.isFinite(form.monthlyInsuranceCost ?? 0) ? (form.monthlyInsuranceCost ?? 0) : 0);
-  const normalizedMonthlyMaintenanceCost = Math.max(0, Number.isFinite(form.monthlyMaintenanceCost ?? 0) ? (form.monthlyMaintenanceCost ?? 0) : 0);
+  const normalizedYearlyInsuranceCost = Math.max(0, Number.isFinite(form.yearlyInsuranceCost ?? 0) ? (form.yearlyInsuranceCost ?? 0) : 0);
+  const normalizedYearlyMaintenanceCost = Math.max(0, Number.isFinite(form.yearlyMaintenanceCost ?? 0) ? (form.yearlyMaintenanceCost ?? 0) : 0);
+  const normalizedEquipmentHoursPerDay = Math.max(0, Number.isFinite(form.equipmentHoursPerDay ?? 0) ? (form.equipmentHoursPerDay ?? 0) : 0);
   const normalizedBillableHoursPerYear = Math.max(0, Number.isFinite(form.sellableHoursPerYear ?? 0) ? (form.sellableHoursPerYear ?? 0) : 0);
   const calculatedAnnualPaymentCost = normalizedEquipmentPayment * normalizedEquipmentPaymentFrequencyPerYear;
   const calculatedAnnualFuelCost = calculatedFuelCostPerHour * normalizedBillableHoursPerYear;
-  const calculatedAnnualInsuranceCost = normalizedMonthlyInsuranceCost * 12;
-  const calculatedAnnualMaintenanceCost = normalizedMonthlyMaintenanceCost * 12;
+  const calculatedAnnualInsuranceCost = normalizedYearlyInsuranceCost;
+  const calculatedAnnualMaintenanceCost = normalizedYearlyMaintenanceCost;
   const calculatedTotalEquipmentCostPerYear =
     calculatedAnnualPaymentCost
     + calculatedAnnualFuelCost
     + calculatedAnnualInsuranceCost
     + calculatedAnnualMaintenanceCost;
+  const calculatedTotalEquipmentCostPerHour = normalizedBillableHoursPerYear > 0
+    ? calculatedTotalEquipmentCostPerYear / normalizedBillableHoursPerYear
+    : 0;
+  const calculatedTotalEquipmentCostPerDay = normalizedEquipmentHoursPerDay > 0
+    ? calculatedTotalEquipmentCostPerHour * normalizedEquipmentHoursPerDay
+    : 0;
 
   const marginDivisor = Math.max(0.01, 1 - pricingInputs.targetMarginPct / 100);
   const activeEmployees = employees.filter((employee) => employee.active);
@@ -1716,40 +1735,50 @@ export default function BudgetPage() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-gray-700">Monthly Insurance Cost</label>
+                    <label className="text-sm font-medium text-gray-700">Yearly Insurance Cost</label>
                     <div className="relative">
                       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
                       <Input
                         type="number"
                         min={0}
                         step={0.01}
-                        value={form.monthlyInsuranceCost ?? 0}
+                        value={form.yearlyInsuranceCost ?? 0}
                         className="pl-7"
-                        onChange={(e) => set('monthlyInsuranceCost', Number(e.target.value))}
+                        onChange={(e) => set('yearlyInsuranceCost', Number(e.target.value))}
                       />
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-gray-700">Monthly Maintenance Cost</label>
+                    <label className="text-sm font-medium text-gray-700">Yearly Maintenance Cost</label>
                     <div className="relative">
                       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
                       <Input
                         type="number"
                         min={0}
                         step={0.01}
-                        value={form.monthlyMaintenanceCost ?? 0}
+                        value={form.yearlyMaintenanceCost ?? 0}
                         className="pl-7"
-                        onChange={(e) => set('monthlyMaintenanceCost', Number(e.target.value))}
+                        onChange={(e) => set('yearlyMaintenanceCost', Number(e.target.value))}
                       />
                     </div>
                   </div>
-                  <Input
-                    label="Billable Hours per Year"
-                    type="number"
-                    min={0}
-                    value={form.sellableHoursPerYear ?? 0}
-                    onChange={(e) => set('sellableHoursPerYear', Number(e.target.value))}
-                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:col-span-2">
+                    <Input
+                      label="Billable Hours per Year"
+                      type="number"
+                      min={0}
+                      value={form.sellableHoursPerYear ?? 0}
+                      onChange={(e) => set('sellableHoursPerYear', Number(e.target.value))}
+                    />
+                    <Input
+                      label="Hours per Day"
+                      type="number"
+                      min={0}
+                      step={0.25}
+                      value={form.equipmentHoursPerDay ?? 0}
+                      onChange={(e) => set('equipmentHoursPerDay', Number(e.target.value))}
+                    />
+                  </div>
                 </div>
               </fieldset>
             </div>
@@ -1767,6 +1796,22 @@ export default function BudgetPage() {
                     className="pl-7"
                     disabled
                   />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Cost per Hour</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                      <Input type="number" min={0} step={0.01} value={calculatedTotalEquipmentCostPerHour} className="pl-7" disabled />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Cost per Day</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                      <Input type="number" min={0} step={0.01} value={calculatedTotalEquipmentCostPerDay} className="pl-7" disabled />
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-1">
                   <button
@@ -1786,13 +1831,19 @@ export default function BudgetPage() {
                       Annual Fuel: {formatCurrency(calculatedFuelCostPerHour)} x {formatNumericDisplayValue(normalizedBillableHoursPerYear)} hrs = {formatCurrency(calculatedAnnualFuelCost)}
                     </p>
                     <p>
-                      Annual Insurance: {formatCurrency(normalizedMonthlyInsuranceCost)} x 12 = {formatCurrency(calculatedAnnualInsuranceCost)}
+                      Yearly Insurance: {formatCurrency(calculatedAnnualInsuranceCost)}
                     </p>
                     <p>
-                      Annual Maintenance: {formatCurrency(normalizedMonthlyMaintenanceCost)} x 12 = {formatCurrency(calculatedAnnualMaintenanceCost)}
+                      Yearly Maintenance: {formatCurrency(calculatedAnnualMaintenanceCost)}
                     </p>
                     <p className="pt-1 border-t border-gray-200 font-semibold text-gray-900">
                       Total Equipment Cost per Year: {formatCurrency(calculatedTotalEquipmentCostPerYear)}
+                    </p>
+                    <p>
+                      Total Cost per Hour: {formatCurrency(calculatedTotalEquipmentCostPerHour)}
+                    </p>
+                    <p>
+                      Total Cost per Day: {formatCurrency(calculatedTotalEquipmentCostPerDay)} ({formatNumericDisplayValue(normalizedEquipmentHoursPerDay)} hrs/day)
                     </p>
                   </div>
                 )}

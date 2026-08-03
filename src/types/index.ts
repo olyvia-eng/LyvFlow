@@ -182,6 +182,9 @@ export interface BudgetItem {
   averageFuelPrice?: number;
   averageFuelBurnPerHour?: number;
   fuelCostPerHour?: number;
+  yearlyInsuranceCost?: number;
+  yearlyMaintenanceCost?: number;
+  equipmentHoursPerDay?: number;
   monthlyInsuranceCost?: number;
   monthlyMaintenanceCost?: number;
   sellableHoursPerYear?: number;
