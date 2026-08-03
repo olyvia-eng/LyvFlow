@@ -166,6 +166,7 @@ export default function BudgetPage() {
     revenueSalesGoals,
     employees,
     addEmployee,
+    updateEmployee,
     addBudgetItem,
     updateBudgetItem,
     deleteBudgetItem,
@@ -188,6 +189,7 @@ export default function BudgetPage() {
   const [showEquipmentCalcDetails, setShowEquipmentCalcDetails] = useState(false);
   const [averageFuelPriceInput, setAverageFuelPriceInput] = useState('0');
   const [averageFuelBurnPerHourInput, setAverageFuelBurnPerHourInput] = useState('0');
+  const [billablePctDrafts, setBillablePctDrafts] = useState<Record<string, string>>({});
   const [labourItemModalOpen, setLabourItemModalOpen] = useState(false);
   const [labourItemForm, setLabourItemForm] = useState<LabourItemForm>(emptyLabourItemForm());
   const [createAsEmployee, setCreateAsEmployee] = useState(false);
@@ -436,7 +438,7 @@ export default function BudgetPage() {
     const employeePayload: Omit<Employee, 'id' | 'createdAt'> = {
       name: fullName,
       email: createAsEmployee ? normalizedEmail : '',
-      phone: labourItemForm.phone,
+      phone: createAsEmployee ? labourItemForm.phone : '',
       role: labourItemForm.role,
       hourlyRate: labourItemForm.hourlyRate,
       compensationType: labourItemForm.compensationType,
@@ -887,6 +889,10 @@ export default function BudgetPage() {
     upsertLabourBudgetPlan(next);
   };
 
+  const updatePlannerEmployeeLabourType = (employeeId: string, labourType: EmployeeLabourType) => {
+    updateEmployee(employeeId, { labourType });
+  };
+
   const labourPlannerRows = useMemo(() => {
     return activeEmployees.map((employee) => {
       const plan = plansByEmployeeId[employee.id] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate, employee.role);
@@ -1011,7 +1017,15 @@ export default function BudgetPage() {
           </div>
           <div>
             <p className="font-medium text-gray-900 leading-tight">{row.employee.name}</p>
-            <p className="text-xs text-gray-500 leading-tight">{row.employee.labourType?.replace('_', ' ') ?? 'field producing'}</p>
+            <select
+              value={row.employee.labourType ?? 'field_producing'}
+              onChange={(e) => updatePlannerEmployeeLabourType(row.employee.id, e.target.value as EmployeeLabourType)}
+              className="mt-1 border border-gray-300 rounded px-2 py-0.5 text-xs text-gray-600 bg-white"
+            >
+              {LABOUR_ITEM_TYPES.map((labourType) => (
+                <option key={labourType} value={labourType}>{toOptionLabel(labourType)}</option>
+              ))}
+            </select>
           </div>
         </div>
       </td>
@@ -1082,8 +1096,20 @@ export default function BudgetPage() {
           min={0}
           max={100}
           step={1}
-          value={formatNumericDisplayValue(row.billablePct.toFixed(2))}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'billablePct', parseNumericInputValue(e.target.value))}
+          value={billablePctDrafts[row.employee.id] ?? String(row.plan.billablePct ?? row.billablePct)}
+          onChange={(e) => {
+            const next = e.target.value;
+            if (!/^\d*\.?\d*$/.test(next)) return;
+            setBillablePctDrafts((current) => ({ ...current, [row.employee.id]: next }));
+            updateLabourPlan(row.employee.id, 'billablePct', parseNumericInputValue(next));
+          }}
+          onBlur={() => {
+            setBillablePctDrafts((current) => {
+              const next = { ...current };
+              delete next[row.employee.id];
+              return next;
+            });
+          }}
           onFocus={(e) => e.currentTarget.select()}
           className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
@@ -2099,9 +2125,6 @@ export default function BudgetPage() {
               ))}
             </Select>
           </div>
-
-          <Input label="Phone" value={labourItemForm.phone} onChange={(e) => setLabourField('phone', e.target.value)} />
-
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-700">Pay Type</p>
             <div className="inline-flex border border-gray-200 rounded-lg p-0.5 bg-white">
@@ -2151,6 +2174,11 @@ export default function BudgetPage() {
 
           {createAsEmployee && (
             <div className="grid grid-cols-1 gap-3">
+              <Input
+                label="Phone"
+                value={labourItemForm.phone}
+                onChange={(e) => setLabourField('phone', e.target.value)}
+              />
               <Input
                 label="Email *"
                 type="email"
