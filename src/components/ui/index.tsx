@@ -1,4 +1,5 @@
-import type { ChangeEvent, ChangeEventHandler, FocusEventHandler, ReactNode } from 'react';
+import { useState } from 'react';
+import type { ChangeEvent, ChangeEventHandler, FocusEvent, FocusEventHandler, ReactNode } from 'react';
 import { formatNumericDisplayValue, normalizeNumericInput } from '../../utils/numberInput';
 
 interface BadgeProps {
@@ -97,19 +98,23 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 export function Input({ label, error, className = '', ...rest }: InputProps) {
   const isNumericInput = rest.type === 'number';
+  const [numericDraftValue, setNumericDraftValue] = useState<string | null>(null);
   let rawValue: string | number = '';
   if (typeof rest.value === 'number' || typeof rest.value === 'string') {
     rawValue = rest.value;
   } else if (Array.isArray(rest.value)) {
     rawValue = rest.value.join('');
   }
+
+  const numericDisplayValue = numericDraftValue ?? formatNumericDisplayValue(rawValue);
   const displayedValue = isNumericInput
-    ? formatNumericDisplayValue(rawValue)
+    ? numericDisplayValue
     : rest.value;
 
   const handleNumberChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     const normalized = normalizeNumericInput(event.target.value);
     if (!/^-?\d*\.?\d*$/.test(normalized)) return;
+    setNumericDraftValue(normalized);
 
     if (!rest.onChange) return;
 
@@ -129,8 +134,14 @@ export function Input({ label, error, className = '', ...rest }: InputProps) {
   };
 
   const handleNumberFocus: FocusEventHandler<HTMLInputElement> = (event) => {
+    setNumericDraftValue(normalizeNumericInput(String(rawValue ?? '')));
     event.currentTarget.select();
     rest.onFocus?.(event);
+  };
+
+  const handleNumberBlur: FocusEventHandler<HTMLInputElement> = (event) => {
+    setNumericDraftValue(null);
+    rest.onBlur?.(event as FocusEvent<HTMLInputElement>);
   };
 
   return (
@@ -144,6 +155,7 @@ export function Input({ label, error, className = '', ...rest }: InputProps) {
         value={displayedValue}
         onChange={isNumericInput ? handleNumberChange : rest.onChange}
         onFocus={isNumericInput ? handleNumberFocus : rest.onFocus}
+        onBlur={isNumericInput ? handleNumberBlur : rest.onBlur}
       />
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>

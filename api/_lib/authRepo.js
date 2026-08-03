@@ -964,7 +964,7 @@ export async function listBudgetItemsForBusiness(businessId) {
   return (result.Items ?? []).map((item) => ({
     id: item.budgetItemId,
     category: item.category,
-    equipmentCostType: item.equipmentCostType,
+    equipmentCostType: item.equipmentCostType === 'other' ? 'owned' : item.equipmentCostType,
     costCode: item.costCode,
     equipmentPayment: item.equipmentPayment,
     equipmentPaymentFrequencyPerYear: item.equipmentPaymentFrequencyPerYear,
@@ -1020,7 +1020,7 @@ export async function getBudgetItemForBusiness(businessId, budgetItemId) {
     ? {
         id: result.Item.budgetItemId,
         category: result.Item.category,
-        equipmentCostType: result.Item.equipmentCostType,
+      equipmentCostType: result.Item.equipmentCostType === 'other' ? 'owned' : result.Item.equipmentCostType,
         costCode: result.Item.costCode,
         equipmentPayment: result.Item.equipmentPayment,
         equipmentPaymentFrequencyPerYear: result.Item.equipmentPaymentFrequencyPerYear,

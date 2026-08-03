@@ -16,7 +16,12 @@ type ExportKind = 'budget' | 'pnl_detailed' | 'pnl_condensed';
 type LabourTableView = 'all' | LabourCompType;
 type EquipmentTableView = 'all' | EquipmentCostType;
 
-const EQUIPMENT_COST_TYPES: EquipmentCostType[] = ['financed', 'leased', 'other'];
+const EQUIPMENT_COST_TYPES: EquipmentCostType[] = ['financed', 'leased', 'owned'];
+
+const normalizeEquipmentCostType = (value: string | undefined): EquipmentCostType => {
+  if (value === 'financed' || value === 'leased' || value === 'owned') return value;
+  return 'owned';
+};
 
 const CATEGORY_BY_TAB: Record<Exclude<BudgetTab, 'analysis'>, BudgetCategory> = {
   revenue: 'revenue',
@@ -179,7 +184,7 @@ export default function BudgetPage() {
     setEditing(b);
     setForm({
       category: b.category,
-      equipmentCostType: b.equipmentCostType,
+      equipmentCostType: normalizeEquipmentCostType(b.equipmentCostType),
       costCode: b.costCode ?? '',
       equipmentPayment: b.equipmentPayment,
       equipmentPaymentFrequencyPerYear: b.equipmentPaymentFrequencyPerYear,
@@ -355,17 +360,17 @@ export default function BudgetPage() {
     const equipmentItems = grouped.equipment;
     const totalFor = (costType: EquipmentCostType) => ({
       budgeted: equipmentItems
-        .filter((item) => (item.equipmentCostType ?? 'other') === costType)
+        .filter((item) => normalizeEquipmentCostType(item.equipmentCostType) === costType)
         .reduce((sum, item) => sum + item.budgeted, 0),
       actual: equipmentItems
-        .filter((item) => (item.equipmentCostType ?? 'other') === costType)
+        .filter((item) => normalizeEquipmentCostType(item.equipmentCostType) === costType)
         .reduce((sum, item) => sum + item.actual, 0),
     });
 
     return {
       financed: totalFor('financed'),
       leased: totalFor('leased'),
-      other: totalFor('other'),
+      owned: totalFor('owned'),
     };
   }, [grouped.equipment]);
 
@@ -373,7 +378,7 @@ export default function BudgetPage() {
   const selectedCategoryItems = selectedCategory ? grouped[selectedCategory] : [];
   const equipmentFilteredItems = useMemo(() => {
     if (equipmentTableView === 'all') return grouped.equipment;
-    return grouped.equipment.filter((item) => (item.equipmentCostType ?? 'other') === equipmentTableView);
+    return grouped.equipment.filter((item) => normalizeEquipmentCostType(item.equipmentCostType) === equipmentTableView);
   }, [equipmentTableView, grouped.equipment]);
 
   const displayCategoryItems = activeTab === 'equipment' ? equipmentFilteredItems : selectedCategoryItems;
@@ -715,16 +720,6 @@ export default function BudgetPage() {
   const laborBreakEvenRate = loadedLaborCostPerHour * (1 + pricingInputs.overheadRecoveryPct / 100);
   const suggestedLaborSellRate = laborBreakEvenRate / marginDivisor;
 
-  const periodEquipmentBudget = items
-    .filter((item) => item.category === 'equipment')
-    .reduce((sum, item) => sum + item.budgeted, 0);
-  const machineBaseCostPerHour =
-    pricingInputs.equipmentUtilizationHours > 0
-      ? periodEquipmentBudget / pricingInputs.equipmentUtilizationHours
-      : 0;
-  const machineBreakEvenRate = machineBaseCostPerHour * (1 + pricingInputs.overheadRecoveryPct / 100);
-  const suggestedMachineSellRate = machineBreakEvenRate / marginDivisor;
-
   const materialSellMultiplier =
     (1 + pricingInputs.materialWastePct / 100) * (1 + pricingInputs.overheadRecoveryPct / 100) / marginDivisor;
   const suggestedMaterialMarkupPct = (materialSellMultiplier - 1) * 100;
@@ -992,11 +987,11 @@ export default function BudgetPage() {
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm font-medium text-gray-700">Year:</label>
           <Input
-            type="number"
-            min={2000}
-            max={2100}
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
             value={year}
-            onChange={(e) => setYear(e.target.value)}
+            onChange={(e) => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
             className="w-32"
           />
           {allYears.length > 0 && (
@@ -1137,20 +1132,12 @@ export default function BudgetPage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
                 <Card className="p-4 hover:border-brand-300 cursor-pointer">
                   <p className="text-xs text-gray-500">Suggested Labour Charge-Out</p>
                   <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedLaborSellRate)}/hr</p>
                   <p className="text-xs text-gray-400 mt-1">Avg pay {formatCurrency(averageBaseLaborRate)}/hr, loaded {formatCurrency(loadedLaborCostPerHour)}/hr</p>
-                  <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-                </Card>
-              </button>
-              <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-                <Card className="p-4 hover:border-brand-300 cursor-pointer">
-                  <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
-                  <p className="text-xl font-bold text-gray-900">{formatCurrency(suggestedMachineSellRate)}/hr</p>
-                  <p className="text-xs text-gray-400 mt-1">Based on equipment budget {formatCurrency(periodEquipmentBudget)} for {scopeLabel}</p>
                   <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
                 </Card>
               </button>
@@ -1373,18 +1360,11 @@ export default function BudgetPage() {
 
       {activeTab === 'equipment' && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 gap-4 mb-4">
             <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
               <Card className="p-4 hover:border-brand-300 cursor-pointer">
                 <p className="text-xs text-gray-500">Budgeted Equipment</p>
                 <p className="text-xl font-bold text-gray-900">{formatCurrency(totalsByCategory.equipment.budgeted)}</p>
-              <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
-              </Card>
-            </button>
-            <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
-              <Card className="p-4 hover:border-brand-300 cursor-pointer">
-                <p className="text-xs text-gray-500">Suggested Machine Charge-Out</p>
-                <p className="text-xl font-bold text-brand-700">{formatCurrency(suggestedMachineSellRate)}/hr</p>
               <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
@@ -1407,8 +1387,8 @@ export default function BudgetPage() {
             </button>
             <button type="button" onClick={() => openCategoryEditor('equipment')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
               <Card className="p-4 hover:border-brand-300 cursor-pointer">
-                <p className="text-xs text-gray-500">Other Equipment</p>
-                <p className="text-xl font-bold text-gray-900">{formatCurrency(equipmentByCostType.other.budgeted)}</p>
+                <p className="text-xs text-gray-500">Owned Equipment</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(equipmentByCostType.owned.budgeted)}</p>
               <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
@@ -1439,10 +1419,10 @@ export default function BudgetPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setEquipmentTableView('other')}
-                className={`px-3 py-1 text-xs rounded ${equipmentTableView === 'other' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                onClick={() => setEquipmentTableView('owned')}
+                className={`px-3 py-1 text-xs rounded ${equipmentTableView === 'owned' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
               >
-                Other
+                Owned
               </button>
             </div>
           </div>
@@ -1540,7 +1520,7 @@ export default function BudgetPage() {
                           <span>{b.description}</span>
                           {b.category === 'equipment' && (
                             <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 capitalize">
-                              {(b.equipmentCostType ?? 'other').replace('_', ' ')}
+                              {normalizeEquipmentCostType(b.equipmentCostType).replace('_', ' ')}
                             </span>
                           )}
                         </div>
@@ -1593,7 +1573,7 @@ export default function BudgetPage() {
                             <span>{b.description}</span>
                             {b.category === 'equipment' && (
                               <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 capitalize">
-                                {(b.equipmentCostType ?? 'other').replace('_', ' ')}
+                                  {normalizeEquipmentCostType(b.equipmentCostType).replace('_', ' ')}
                               </span>
                             )}
                           </div>

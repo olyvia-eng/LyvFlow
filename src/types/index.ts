@@ -169,7 +169,7 @@ export type BudgetCategory =
   | 'insurance'
   | 'other';
 
-export type EquipmentCostType = 'financed' | 'leased' | 'other';
+export type EquipmentCostType = 'financed' | 'leased' | 'owned';
 
 export interface BudgetItem {
   id: ID;
