@@ -1699,7 +1699,7 @@ export default function BudgetPage() {
           )}
           <div className="grid grid-cols-1 gap-3">
             <Input
-              label={form.category === 'equipment' ? 'Total Equipment Cos per Year' : 'Budgeted ($)'}
+              label={form.category === 'equipment' ? 'Total Equipment Cost per Year' : 'Budgeted ($)'}
               type="number"
               min={0}
               value={form.budgeted}
