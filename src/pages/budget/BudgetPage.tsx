@@ -708,6 +708,7 @@ export default function BudgetPage() {
   const calculatedTotalEquipmentCostPerDay = normalizedEquipmentHoursPerDay > 0
     ? calculatedTotalEquipmentCostPerHour * normalizedEquipmentHoursPerDay
     : 0;
+  const overheadMonthlyCost = Math.max(0, Number.isFinite(form.budgeted) ? form.budgeted / 12 : 0);
 
   const marginDivisor = Math.max(0.01, 1 - pricingInputs.targetMarginPct / 100);
   const activeEmployees = employees.filter((employee) => employee.active);
@@ -1827,6 +1828,37 @@ export default function BudgetPage() {
                     </p>
                   </div>
                 )}
+              </div>
+            ) : form.category === 'overhead' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">Monthly Cost</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={overheadMonthlyCost}
+                      className="pl-7"
+                      onChange={(e) => set('budgeted', parseNumericInputValue(e.target.value) * 12)}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-gray-700">Yearly Cost</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={form.budgeted}
+                      className="pl-7"
+                      disabled
+                    />
+                  </div>
+                </div>
               </div>
             ) : (
               <Input
