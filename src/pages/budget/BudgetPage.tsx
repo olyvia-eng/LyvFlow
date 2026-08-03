@@ -1493,48 +1493,10 @@ export default function BudgetPage() {
                         <td className="px-4 py-4 text-sm text-gray-400" colSpan={12}>No employees in this compensation type view yet.</td>
                       </tr>
                     )}
-                    <tr className="bg-gray-50">
-                      <td className="px-4 py-2 font-semibold" colSpan={9}>{labourTableView === 'all' ? 'Grand Totals' : 'View Totals'}</td>
-                      <td className="px-4 py-2 text-right font-semibold">{formatCurrency(visibleLabourPlannerTotals.annualLabourCost)}</td>
-                      <td className="px-4 py-2 text-right font-semibold">
-                        {visibleLabourPlannerTotals.billableHoursYear > 0
-                          ? formatCurrency(visibleLabourPlannerTotals.annualLabourCost / visibleLabourPlannerTotals.billableHoursYear)
-                          : formatCurrency(0)}
-                      </td>
-                      <td className="px-4 py-2 text-center">—</td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
             )}
-            <div className="border-t border-gray-100 bg-gray-50/50 px-4 py-3">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-6 text-center">
-                <div>
-                  <p className="text-xs text-gray-500">Team Size</p>
-                  <p className="font-semibold text-gray-900">{labourSummary.teamSize}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Total Labour Cost</p>
-                  <p className="font-semibold text-green-700">{formatCurrency(labourPlannerTotalsAll.annualLabourCost)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Total Billable Hours</p>
-                  <p className="font-semibold text-gray-900">{labourSummary.totalBillableHours.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Total Revenue</p>
-                  <p className="font-semibold text-gray-900">{formatCurrency(labourSummary.totalRevenue)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Total Gross Profit</p>
-                  <p className={`font-semibold ${labourSummary.totalGrossProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{formatCurrency(labourSummary.totalGrossProfit)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Gross Profit Margin</p>
-                  <p className={`font-semibold ${labourSummary.grossProfitMargin >= 0 ? 'text-green-700' : 'text-red-600'}`}>{labourSummary.grossProfitMargin.toFixed(1)}%</p>
-                </div>
-              </div>
-            </div>
 
             <div className="px-4 py-3 border-t border-gray-100">
               <Button variant="secondary" onClick={openLabourItemModal}>
