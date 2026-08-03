@@ -47,6 +47,13 @@ const compensationTypeColor: Record<CompensationType, string> = {
   salary: 'bg-indigo-100 text-indigo-700',
 };
 
+const toOptionLabel = (value: string) => value
+  .split('_')
+  .join(' ')
+  .split(' ')
+  .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+  .join(' ');
+
 const empty = (): EmployeeForm => ({
   firstName: '',
   lastName: '',
@@ -366,10 +373,10 @@ export default function EmployeesPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Select label="Role" value={form.role} onChange={(e) => set('role', e.target.value as EmployeeRole)}>
-              {ROLES.map((r) => <option key={r} value={r}>{roleLabel[r]}</option>)}
+              {ROLES.map((r) => <option key={r} value={r}>{toOptionLabel(roleLabel[r])}</option>)}
             </Select>
             <Select label="Labour Type" value={form.labourType} onChange={(e) => set('labourType', e.target.value as LabourType)}>
-              {LABOUR_TYPES.map((type) => <option key={type} value={type}>{labourTypeLabel[type]}</option>)}
+              {LABOUR_TYPES.map((type) => <option key={type} value={type}>{toOptionLabel(labourTypeLabel[type])}</option>)}
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
