@@ -1600,13 +1600,19 @@ export default function BudgetPage() {
               <fieldset className="border border-gray-200 rounded-lg p-3">
                 <legend className="text-sm font-medium text-gray-700 px-1">Equipment Info</legend>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                  <Input
-                    label="Payment ($)"
-                    type="number"
-                    min={0}
-                    value={form.equipmentPayment ?? 0}
-                    onChange={(e) => set('equipmentPayment', Number(e.target.value))}
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-gray-700">Payment</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.equipmentPayment ?? 0}
+                        className="pl-7"
+                        onChange={(e) => set('equipmentPayment', Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
                   <Input
                     label="Payment Frequency (# per year)"
                     type="number"
@@ -1633,19 +1639,25 @@ export default function BudgetPage() {
                       ))}
                     </div>
                   </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-gray-700">Fuel Price (/{form.fuelPriceUnit ?? 'L'})</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={averageFuelPriceInput}
+                        className="pl-7"
+                        onChange={(e) => {
+                          setAverageFuelPriceInput(e.target.value);
+                          set('averageFuelPrice', parseNumericInputValue(e.target.value));
+                        }}
+                      />
+                    </div>
+                  </div>
                   <Input
-                    label={`Average Fuel Price ($/${form.fuelPriceUnit ?? 'L'})`}
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={averageFuelPriceInput}
-                    onChange={(e) => {
-                      setAverageFuelPriceInput(e.target.value);
-                      set('averageFuelPrice', parseNumericInputValue(e.target.value));
-                    }}
-                  />
-                  <Input
-                    label={`Average Fuel Burned per Hour (${form.fuelPriceUnit ?? 'L'}/hr)`}
+                    label={`Fuel Burned per Hour (${form.fuelPriceUnit ?? 'L'}/hr)`}
                     type="number"
                     min={0}
                     step={0.01}
@@ -1655,56 +1667,83 @@ export default function BudgetPage() {
                       set('averageFuelBurnPerHour', parseNumericInputValue(e.target.value));
                     }}
                   />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-gray-700">Fuel Cost per Hour</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={calculatedFuelCostPerHour}
+                        className="pl-7"
+                        disabled
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-gray-700">Monthly Insurance Cost</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={form.monthlyInsuranceCost ?? 0}
+                        className="pl-7"
+                        onChange={(e) => set('monthlyInsuranceCost', Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-gray-700">Monthly Maintenance Cost</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={form.monthlyMaintenanceCost ?? 0}
+                        className="pl-7"
+                        onChange={(e) => set('monthlyMaintenanceCost', Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
                   <Input
-                    label="Fuel Cost per Hour (Auto)"
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={calculatedFuelCostPerHour}
-                    disabled
-                  />
-                  <Input
-                    label="Monthly Insurance Cost"
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={form.monthlyInsuranceCost ?? 0}
-                    onChange={(e) => set('monthlyInsuranceCost', Number(e.target.value))}
-                  />
-                  <Input
-                    label="Monthly Maintenance Cost"
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={form.monthlyMaintenanceCost ?? 0}
-                    onChange={(e) => set('monthlyMaintenanceCost', Number(e.target.value))}
-                  />
-                  <Input
-                    label="Sellable Hours per Year"
+                    label="Billable Hours per Year"
                     type="number"
                     min={0}
                     value={form.sellableHoursPerYear ?? 0}
                     onChange={(e) => set('sellableHoursPerYear', Number(e.target.value))}
-                  />
-                  <Input
-                    label="Actual Machine Hours per Year"
-                    type="number"
-                    min={0}
-                    value={form.actualMachineHoursPerYear ?? 0}
-                    onChange={(e) => set('actualMachineHoursPerYear', Number(e.target.value))}
                   />
                 </div>
               </fieldset>
             </div>
           )}
           <div className="grid grid-cols-1 gap-3">
-            <Input
-              label={form.category === 'equipment' ? 'Total Equipment Cost per Year' : 'Budgeted ($)'}
-              type="number"
-              min={0}
-              value={form.budgeted}
-              onChange={(e) => set('budgeted', Number(e.target.value))}
-            />
+            {form.category === 'equipment' ? (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-gray-700">Total Equipment Cost per Year</label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.budgeted}
+                    className="pl-7"
+                    onChange={(e) => set('budgeted', Number(e.target.value))}
+                  />
+                </div>
+              </div>
+            ) : (
+              <Input
+                label="Budgeted ($)"
+                type="number"
+                min={0}
+                value={form.budgeted}
+                onChange={(e) => set('budgeted', Number(e.target.value))}
+              />
+            )}
           </div>
         </div>
       </Modal>
