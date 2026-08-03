@@ -122,6 +122,8 @@ export default function BudgetPage() {
   const [labourTableView, setLabourTableView] = useState<LabourTableView>('all');
   const [equipmentTableView, setEquipmentTableView] = useState<EquipmentTableView>('all');
   const [showLabourCalcDetails, setShowLabourCalcDetails] = useState(false);
+  const [averageFuelPriceInput, setAverageFuelPriceInput] = useState('0');
+  const [averageFuelBurnPerHourInput, setAverageFuelBurnPerHourInput] = useState('0');
   const [pricingInputs, setPricingInputs] = useState({
     payrollBurdenPct: 18,
     overheadRecoveryPct: 15,
@@ -146,17 +148,27 @@ export default function BudgetPage() {
   const openNew = () => {
     const defaultPeriod = `${year}-01`;
     const defaultCategory = activeTab === 'analysis' ? 'revenue' : CATEGORY_BY_TAB[activeTab];
+    const defaultEquipmentInfo = defaultCategory === 'equipment' ? equipmentInfoDefaults() : null;
     setEditing(null);
     setForm({
       ...empty(),
       category: defaultCategory,
       equipmentCostType: defaultCategory === 'equipment' ? 'financed' : undefined,
-      ...(defaultCategory === 'equipment' ? equipmentInfoDefaults() : {}),
+      ...(defaultEquipmentInfo ?? {}),
       period: defaultPeriod,
     });
+    if (defaultEquipmentInfo) {
+      setAverageFuelPriceInput(formatNumericDisplayValue(defaultEquipmentInfo.averageFuelPrice));
+      setAverageFuelBurnPerHourInput(formatNumericDisplayValue(defaultEquipmentInfo.averageFuelBurnPerHour));
+    } else {
+      setAverageFuelPriceInput('0');
+      setAverageFuelBurnPerHourInput('0');
+    }
     setModalOpen(true);
   };
   const openEdit = (b: BudgetItem) => {
+    const averageFuelPrice = b.averageFuelPrice ?? b.fuelCostPerHour ?? 0;
+    const averageFuelBurnPerHour = b.averageFuelBurnPerHour ?? 1;
     setEditing(b);
     setForm({
       category: b.category,
@@ -165,8 +177,8 @@ export default function BudgetPage() {
       equipmentPayment: b.equipmentPayment,
       equipmentPaymentFrequencyPerYear: b.equipmentPaymentFrequencyPerYear,
       fuelPriceUnit: b.fuelPriceUnit ?? 'L',
-      averageFuelPrice: b.averageFuelPrice ?? b.fuelCostPerHour ?? 0,
-      averageFuelBurnPerHour: b.averageFuelBurnPerHour ?? 1,
+      averageFuelPrice,
+      averageFuelBurnPerHour,
       fuelCostPerHour: b.fuelCostPerHour,
       monthlyInsuranceCost: b.monthlyInsuranceCost,
       monthlyMaintenanceCost: b.monthlyMaintenanceCost,
@@ -177,6 +189,8 @@ export default function BudgetPage() {
       actual: b.actual,
       period: b.period,
     });
+    setAverageFuelPriceInput(formatNumericDisplayValue(averageFuelPrice));
+    setAverageFuelBurnPerHourInput(formatNumericDisplayValue(averageFuelBurnPerHour));
     setModalOpen(true);
   };
   const handleSave = () => {
@@ -232,14 +246,22 @@ export default function BudgetPage() {
     }
 
     const defaultPeriod = `${year}-01`;
+    const defaultEquipmentInfo = category === 'equipment' ? equipmentInfoDefaults() : null;
     setEditing(null);
     setForm({
       ...empty(),
       category,
       equipmentCostType: category === 'equipment' ? 'financed' : undefined,
-      ...(category === 'equipment' ? equipmentInfoDefaults() : {}),
+      ...(defaultEquipmentInfo ?? {}),
       period: defaultPeriod,
     });
+    if (defaultEquipmentInfo) {
+      setAverageFuelPriceInput(formatNumericDisplayValue(defaultEquipmentInfo.averageFuelPrice));
+      setAverageFuelBurnPerHourInput(formatNumericDisplayValue(defaultEquipmentInfo.averageFuelBurnPerHour));
+    } else {
+      setAverageFuelPriceInput('0');
+      setAverageFuelBurnPerHourInput('0');
+    }
     setModalOpen(true);
   };
 
@@ -1616,16 +1638,22 @@ export default function BudgetPage() {
                     type="number"
                     min={0}
                     step={0.01}
-                    value={form.averageFuelPrice ?? 0}
-                    onChange={(e) => set('averageFuelPrice', Number(e.target.value))}
+                    value={averageFuelPriceInput}
+                    onChange={(e) => {
+                      setAverageFuelPriceInput(e.target.value);
+                      set('averageFuelPrice', parseNumericInputValue(e.target.value));
+                    }}
                   />
                   <Input
                     label={`Average Fuel Burned per Hour (${form.fuelPriceUnit ?? 'L'}/hr)`}
                     type="number"
                     min={0}
                     step={0.01}
-                    value={form.averageFuelBurnPerHour ?? 0}
-                    onChange={(e) => set('averageFuelBurnPerHour', Number(e.target.value))}
+                    value={averageFuelBurnPerHourInput}
+                    onChange={(e) => {
+                      setAverageFuelBurnPerHourInput(e.target.value);
+                      set('averageFuelBurnPerHour', parseNumericInputValue(e.target.value));
+                    }}
                   />
                   <Input
                     label="Fuel Cost per Hour (Auto)"
