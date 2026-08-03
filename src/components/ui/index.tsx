@@ -97,8 +97,14 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 export function Input({ label, error, className = '', ...rest }: InputProps) {
   const isNumericInput = rest.type === 'number';
+  let rawValue: string | number = '';
+  if (typeof rest.value === 'number' || typeof rest.value === 'string') {
+    rawValue = rest.value;
+  } else if (Array.isArray(rest.value)) {
+    rawValue = rest.value.join('');
+  }
   const displayedValue = isNumericInput
-    ? formatNumericDisplayValue(rest.value ?? '')
+    ? formatNumericDisplayValue(rawValue)
     : rest.value;
 
   const handleNumberChange: ChangeEventHandler<HTMLInputElement> = (event) => {
