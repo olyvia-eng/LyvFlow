@@ -8,6 +8,7 @@ import type { Address, Customer, CustomerStatus } from '../../types';
 const STATUSES: CustomerStatus[] = ['lead', 'prospect', 'active', 'inactive'];
 
 const emptyProperty = (): Address => ({
+  nickname: '',
   street: '',
   city: '',
   province: '',
@@ -175,7 +176,10 @@ export default function CRMPage() {
                 {primaryProperty.city && (
                   <div className="flex items-center gap-2">
                     <MapPin size={13} className="text-gray-400" />
-                    <span>{primaryProperty.city}, {primaryProperty.province}</span>
+                    <span>
+                      {primaryProperty.nickname?.trim() ? `${primaryProperty.nickname} - ` : ''}
+                      {primaryProperty.city}, {primaryProperty.province}
+                    </span>
                   </div>
                 )}
                 <p className="text-xs text-gray-500">{properties.length} {properties.length === 1 ? 'property' : 'properties'}</p>
@@ -250,6 +254,12 @@ export default function CRMPage() {
                     </Button>
                   </div>
                   <div className="space-y-3">
+                    <Input
+                      label="Property Nickname (optional)"
+                      value={property.nickname ?? ''}
+                      onChange={(e) => setProperty(index, 'nickname', e.target.value)}
+                      placeholder="e.g. Main Office"
+                    />
                     <Input label="Street" value={property.street} onChange={(e) => setProperty(index, 'street', e.target.value)} />
                     <div className="grid grid-cols-2 gap-3">
                       <Input label="City" value={property.city} onChange={(e) => setProperty(index, 'city', e.target.value)} />

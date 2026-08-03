@@ -3,6 +3,7 @@
 export type ID = string;
 
 export interface Address {
+  nickname?: string;
   street: string;
   city: string;
   province: string;
