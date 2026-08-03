@@ -50,7 +50,7 @@ export default function SignupPage({ onSignup }: SignupPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-green-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-cream to-accent-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-lg p-6 sm:p-8">
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-100 text-brand-700 mb-3">

@@ -83,15 +83,15 @@ export default function JobDetailPage() {
     const warnings: Array<{ label: string; className: string }> = [];
 
     if (job.estimatedHours > 0 && job.actualHours > job.estimatedHours) {
-      warnings.push({ label: 'Over Hours', className: 'bg-red-100 text-red-700' });
+      warnings.push({ label: 'Over Hours', className: 'bg-accent-200 text-accent-800' });
     }
 
     if (profitability.projectedMarginFromTracking < LOW_MARGIN_THRESHOLD_PCT) {
-      warnings.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-amber-100 text-amber-700' });
+      warnings.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-accent-100 text-accent-700' });
     }
 
     if (Math.abs(profitability.laborVariancePct) > HIGH_LABOR_VARIANCE_THRESHOLD_PCT) {
-      warnings.push({ label: `Labor Variance High (>${HIGH_LABOR_VARIANCE_THRESHOLD_PCT}%)`, className: 'bg-indigo-100 text-indigo-700' });
+      warnings.push({ label: `Labor Variance High (>${HIGH_LABOR_VARIANCE_THRESHOLD_PCT}%)`, className: 'bg-brand-100 text-brand-700' });
     }
 
     return warnings;
@@ -99,12 +99,12 @@ export default function JobDetailPage() {
 
   const timeEntryTypeMeta = (entry: { workType?: string }) => {
     if (entry.workType === 'drive_time') {
-      return { label: 'Drive Time', className: 'bg-amber-100 text-amber-700' };
+      return { label: 'Drive Time', className: 'bg-accent-100 text-accent-700' };
     }
     if (entry.workType === 'non_billable') {
-      return { label: 'Non-Billable', className: 'bg-slate-100 text-slate-700' };
+      return { label: 'Non-Billable', className: 'bg-brand-100 text-brand-700' };
     }
-    return { label: 'Job Work', className: 'bg-blue-100 text-blue-700' };
+    return { label: 'Job Work', className: 'bg-brand-200 text-brand-800' };
   };
 
   const [costModal, setCostModal] = useState(false);
@@ -162,7 +162,7 @@ export default function JobDetailPage() {
         </Card>
         <Card className="p-4">
           <p className="text-xs text-gray-500">Gross Profit</p>
-          <p className={`text-xl font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <p className={`text-xl font-bold ${profit >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>
             {formatCurrency(profit)}
           </p>
           <p className="text-xs text-gray-400">{marginPct.toFixed(1)}% margin</p>
@@ -171,7 +171,7 @@ export default function JobDetailPage() {
           <p className="text-xs text-gray-500">Hours</p>
           <p className="text-xl font-bold text-gray-900">{job.actualHours.toFixed(1)}/{job.estimatedHours}h</p>
           <div className="mt-1 bg-gray-100 rounded-full h-1.5">
-            <div className={`h-1.5 rounded-full ${hoursPct >= 100 ? 'bg-red-500' : 'bg-brand-500'}`} style={{ width: `${hoursPct}%` }} />
+            <div className={`h-1.5 rounded-full ${hoursPct >= 100 ? 'bg-accent-600' : 'bg-brand-500'}`} style={{ width: `${hoursPct}%` }} />
           </div>
         </Card>
       </div>
@@ -200,7 +200,7 @@ export default function JobDetailPage() {
             <p className="text-gray-500">Tracked Labor Cost</p>
             <p className="font-semibold text-gray-900">{formatCurrency(profitability.trackedLaborCost)}</p>
             <p className="text-xs text-gray-400">Recorded labor costs: {formatCurrency(profitability.recordedLaborCosts)}</p>
-            <p className={`text-xs mt-1 ${profitability.laborVariance >= 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+            <p className={`text-xs mt-1 ${profitability.laborVariance >= 0 ? 'text-accent-700' : 'text-brand-700'}`}>
               Variance: {formatCurrency(profitability.laborVariance)} ({profitability.laborVariancePct.toFixed(1)}%)
             </p>
           </div>
@@ -211,7 +211,7 @@ export default function JobDetailPage() {
           </div>
           <div>
             <p className="text-gray-500">Projected Profit (Tracked)</p>
-            <p className={`font-semibold ${profitability.projectedProfitFromTracking >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`font-semibold ${profitability.projectedProfitFromTracking >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>
               {formatCurrency(profitability.projectedProfitFromTracking)}
             </p>
             <p className="text-xs text-gray-400">{profitability.projectedMarginFromTracking.toFixed(1)}% margin</p>
@@ -285,7 +285,7 @@ export default function JobDetailPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-brand-600">{hrs.toFixed(2)}h</span>
-                      <button onClick={() => deleteTimeEntry(te.id)} className="text-gray-300 hover:text-red-400">
+                      <button onClick={() => deleteTimeEntry(te.id)} className="text-gray-300 hover:text-accent-700">
                         <Trash2 size={14} />
                       </button>
                     </div>

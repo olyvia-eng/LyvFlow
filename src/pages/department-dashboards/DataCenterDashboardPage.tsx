@@ -24,21 +24,21 @@ export default function DataCenterDashboardPage() {
           value: customers.length,
           sub: 'CRM objects',
           icon: <FileText size={30} />,
-          color: 'text-blue-600',
+          color: 'text-accent-700',
         },
         {
           label: 'Job Records',
           value: jobs.length,
           sub: 'Operational objects',
           icon: <Database size={30} />,
-          color: 'text-green-600',
+          color: 'text-brand-700',
         },
         {
           label: 'Security Access',
           value: 'Healthy',
           sub: 'Auth + role checks active',
           icon: <Shield size={30} />,
-          color: 'text-amber-600',
+          color: 'text-accent-700',
         },
       ]}
       widgets={[

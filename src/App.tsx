@@ -354,8 +354,8 @@ export default function App() {
             key={toast.id}
             className={`min-w-64 max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${
               toast.tone === 'success'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                : 'border-red-200 bg-red-50 text-red-800'
+                ? 'border-brand-200 bg-brand-50 text-brand-800'
+                : 'border-accent-200 bg-accent-50 text-accent-800'
             }`}
           >
             {toast.message}
@@ -364,14 +364,14 @@ export default function App() {
       </div>
       {sessionUser && businessDataError && (
         <div className="fixed top-4 left-4 right-4 z-[90] sm:left-auto sm:right-4 sm:max-w-md">
-          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg">
+          <div className="rounded-lg border border-accent-300 bg-accent-50 px-4 py-3 text-sm text-accent-900 shadow-lg">
             <p className="font-medium">Business data could not be loaded.</p>
-            <p className="mt-1 text-amber-800">{businessDataError}</p>
+            <p className="mt-1 text-accent-800">{businessDataError}</p>
             <div className="mt-3">
               <button
                 type="button"
                 onClick={() => void loadBusinessData(sessionUser)}
-                className="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center rounded-md bg-accent-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loadingBusinessData}
               >
                 {loadingBusinessData ? 'Retrying...' : 'Retry'}

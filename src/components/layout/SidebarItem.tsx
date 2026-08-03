@@ -71,8 +71,8 @@ export default function SidebarItem({
           className={({ isActive }) =>
             `group relative flex min-w-0 flex-1 items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} pl-3 rounded-lg text-sm font-medium transition-colors ${
               isActive
-                ? 'bg-emerald-50 text-emerald-700'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                ? 'bg-brand-50 text-brand-800'
+                : 'text-brand-700 hover:bg-brand-50 hover:text-brand-900'
             }`
           }
         >
@@ -80,7 +80,7 @@ export default function SidebarItem({
             <>
               <span
                 className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r ${
-                  isActive ? 'bg-emerald-500' : 'bg-transparent group-hover:bg-gray-200'
+                  isActive ? 'bg-accent-500' : 'bg-transparent group-hover:bg-brand-200'
                 }`}
               />
               {Icon ? <Icon size={compact ? 14 : 15} /> : null}
@@ -94,8 +94,8 @@ export default function SidebarItem({
           title={pinned ? 'Unpin page' : 'Pin page'}
           className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
             pinned
-              ? 'text-emerald-600 hover:bg-emerald-50'
-              : 'text-gray-300 hover:text-emerald-600 hover:bg-gray-100'
+              ? 'text-accent-700 hover:bg-accent-50'
+              : 'text-brand-300 hover:text-accent-700 hover:bg-brand-50'
           }`}
           onClick={(event) => {
             event.preventDefault();
@@ -123,8 +123,8 @@ export default function SidebarItem({
         type="button"
         className={`w-full flex items-center justify-between ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-sm font-medium transition-colors ${
           isBranchActive
-            ? 'text-emerald-700 bg-emerald-50'
-            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            ? 'text-brand-800 bg-brand-50'
+            : 'text-brand-700 hover:bg-brand-50 hover:text-brand-900'
         }`}
         onClick={() => {
           if (!isCollapsible) return;
@@ -141,7 +141,7 @@ export default function SidebarItem({
       </button>
 
       {expanded && (
-        <div className="mt-1 ml-2 pl-2 border-l border-gray-200 space-y-0.5" role="menu" aria-label={`${item.label} submenu`}>
+        <div className="mt-1 ml-2 pl-2 border-l border-brand-100 space-y-0.5" role="menu" aria-label={`${item.label} submenu`}>
           {item.children.map((child) => (
             <SidebarItem
               key={child.id}

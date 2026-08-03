@@ -34,21 +34,21 @@ export default function EmployeesDashboardPage() {
           value: clockedInNow.length,
           sub: 'Current active shifts',
           icon: <Clock size={30} />,
-          color: 'text-green-600',
+          color: 'text-brand-700',
         },
         {
           label: 'Hours Logged',
           value: `${completedHours.toFixed(1)} hrs`,
           sub: 'Closed time entries',
           icon: <Clock size={30} />,
-          color: 'text-blue-600',
+          color: 'text-accent-700',
         },
         {
           label: 'Average Hourly Rate',
           value: formatCurrency(averageRate),
           sub: 'Active employee average',
           icon: <Wallet size={30} />,
-          color: 'text-amber-600',
+          color: 'text-accent-700',
         },
       ]}
       widgets={[

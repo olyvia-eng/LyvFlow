@@ -94,7 +94,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-10">
+    <div className="min-h-screen bg-cream px-4 py-10">
       <div className="mx-auto w-full max-w-lg">
         <Card className="p-6 sm:p-8">
           <div className="mb-6 flex items-center justify-between">
@@ -108,7 +108,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
           </div>
 
           {!employee ? (
-            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+            <div className="rounded-lg border border-accent-200 bg-accent-50 p-4 text-sm text-accent-800">
               Your employee profile could not be found for this account. Ask an admin to create or reconnect your employee record.
             </div>
           ) : (
@@ -120,13 +120,13 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
               </div>
 
               {activeEntry ? (
-                <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4">
-                  <p className="font-semibold text-green-800">You are clocked in.</p>
-                  <p className="text-sm text-green-700">
+                <div className="space-y-3 rounded-lg border border-brand-200 bg-brand-50 p-4">
+                  <p className="font-semibold text-brand-800">You are clocked in.</p>
+                  <p className="text-sm text-brand-700">
                     Since {formatDateTime(activeEntry.clockIn)}
                   </p>
-                  <p className="text-sm text-green-700">{activeEntryJobTitle}</p>
-                  <p className="text-sm text-green-700">
+                  <p className="text-sm text-brand-700">{activeEntryJobTitle}</p>
+                  <p className="text-sm text-brand-700">
                     Hours so far: {durationHours(activeEntry.clockIn).toFixed(2)}
                   </p>
                   <Input
@@ -144,12 +144,12 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                     <LogOut size={16} /> Clock Out
                   </Button>
                   {!jobNotes.trim() && (
-                    <p className="text-xs text-red-600">Job notes are required before clocking out.</p>
+                    <p className="text-xs text-accent-700">Job notes are required before clocking out.</p>
                   )}
                 </div>
               ) : (
-                <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                  <p className="font-semibold text-blue-800">Choose clock-in type</p>
+                <div className="space-y-3 rounded-lg border border-brand-200 bg-brand-50 p-4">
+                  <p className="font-semibold text-brand-800">Choose clock-in type</p>
                   <Select
                     value={clockType}
                     onChange={(event) => {
@@ -165,8 +165,8 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
 
                   {clockType === 'job' && (
                     <div className="space-y-2">
-                      <p className="text-sm text-blue-800">Select one or more jobs</p>
-                      <div className="max-h-44 overflow-y-auto rounded-lg border border-blue-200 bg-white p-2">
+                      <p className="text-sm text-brand-800">Select one or more jobs</p>
+                      <div className="max-h-44 overflow-y-auto rounded-lg border border-brand-200 bg-white p-2">
                         {activeJobs.map((job) => (
                           <label key={job.id} className="flex items-center gap-2 px-2 py-1 text-sm text-gray-700">
                             <input
@@ -178,7 +178,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                           </label>
                         ))}
                         {activeJobs.length === 0 && (
-                          <p className="text-sm text-blue-700 px-2 py-1">No active or scheduled jobs are available.</p>
+                          <p className="text-sm text-brand-700 px-2 py-1">No active or scheduled jobs are available.</p>
                         )}
                       </div>
                     </div>

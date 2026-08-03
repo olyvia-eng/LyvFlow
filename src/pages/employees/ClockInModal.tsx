@@ -96,7 +96,7 @@ export default function ClockInModal({ open, onClose }: Props) {
                       <p className="font-medium text-gray-900">{employee.name}</p>
                       <p className="text-sm text-gray-500">{employee.email}</p>
                     </div>
-                    <span className={`text-xs font-semibold ${isClockedIn ? 'text-green-600' : 'text-gray-400'}`}>
+                    <span className={`text-xs font-semibold ${isClockedIn ? 'text-brand-700' : 'text-gray-400'}`}>
                       {isClockedIn ? 'Clocked In' : 'Available'}
                     </span>
                   </div>
@@ -113,7 +113,7 @@ export default function ClockInModal({ open, onClose }: Props) {
       {/* Already clocked in → show clock-out option */}
       {step === 'select_job' && foundEmployee && activeEntry && (
         <div className="flex flex-col items-center gap-6 py-4">
-          <LogOut size={48} className="text-red-500" />
+          <LogOut size={48} className="text-accent-700" />
           <div className="text-center">
             <p className="font-semibold text-gray-900 text-lg">{foundEmployee.name}</p>
             <p className="text-gray-500 text-sm mt-1">
@@ -137,7 +137,7 @@ export default function ClockInModal({ open, onClose }: Props) {
           <Button variant="danger" className="w-full justify-center py-3 text-base" onClick={handleClockOut} disabled={!jobNotes.trim()}>
             <LogOut size={18} /> Clock Out
           </Button>
-          {!jobNotes.trim() && <p className="text-xs text-red-600">Job notes are required before clocking out.</p>}
+          {!jobNotes.trim() && <p className="text-xs text-accent-700">Job notes are required before clocking out.</p>}
           <button onClick={reset} className="text-sm text-gray-400 hover:text-gray-600">← Back</button>
         </div>
       )}
@@ -192,8 +192,8 @@ export default function ClockInModal({ open, onClose }: Props) {
       {/* Success */}
       {step === 'clocked_in' && foundEmployee && (
         <div className="flex flex-col items-center gap-6 py-8">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-            <Clock size={32} className="text-green-600" />
+          <div className="w-16 h-16 rounded-full bg-brand-100 flex items-center justify-center">
+            <Clock size={32} className="text-brand-700" />
           </div>
           <div className="text-center">
             <p className="text-xl font-bold text-gray-900">You're clocked in!</p>

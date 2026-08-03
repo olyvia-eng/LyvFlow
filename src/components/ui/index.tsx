@@ -22,7 +22,7 @@ interface CardProps {
 
 export function Card({ children, className = '' }: CardProps) {
   return (
-    <div className={`bg-white rounded-2xl border border-gray-200/90 shadow-sm ${className}`}>
+    <div className={`bg-white rounded-2xl border border-brand-200/80 shadow-sm ${className}`}>
       {children}
     </div>
   );
@@ -45,7 +45,7 @@ export function StatCard({ label, value, sub, icon, color = 'text-brand-600' }: 
           <p className={`text-[1.65rem] leading-8 font-bold ${color}`}>{value}</p>
           {sub && <p className="text-xs text-gray-400 mt-1 leading-5">{sub}</p>}
         </div>
-        {icon && <div className="text-gray-300 mt-0.5 [&>svg]:h-7 [&>svg]:w-7">{icon}</div>}
+        {icon && <div className="text-brand-200 mt-0.5 [&>svg]:h-7 [&>svg]:w-7">{icon}</div>}
       </div>
     </Card>
   );
@@ -80,9 +80,9 @@ export function Button({ variant = 'primary', size = 'md', children, className =
   const sizes = { sm: 'h-9 px-3 text-sm', md: 'h-10 px-4 text-sm' };
   const variants = {
     primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700',
-    secondary: 'bg-white border border-gray-300 text-gray-700 shadow-sm hover:bg-gray-50',
-    danger: 'bg-red-600 text-white shadow-sm hover:bg-red-700',
-    ghost: 'text-gray-600 hover:bg-gray-100',
+    secondary: 'bg-white border border-brand-300 text-brand-800 shadow-sm hover:bg-brand-50',
+    danger: 'bg-accent-700 text-white shadow-sm hover:bg-accent-800',
+    ghost: 'text-brand-700 hover:bg-brand-100',
   };
   return (
     <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...rest}>
@@ -148,7 +148,7 @@ export function Input({ label, error, className = '', ...rest }: InputProps) {
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <input
-        className={`h-10 border border-gray-300 rounded-xl bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 ${error ? 'border-red-400' : ''} ${className}`}
+        className={`h-10 border border-brand-300 rounded-xl bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 ${error ? 'border-accent-500' : ''} ${className}`}
         {...rest}
         type={isNumericInput ? 'text' : rest.type}
         inputMode={isNumericInput ? 'decimal' : rest.inputMode}
@@ -157,7 +157,7 @@ export function Input({ label, error, className = '', ...rest }: InputProps) {
         onFocus={isNumericInput ? handleNumberFocus : rest.onFocus}
         onBlur={isNumericInput ? handleNumberBlur : rest.onBlur}
       />
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-accent-700">{error}</p>}
     </div>
   );
 }
@@ -173,12 +173,12 @@ export function Select({ label, error, className = '', children, ...rest }: Sele
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <select
-        className={`h-10 border border-gray-300 rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 bg-white shadow-sm ${className}`}
+        className={`h-10 border border-brand-300 rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 bg-white shadow-sm ${className}`}
         {...rest}
       >
         {children}
       </select>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-accent-700">{error}</p>}
     </div>
   );
 }
@@ -193,7 +193,7 @@ export function TextArea({ label, className = '', ...rest }: TextAreaProps) {
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <textarea
         rows={3}
-        className={`border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 resize-none bg-white shadow-sm ${className}`}
+        className={`border border-brand-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 resize-none bg-white shadow-sm ${className}`}
         {...rest}
       />
     </div>
@@ -214,10 +214,10 @@ export function Modal({ open, onClose, title, children, footer, wide = false }: 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col border border-gray-200`}>
-        <div className="flex items-center justify-between p-5 border-b border-gray-200">
+      <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col border border-brand-200`}>
+        <div className="flex items-center justify-between p-5 border-b border-brand-200">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none h-8 w-8 rounded-lg hover:bg-gray-100">&times;</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-brand-700 text-xl leading-none h-8 w-8 rounded-lg hover:bg-brand-100">&times;</button>
         </div>
         <div className="overflow-y-auto flex-1 p-5">{children}</div>
         {footer && <div className="p-5 border-t border-gray-200 flex justify-end gap-2 bg-gray-50/50">{footer}</div>}

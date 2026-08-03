@@ -22,7 +22,7 @@ function PinPageButton() {
       onClick={toggleCurrentPagePinned}
       title={isCurrentPagePinned ? `Unpin ${currentPage.label}` : `Pin ${currentPage.label}`}
       aria-label={isCurrentPagePinned ? `Unpin ${currentPage.label}` : `Pin ${currentPage.label}`}
-      className={isCurrentPagePinned ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' : ''}
+      className={isCurrentPagePinned ? 'bg-accent-50 border-accent-200 text-accent-700 hover:bg-accent-100' : ''}
     >
       <Pin size={15} className={isCurrentPagePinned ? 'fill-current' : ''} />
       Pin
@@ -33,7 +33,7 @@ function PinPageButton() {
 export default function AppLayout({ userName, businessName, userRole, onLogout }: AppLayoutProps) {
   return (
     <PinnedPagesProvider userRole={userRole}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-cream">
         <Sidebar userName={userName} businessName={businessName} userRole={userRole} onLogout={onLogout} />
         {/* Content area shifts right on desktop, down on mobile */}
         <main className="lg:ml-72 pt-14 lg:pt-0 min-h-screen">

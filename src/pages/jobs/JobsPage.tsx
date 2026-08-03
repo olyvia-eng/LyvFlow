@@ -81,9 +81,9 @@ export default function JobsPage() {
       const laborVarianceHigh = Math.abs(laborVariancePct) > HIGH_LABOR_VARIANCE_THRESHOLD_PCT;
 
       const warningBadges: Array<{ label: string; className: string }> = [];
-      if (overHours) warningBadges.push({ label: 'Over Hours', className: 'bg-red-100 text-red-700' });
-      if (lowMargin) warningBadges.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-amber-100 text-amber-700' });
-      if (laborVarianceHigh) warningBadges.push({ label: `Labor Variance (>${HIGH_LABOR_VARIANCE_THRESHOLD_PCT}%)`, className: 'bg-indigo-100 text-indigo-700' });
+      if (overHours) warningBadges.push({ label: 'Over Hours', className: 'bg-accent-200 text-accent-800' });
+      if (lowMargin) warningBadges.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-accent-100 text-accent-700' });
+      if (laborVarianceHigh) warningBadges.push({ label: `Labor Variance (>${HIGH_LABOR_VARIANCE_THRESHOLD_PCT}%)`, className: 'bg-brand-100 text-brand-700' });
 
       map.set(job.id, {
         overHours,
@@ -208,7 +208,7 @@ export default function JobsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge label={job.status} className={statusColor[job.status]} />
-                      {risk?.atRisk && <Badge label="At Risk" className="bg-rose-100 text-rose-700" />}
+                      {risk?.atRisk && <Badge label="At Risk" className="bg-accent-200 text-accent-800" />}
                       <Link to={`/jobs/${job.id}`} className="font-semibold text-gray-900 hover:text-brand-600 truncate">
                         {job.title}
                       </Link>
@@ -227,14 +227,14 @@ export default function JobsPage() {
                     {/* Hours bar */}
                     <div className="flex items-center gap-2 mt-2">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5 max-w-xs">
-                        <div className={`h-1.5 rounded-full ${pct >= 100 ? 'bg-red-500' : 'bg-brand-500'}`} style={{ width: `${pct}%` }} />
+                        <div className={`h-1.5 rounded-full ${pct >= 100 ? 'bg-accent-600' : 'bg-brand-500'}`} style={{ width: `${pct}%` }} />
                       </div>
                       <span className="text-xs text-gray-500">{job.actualHours.toFixed(1)}/{job.estimatedHours}h</span>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-semibold">{formatCurrency(job.contractValue)}</p>
-                    <p className={`text-xs ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <p className={`text-xs ${profit >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>
                       {profit >= 0 ? '+' : ''}{formatCurrency(profit)} margin
                     </p>
                   </div>
@@ -244,7 +244,7 @@ export default function JobsPage() {
                     <Button variant="secondary" size="sm"><ChevronRight size={13} /> Details</Button>
                   </Link>
                   <Button variant="ghost" size="sm" onClick={() => openEdit(job)}><Pencil size={13} /></Button>
-                  <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(job.id)}><Trash2 size={13} className="text-red-400" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(job.id)}><Trash2 size={13} className="text-accent-600" /></Button>
                 </div>
               </Card>
             );

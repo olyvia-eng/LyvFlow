@@ -32,9 +32,9 @@ const labourTypeLabel: Record<LabourType, string> = {
 };
 
 const roleColor: Record<EmployeeRole, string> = {
-  admin: 'bg-purple-100 text-purple-700',
-  foreman: 'bg-blue-100 text-blue-700',
-  crew_member: 'bg-green-100 text-green-700',
+  admin: 'bg-accent-100 text-accent-700',
+  foreman: 'bg-brand-100 text-brand-700',
+  crew_member: 'bg-brand-200 text-brand-800',
 };
 
 const compensationTypeLabel: Record<CompensationType, string> = {
@@ -43,8 +43,8 @@ const compensationTypeLabel: Record<CompensationType, string> = {
 };
 
 const compensationTypeColor: Record<CompensationType, string> = {
-  hourly: 'bg-gray-100 text-gray-700',
-  salary: 'bg-indigo-100 text-indigo-700',
+  hourly: 'bg-brand-100 text-brand-700',
+  salary: 'bg-accent-100 text-accent-700',
 };
 
 const toOptionLabel = (value: string) => value
@@ -277,13 +277,13 @@ export default function EmployeesPage() {
 
                 {/* Clock status */}
                 {activeEntry ? (
-                  <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-2 text-xs">
-                    <p className="font-semibold text-green-700">Clocked In</p>
-                    <p className="text-green-600">{activeWorkLabel}</p>
-                    <p className="text-green-500">Since {formatDateTime(activeEntry.clockIn)}</p>
+                  <div className="mt-3 bg-brand-50 border border-brand-200 rounded-lg p-2 text-xs">
+                    <p className="font-semibold text-brand-700">Clocked In</p>
+                    <p className="text-brand-700">{activeWorkLabel}</p>
+                    <p className="text-brand-600">Since {formatDateTime(activeEntry.clockIn)}</p>
                     <button
                       onClick={() => setClockOutEntry(activeEntry.id)}
-                      className="mt-2 flex items-center gap-1 text-red-600 hover:text-red-700 font-medium"
+                      className="mt-2 flex items-center gap-1 text-accent-700 hover:text-accent-800 font-medium"
                     >
                       <LogOut size={12} /> Clock Out
                     </button>
@@ -356,7 +356,7 @@ export default function EmployeesPage() {
               onChange={(e) => setNewPassword(e.target.value)}
             />
           )}
-          {formError && <p className="text-sm text-red-600">{formError}</p>}
+          {formError && <p className="text-sm text-accent-700">{formError}</p>}
           <div className="flex items-center gap-2">
             <input type="checkbox" id="active" checked={form.active} onChange={(e) => set('active', e.target.checked)} />
             <label htmlFor="active" className="text-sm text-gray-700">Active Employee</label>

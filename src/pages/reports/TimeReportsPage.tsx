@@ -49,12 +49,12 @@ function entryLabel(entry: Partial<TimeEntry>, jobs: Array<{ id: string; title: 
 function entryTypeMeta(entry: Partial<TimeEntry>) {
   const workType = normalizeWorkType(entry);
   if (workType === 'drive_time') {
-    return { label: 'Drive Time', className: 'bg-amber-100 text-amber-700' };
+    return { label: 'Drive Time', className: 'bg-accent-100 text-accent-700' };
   }
   if (workType === 'non_billable') {
-    return { label: 'Non-Billable', className: 'bg-slate-100 text-slate-700' };
+    return { label: 'Non-Billable', className: 'bg-brand-100 text-brand-700' };
   }
-  return { label: 'Job Work', className: 'bg-blue-100 text-blue-700' };
+  return { label: 'Job Work', className: 'bg-brand-200 text-brand-800' };
 }
 
 function escapeCsvValue(value: string | number | null | undefined) {
@@ -423,9 +423,9 @@ export default function TimeReportsPage({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <StatCard label="Total Hours" value={`${totalHours.toFixed(1)} hrs`} />
-        <StatCard label="Job Work" value={`${totalsByType.job.toFixed(1)} hrs`} color="text-blue-600" />
-        <StatCard label="Drive Time" value={`${totalsByType.drive_time.toFixed(1)} hrs`} color="text-amber-600" />
-        <StatCard label="Non-Billable" value={`${totalsByType.non_billable.toFixed(1)} hrs`} color="text-slate-600" />
+        <StatCard label="Job Work" value={`${totalsByType.job.toFixed(1)} hrs`} color="text-brand-700" />
+        <StatCard label="Drive Time" value={`${totalsByType.drive_time.toFixed(1)} hrs`} color="text-accent-700" />
+        <StatCard label="Non-Billable" value={`${totalsByType.non_billable.toFixed(1)} hrs`} color="text-brand-600" />
       </div>
 
       <Card className="p-4 mb-6">
@@ -548,7 +548,7 @@ export default function TimeReportsPage({
                         <p className="text-xs text-gray-500 truncate mt-1">{entryLabel(entry, jobs)}</p>
                       </td>
                       <td className="py-2 text-gray-500 text-xs">{formatDateTime(entry.clockIn)}</td>
-                      <td className="py-2 text-gray-500 text-xs">{entry.clockOut ? formatDateTime(entry.clockOut) : <span className="text-green-600 font-medium">Active</span>}</td>
+                      <td className="py-2 text-gray-500 text-xs">{entry.clockOut ? formatDateTime(entry.clockOut) : <span className="text-brand-700 font-medium">Active</span>}</td>
                       <td className="py-2 text-gray-600 max-w-xs truncate">{entry.notes?.trim() ? entry.notes : '—'}</td>
                       <td className="px-4 py-2 text-right font-semibold text-brand-600">{hours.toFixed(2)}</td>
                     </tr>
@@ -683,7 +683,7 @@ export default function TimeReportsPage({
                     <td className="py-2 capitalize text-gray-600">{workType.replace('_', ' ')}</td>
                     <td className="py-2 text-gray-600 max-w-xs truncate">{entryLabel(entry, jobs)}</td>
                     <td className="py-2 text-gray-500 text-xs">{formatDateTime(entry.clockIn)}</td>
-                    <td className="py-2 text-gray-500 text-xs">{entry.clockOut ? formatDateTime(entry.clockOut) : <span className="text-green-600 font-medium">Active</span>}</td>
+                    <td className="py-2 text-gray-500 text-xs">{entry.clockOut ? formatDateTime(entry.clockOut) : <span className="text-brand-700 font-medium">Active</span>}</td>
                     <td className="py-2 text-gray-600 max-w-xs truncate">{entry.notes?.trim() ? entry.notes : '—'}</td>
                     <td className="py-2 text-right font-semibold text-brand-600">{hours.toFixed(2)}</td>
                   </tr>

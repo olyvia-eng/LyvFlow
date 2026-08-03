@@ -24,10 +24,10 @@ const roleLabel: Record<BusinessUserRole, string> = {
 };
 
 const roleColor: Record<BusinessUserRole, string> = {
-  owner: 'bg-indigo-100 text-indigo-700',
-  admin: 'bg-blue-100 text-blue-700',
-  foreman: 'bg-amber-100 text-amber-700',
-  crew_member: 'bg-emerald-100 text-emerald-700',
+  owner: 'bg-accent-100 text-accent-700',
+  admin: 'bg-brand-100 text-brand-700',
+  foreman: 'bg-accent-200 text-accent-800',
+  crew_member: 'bg-brand-200 text-brand-800',
 };
 
 export default function UserAccessPage({ users, currentUserRole, onCreateUser, onUpdateUser, onDeleteUser }: UserAccessPageProps) {
@@ -151,8 +151,8 @@ export default function UserAccessPage({ users, currentUserRole, onCreateUser, o
               <option value="admin" disabled={!canCreateAdmins}>Admin</option>
             </Select>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            {success && <p className="text-sm text-green-600">{success}</p>}
+            {error && <p className="text-sm text-accent-700">{error}</p>}
+            {success && <p className="text-sm text-brand-700">{success}</p>}
 
             <Button type="submit" className="w-full justify-center">
               {submitting ? 'Creating user...' : 'Create User'}
@@ -204,7 +204,7 @@ export default function UserAccessPage({ users, currentUserRole, onCreateUser, o
                       <td className="py-2">
                         {canManageRow(user) ? (
                           <Button variant="ghost" size="sm" onClick={() => void handleDelete(user)}>
-                            <Trash2 size={13} className="text-red-500" />
+                            <Trash2 size={13} className="text-accent-700" />
                           </Button>
                         ) : (
                           <span className="text-xs text-gray-400">Protected</span>

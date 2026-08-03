@@ -119,35 +119,35 @@ export default function Dashboard() {
           label="Revenue"
           value={formatCurrency(totalRevenue)}
           icon={<DollarSign size={32} />}
-          color="text-green-600"
+          color="text-brand-700"
         />
         <StatCard
           label="Gross Profit"
           value={formatCurrency(grossProfit)}
           sub={`${grossMarginPct.toFixed(1)}% margin`}
           icon={<TrendingUp size={32} />}
-          color={grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}
+          color={grossProfit >= 0 ? 'text-brand-700' : 'text-accent-700'}
         />
         <StatCard
           label="Open Estimates"
           value={openEstimates.length}
           sub={formatCurrency(openEstimateValue)}
           icon={<FileText size={32} />}
-          color="text-blue-600"
+          color="text-accent-700"
         />
         <StatCard
           label="Jobs In Progress"
           value={jobsInProgress.length}
           sub={`${scheduledJobs} scheduled next`}
           icon={<Briefcase size={32} />}
-          color="text-amber-600"
+          color="text-brand-600"
         />
         <StatCard
           label="Cash Position"
           value={formatCurrency(cashPosition)}
           sub="Revenue less actual job costs"
           icon={<Wallet size={32} />}
-          color={cashPosition >= 0 ? 'text-green-600' : 'text-red-600'}
+          color={cashPosition >= 0 ? 'text-brand-700' : 'text-accent-700'}
         />
       </div>
 
@@ -212,7 +212,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-xs text-gray-500">Gross Profit</p>
-            <p className={`text-xl font-semibold ${grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-xl font-semibold ${grossProfit >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>
               {formatCurrency(grossProfit)}
             </p>
           </div>

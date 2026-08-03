@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import { DollarSign, Clock, TrendingUp, Briefcase, Users, BarChart3 } from 'lucide-react';
 
-const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+const COLORS = ['#4D5D2F', '#6a7b3a', '#81954a', '#D4A017', '#b88513', '#f4c96f'];
 
 export default function DataCenterPage() {
   const { jobs, customers, estimates, timeEntries, budgetItems } = useStore();
@@ -101,17 +101,17 @@ export default function DataCenterPage() {
           value={formatCurrency(grossProfit)}
           sub={`${grossMarginPct.toFixed(1)}% margin`}
           icon={<TrendingUp size={32} />}
-          color={grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}
+          color={grossProfit >= 0 ? 'text-brand-700' : 'text-accent-700'}
         />
-        <StatCard label="Man Hours Logged" value={`${totalManHours.toFixed(1)} hrs`} sub={`${totalEstimatedHours} estimated`} icon={<Clock size={32} />} color="text-blue-600" />
-        <StatCard label="Revenue / Man Hour" value={formatCurrency(revenuePerHour)} sub="Throughput" icon={<BarChart3 size={32} />} color="text-purple-600" />
+        <StatCard label="Man Hours Logged" value={`${totalManHours.toFixed(1)} hrs`} sub={`${totalEstimatedHours} estimated`} icon={<Clock size={32} />} color="text-accent-700" />
+        <StatCard label="Revenue / Man Hour" value={formatCurrency(revenuePerHour)} sub="Throughput" icon={<BarChart3 size={32} />} color="text-brand-600" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Completed Jobs" value={completedJobs.length} icon={<Briefcase size={32} />} color="text-green-600" />
-        <StatCard label="Active Jobs" value={activeJobs.length} icon={<Briefcase size={32} />} color="text-blue-600" />
+        <StatCard label="Completed Jobs" value={completedJobs.length} icon={<Briefcase size={32} />} color="text-brand-700" />
+        <StatCard label="Active Jobs" value={activeJobs.length} icon={<Briefcase size={32} />} color="text-brand-600" />
         <StatCard label="Hours Sold (est.)" value={`${totalEstimatedHours} hrs`} sub={`Actual: ${totalActualHours} hrs`} icon={<Clock size={32} />} />
-        <StatCard label="Customers" value={customers.length} sub={`${customers.filter((c) => c.status === 'active').length} active`} icon={<Users size={32} />} color="text-orange-600" />
+        <StatCard label="Customers" value={customers.length} sub={`${customers.filter((c) => c.status === 'active').length} active`} icon={<Users size={32} />} color="text-accent-700" />
       </div>
 
       {/* Charts grid */}
@@ -125,8 +125,8 @@ export default function DataCenterPage() {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="estimated" fill="#93c5fd" radius={[4,4,0,0]} name="Estimated" />
-              <Bar dataKey="actual" fill="#22c55e" radius={[4,4,0,0]} name="Actual" />
+              <Bar dataKey="estimated" fill="#d2dab7" radius={[4,4,0,0]} name="Estimated" />
+              <Bar dataKey="actual" fill="#4D5D2F" radius={[4,4,0,0]} name="Actual" />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -157,8 +157,8 @@ export default function DataCenterPage() {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v) => formatCurrency(Number(v))} />
               <Legend />
-              <Bar dataKey="budgeted" fill="#93c5fd" radius={[4,4,0,0]} name="Budgeted" />
-              <Bar dataKey="actual" fill="#f59e0b" radius={[4,4,0,0]} name="Actual" />
+              <Bar dataKey="budgeted" fill="#6a7b3a" radius={[4,4,0,0]} name="Budgeted" />
+              <Bar dataKey="actual" fill="#D4A017" radius={[4,4,0,0]} name="Actual" />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -171,7 +171,7 @@ export default function DataCenterPage() {
               <XAxis type="number" tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
               <Tooltip />
-              <Bar dataKey="count" fill="#22c55e" radius={[0,4,4,0]} name="Jobs" />
+              <Bar dataKey="count" fill="#4D5D2F" radius={[0,4,4,0]} name="Jobs" />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -184,7 +184,7 @@ export default function DataCenterPage() {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="count" fill="#8b5cf6" radius={[4,4,0,0]} name="Estimates" />
+              <Bar dataKey="count" fill="#D4A017" radius={[4,4,0,0]} name="Estimates" />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -233,14 +233,14 @@ export default function DataCenterPage() {
                     <td className="px-4 py-2 capitalize text-gray-500">{j.status.replace(/_/g, ' ')}</td>
                     <td className="px-4 py-2 text-right">{formatCurrency(j.contractValue)}</td>
                     <td className="px-4 py-2 text-right">{formatCurrency(cost)}</td>
-                    <td className={`px-4 py-2 text-right font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <td className={`px-4 py-2 text-right font-semibold ${profit >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>
                       {formatCurrency(profit)}
                     </td>
-                    <td className={`px-4 py-2 text-right ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <td className={`px-4 py-2 text-right ${margin >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>
                       {margin.toFixed(1)}%
                     </td>
                     <td className="px-4 py-2 text-right text-gray-500">{j.estimatedHours}</td>
-                    <td className={`px-4 py-2 text-right font-semibold ${j.actualHours > j.estimatedHours ? 'text-red-500' : 'text-gray-800'}`}>
+                    <td className={`px-4 py-2 text-right font-semibold ${j.actualHours > j.estimatedHours ? 'text-accent-700' : 'text-gray-800'}`}>
                       {j.actualHours.toFixed(1)}
                     </td>
                   </tr>

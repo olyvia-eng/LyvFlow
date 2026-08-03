@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-cream text-brand-900;
   }
 
   h1,
@@ -18,33 +18,33 @@
   }
 
   th {
-    @apply font-medium text-gray-500;
+    @apply font-medium text-brand-700;
   }
 
   td {
-    @apply text-gray-700;
+    @apply text-brand-900;
   }
 }
 
 @layer components {
   .panel {
-    @apply bg-white rounded-2xl border border-gray-200 shadow-sm;
+    @apply bg-white rounded-2xl border border-brand-100 shadow-sm;
   }
 
   .panel-header {
-    @apply p-4 border-b border-gray-100;
+    @apply p-4 border-b border-brand-100;
   }
 
   .panel-title {
-    @apply font-semibold text-gray-800;
+    @apply font-semibold text-brand-900;
   }
 
   .table-shell {
-    @apply overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm;
+    @apply overflow-x-auto rounded-2xl border border-brand-100 bg-white shadow-sm;
   }
 
   .table-head-row {
-    @apply border-b border-gray-200 text-gray-500 text-left;
+    @apply border-b border-brand-100 text-brand-700 text-left;
   }
 
   .table-header-cell {

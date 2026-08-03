@@ -149,7 +149,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       }}
       onDragEnd={() => setDragIndex(null)}
     >
-      <Pin size={12} className="mr-2 text-emerald-500" />
+      <Pin size={12} className="mr-2 text-accent-600" />
       <SidebarItem
         item={item}
         compact
@@ -169,14 +169,14 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   return (
     <>
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 flex items-center justify-between px-4 h-14">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-cream border-b border-brand-100 flex items-center justify-between px-4 h-14">
         <div className="flex items-center gap-2 font-semibold text-brand-700">
           <Leaf size={22} />
           OliveOps
         </div>
         <button
           onClick={() => setMobileOpen((v) => !v)}
-          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+          className="p-2 rounded-lg text-brand-700 hover:bg-brand-50"
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -185,14 +185,14 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-20 bg-black/40"
+          className="lg:hidden fixed inset-0 z-20 bg-brand-900/30"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Mobile drawer */}
       <aside
-        className={`lg:hidden fixed top-14 left-0 bottom-0 z-20 w-72 bg-white border-r border-gray-200 p-4 flex flex-col transform transition-transform ${
+        className={`lg:hidden fixed top-14 left-0 bottom-0 z-20 w-72 bg-cream border-r border-brand-100 p-4 flex flex-col transform transition-transform ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -209,10 +209,10 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             ))}
           </div>
 
-          <div className="rounded-xl border border-gray-200 p-3 mb-4">
+          <div className="rounded-xl border border-brand-100 bg-white p-3 mb-4">
             <button
               type="button"
-              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1"
+              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-500 mb-1"
               onClick={() => toggleSection('pinned')}
             >
               Pinned
@@ -236,12 +236,12 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             />
           ))}
         </div>
-        <div className="pt-3 border-t border-gray-200 mt-3">
+        <div className="pt-3 border-t border-brand-100 mt-3">
           <div className="flex items-center gap-3 px-1 mb-2">
-            <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
+            <div className="h-8 w-8 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
             <div>
-              <p className="text-xs font-semibold text-gray-700">{businessName}</p>
-              <p className="text-[11px] text-gray-500">{userName}</p>
+              <p className="text-xs font-semibold text-brand-900">{businessName}</p>
+              <p className="text-[11px] text-brand-600">{userName}</p>
             </div>
           </div>
           <button
@@ -257,7 +257,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-72 min-h-screen bg-white border-r border-gray-200 p-4 fixed top-0 left-0 bottom-0">
+      <aside className="hidden lg:flex flex-col w-72 min-h-screen bg-cream border-r border-brand-100 p-4 fixed top-0 left-0 bottom-0">
         <div className="flex items-center gap-2 font-semibold text-brand-700 text-[28px] mb-4 px-1">
           <Leaf size={24} />
           <span className="text-2xl">OliveOps</span>
@@ -276,10 +276,10 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             ))}
           </div>
 
-          <div className="rounded-xl border border-gray-200 p-3 mb-4">
+          <div className="rounded-xl border border-brand-100 bg-white p-3 mb-4">
             <button
               type="button"
-              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1"
+              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-500 mb-1"
               onClick={() => toggleSection('pinned')}
             >
               Pinned
@@ -304,12 +304,12 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
           ))}
         </div>
 
-        <div className="pt-3 border-t border-gray-200">
+        <div className="pt-3 border-t border-brand-100">
           <div className="flex items-center gap-3 px-1 mb-2">
-            <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
+            <div className="h-8 w-8 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
             <div>
-              <p className="text-xs font-semibold text-gray-700">{businessName}</p>
-              <p className="text-[11px] text-gray-500">{userName}</p>
+              <p className="text-xs font-semibold text-brand-900">{businessName}</p>
+              <p className="text-[11px] text-brand-600">{userName}</p>
             </div>
           </div>
           <button

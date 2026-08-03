@@ -1020,7 +1020,7 @@ export default function BudgetPage() {
           <button
             type="button"
             onClick={() => updateLabourPlan(row.employee.id, 'compType', 'salaried')}
-            className={`px-2 py-0.5 text-xs rounded ${row.plan.compType === 'salaried' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`px-2 py-0.5 text-xs rounded ${row.plan.compType === 'salaried' ? 'bg-accent-100 text-accent-700' : 'text-gray-500 hover:bg-gray-100'}`}
           >
             Salary
           </button>
@@ -1215,7 +1215,7 @@ export default function BudgetPage() {
             <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
               <Card className="p-4 hover:border-brand-300 cursor-pointer">
                 <p className="text-xs text-gray-500">Budgeted Revenue</p>
-                <p className="text-xl font-bold text-green-600">{formatCurrency(totalBudgetedRevenue)}</p>
+                <p className="text-xl font-bold text-brand-700">{formatCurrency(totalBudgetedRevenue)}</p>
                 <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
@@ -1229,7 +1229,7 @@ export default function BudgetPage() {
             <button type="button" onClick={() => openCategoryEditor('overhead')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
               <Card className="p-4 hover:border-brand-300 cursor-pointer">
                 <p className="text-xs text-gray-500">Budgeted Expenses</p>
-                <p className="text-xl font-bold text-red-600">{formatCurrency(totalBudgetedExpenses)}</p>
+                <p className="text-xl font-bold text-accent-700">{formatCurrency(totalBudgetedExpenses)}</p>
                 <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
@@ -1363,31 +1363,31 @@ export default function BudgetPage() {
           {showLabourCalcDetails && renderCalculationDetails()}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <Card className="p-4 border border-green-100 bg-gradient-to-r from-green-50 to-white">
+            <Card className="p-4 border border-brand-200 bg-gradient-to-r from-brand-50 to-white">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Total Annual Labour Cost</p>
-                  <p className="text-3xl font-bold text-green-700">{formatCurrency(labourPlannerTotalsAll.annualLabourCost)}</p>
+                  <p className="text-3xl font-bold text-brand-700">{formatCurrency(labourPlannerTotalsAll.annualLabourCost)}</p>
                 </div>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-green-700"><Users size={18} /></span>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-700"><Users size={18} /></span>
               </div>
             </Card>
-            <Card className="p-4 border border-blue-100 bg-gradient-to-r from-blue-50 to-white">
+            <Card className="p-4 border border-accent-200 bg-gradient-to-r from-accent-50 to-white">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Target Labour Revenue</p>
-                  <p className="text-3xl font-bold text-blue-700">{formatCurrency(targetLabourRevenue)}</p>
+                  <p className="text-3xl font-bold text-accent-700">{formatCurrency(targetLabourRevenue)}</p>
                 </div>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700"><Target size={18} /></span>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-accent-100 text-accent-700"><Target size={18} /></span>
               </div>
             </Card>
-            <Card className="p-4 border border-violet-100 bg-gradient-to-r from-violet-50 to-white">
+            <Card className="p-4 border border-brand-300 bg-gradient-to-r from-brand-100 to-white">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Required Avg Charge-Out Rate</p>
-                  <p className="text-3xl font-bold text-violet-700">{formatCurrency(requiredAverageChargeOutRate)}<span className="text-xl">/hr</span></p>
+                  <p className="text-3xl font-bold text-brand-800">{formatCurrency(requiredAverageChargeOutRate)}<span className="text-xl">/hr</span></p>
                 </div>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-violet-700"><BadgeDollarSign size={18} /></span>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-200 text-brand-800"><BadgeDollarSign size={18} /></span>
               </div>
             </Card>
           </div>
@@ -1486,7 +1486,7 @@ export default function BudgetPage() {
             <button type="button" onClick={() => openCategoryEditor('revenue')} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
               <Card className="p-4 hover:border-brand-300 cursor-pointer">
                 <p className="text-xs text-gray-500">Budgeted Sales / Revenue</p>
-                <p className="text-xl font-bold text-green-600">{formatCurrency(totalsByCategory.revenue.budgeted)}</p>
+                <p className="text-xl font-bold text-brand-700">{formatCurrency(totalsByCategory.revenue.budgeted)}</p>
               <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>

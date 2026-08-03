@@ -53,20 +53,20 @@ export const calcEstimateTotal = (subtotal: number, tax: number): number =>
 
 export const statusColor: Record<string, string> = {
   // Estimate
-  draft: 'bg-gray-100 text-gray-700',
-  sent: 'bg-blue-100 text-blue-700',
-  accepted: 'bg-green-100 text-green-700',
-  declined: 'bg-red-100 text-red-700',
-  converted: 'bg-purple-100 text-purple-700',
+  draft: 'bg-brand-100 text-brand-700',
+  sent: 'bg-accent-100 text-accent-700',
+  accepted: 'bg-brand-200 text-brand-800',
+  declined: 'bg-accent-200 text-accent-800',
+  converted: 'bg-brand-300 text-brand-900',
   // Job
-  scheduled: 'bg-yellow-100 text-yellow-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  on_hold: 'bg-orange-100 text-orange-700',
-  completed: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
+  scheduled: 'bg-accent-100 text-accent-700',
+  in_progress: 'bg-brand-100 text-brand-700',
+  on_hold: 'bg-accent-200 text-accent-800',
+  completed: 'bg-brand-200 text-brand-800',
+  cancelled: 'bg-accent-200 text-accent-800',
   // Customer
-  lead: 'bg-gray-100 text-gray-700',
-  prospect: 'bg-blue-100 text-blue-700',
-  active: 'bg-green-100 text-green-700',
-  inactive: 'bg-red-100 text-red-700',
+  lead: 'bg-brand-100 text-brand-700',
+  prospect: 'bg-accent-100 text-accent-700',
+  active: 'bg-brand-200 text-brand-800',
+  inactive: 'bg-accent-200 text-accent-800',
 };
