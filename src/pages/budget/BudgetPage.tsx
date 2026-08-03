@@ -28,6 +28,22 @@ const CATEGORY_BY_TAB: Record<Exclude<BudgetTab, 'analysis'>, BudgetCategory> = 
 
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
 
+const compareBudgetItemsByCostCode = (a: BudgetItem, b: BudgetItem) => {
+  const aCode = a.costCode?.trim() ?? '';
+  const bCode = b.costCode?.trim() ?? '';
+
+  if (!aCode && !bCode) {
+    return a.description.localeCompare(b.description, undefined, { sensitivity: 'base' });
+  }
+  if (!aCode) return 1;
+  if (!bCode) return -1;
+
+  const byCode = aCode.localeCompare(bCode, undefined, { numeric: true, sensitivity: 'base' });
+  if (byCode !== 0) return byCode;
+
+  return a.description.localeCompare(b.description, undefined, { sensitivity: 'base' });
+};
+
 const empty = (): Omit<BudgetItem, 'id'> => ({
   category: 'labour',
   equipmentCostType: undefined,
@@ -93,7 +109,11 @@ export default function BudgetPage() {
 
   const allYears = [...new Set(budgetItems.map((b) => b.period.slice(0, 4)))].sort().reverse();
 
-  const items = budgetItems.filter((b) => b.period.startsWith(`${year}-`));
+  const items = useMemo(() => {
+    return budgetItems
+      .filter((b) => b.period.startsWith(`${year}-`))
+      .sort(compareBudgetItemsByCostCode);
+  }, [budgetItems, year]);
   const scopeLabel = year;
   const revenueScopeType: 'year' = 'year';
   const revenueScopeValue = scopeLabel;
