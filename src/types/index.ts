@@ -178,6 +178,9 @@ export interface BudgetItem {
   costCode?: string;
   equipmentPayment?: number;
   equipmentPaymentFrequencyPerYear?: number;
+  fuelPriceUnit?: 'L' | 'gal';
+  averageFuelPrice?: number;
+  averageFuelBurnPerHour?: number;
   fuelCostPerHour?: number;
   monthlyInsuranceCost?: number;
   monthlyMaintenanceCost?: number;

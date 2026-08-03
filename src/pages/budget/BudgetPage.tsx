@@ -51,6 +51,9 @@ const empty = (): Omit<BudgetItem, 'id'> => ({
   costCode: '',
   equipmentPayment: undefined,
   equipmentPaymentFrequencyPerYear: undefined,
+  fuelPriceUnit: undefined,
+  averageFuelPrice: undefined,
+  averageFuelBurnPerHour: undefined,
   fuelCostPerHour: undefined,
   monthlyInsuranceCost: undefined,
   monthlyMaintenanceCost: undefined,
@@ -65,6 +68,9 @@ const empty = (): Omit<BudgetItem, 'id'> => ({
 const equipmentInfoDefaults = () => ({
   equipmentPayment: 0,
   equipmentPaymentFrequencyPerYear: 12,
+  fuelPriceUnit: 'L' as const,
+  averageFuelPrice: 0,
+  averageFuelBurnPerHour: 0,
   fuelCostPerHour: 0,
   monthlyInsuranceCost: 0,
   monthlyMaintenanceCost: 0,
@@ -158,6 +164,9 @@ export default function BudgetPage() {
       costCode: b.costCode ?? '',
       equipmentPayment: b.equipmentPayment,
       equipmentPaymentFrequencyPerYear: b.equipmentPaymentFrequencyPerYear,
+      fuelPriceUnit: b.fuelPriceUnit ?? 'L',
+      averageFuelPrice: b.averageFuelPrice ?? b.fuelCostPerHour ?? 0,
+      averageFuelBurnPerHour: b.averageFuelBurnPerHour ?? 1,
       fuelCostPerHour: b.fuelCostPerHour,
       monthlyInsuranceCost: b.monthlyInsuranceCost,
       monthlyMaintenanceCost: b.monthlyMaintenanceCost,
@@ -174,11 +183,18 @@ export default function BudgetPage() {
     if (!form.description.trim()) return;
     const normalizedCostCode = form.costCode?.trim();
     const normalizeNumber = (value: number | undefined) => Math.max(0, Number.isFinite(value ?? 0) ? (value ?? 0) : 0);
+    const normalizedFuelPriceUnit: BudgetItem['fuelPriceUnit'] = form.fuelPriceUnit === 'gal' ? 'gal' : 'L';
+    const normalizedFuelPrice = normalizeNumber(form.averageFuelPrice);
+    const normalizedFuelBurnPerHour = normalizeNumber(form.averageFuelBurnPerHour);
+    const normalizedFuelCostPerHour = normalizedFuelPrice * normalizedFuelBurnPerHour;
     const equipmentFields = form.category === 'equipment'
       ? {
           equipmentPayment: normalizeNumber(form.equipmentPayment),
           equipmentPaymentFrequencyPerYear: normalizeNumber(form.equipmentPaymentFrequencyPerYear),
-          fuelCostPerHour: normalizeNumber(form.fuelCostPerHour),
+          fuelPriceUnit: normalizedFuelPriceUnit,
+          averageFuelPrice: normalizedFuelPrice,
+          averageFuelBurnPerHour: normalizedFuelBurnPerHour,
+          fuelCostPerHour: normalizedFuelCostPerHour,
           monthlyInsuranceCost: normalizeNumber(form.monthlyInsuranceCost),
           monthlyMaintenanceCost: normalizeNumber(form.monthlyMaintenanceCost),
           sellableHoursPerYear: normalizeNumber(form.sellableHoursPerYear),
@@ -187,6 +203,9 @@ export default function BudgetPage() {
       : {
           equipmentPayment: undefined,
           equipmentPaymentFrequencyPerYear: undefined,
+          fuelPriceUnit: undefined,
+          averageFuelPrice: undefined,
+          averageFuelBurnPerHour: undefined,
           fuelCostPerHour: undefined,
           monthlyInsuranceCost: undefined,
           monthlyMaintenanceCost: undefined,
@@ -605,6 +624,10 @@ export default function BudgetPage() {
     const next = Number.isFinite(value) ? value : 0;
     setPricingInputs((current) => ({ ...current, [key]: Math.max(0, next) }));
   };
+
+  const normalizedAverageFuelPrice = Math.max(0, Number.isFinite(form.averageFuelPrice ?? 0) ? (form.averageFuelPrice ?? 0) : 0);
+  const normalizedAverageFuelBurnPerHour = Math.max(0, Number.isFinite(form.averageFuelBurnPerHour ?? 0) ? (form.averageFuelBurnPerHour ?? 0) : 0);
+  const calculatedFuelCostPerHour = normalizedAverageFuelPrice * normalizedAverageFuelBurnPerHour;
 
   const marginDivisor = Math.max(0.01, 1 - pricingInputs.targetMarginPct / 100);
   const activeEmployees = employees.filter((employee) => employee.active);
@@ -1569,13 +1592,48 @@ export default function BudgetPage() {
                     value={form.equipmentPaymentFrequencyPerYear ?? 0}
                     onChange={(e) => set('equipmentPaymentFrequencyPerYear', Number(e.target.value))}
                   />
+                  <div className="space-y-2 sm:col-span-2">
+                    <p className="text-sm font-medium text-gray-700">Average Fuel Price Unit</p>
+                    <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
+                      {(['L', 'gal'] as const).map((unit) => (
+                        <button
+                          key={unit}
+                          type="button"
+                          onClick={() => set('fuelPriceUnit', unit)}
+                          className={`px-3 py-1 text-xs rounded ${
+                            (form.fuelPriceUnit ?? 'L') === unit
+                              ? 'bg-brand-600 text-white'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          {unit}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <Input
-                    label="Fuel Cost per Hour"
+                    label={`Average Fuel Price ($/${form.fuelPriceUnit ?? 'L'})`}
                     type="number"
                     min={0}
                     step={0.01}
-                    value={form.fuelCostPerHour ?? 0}
-                    onChange={(e) => set('fuelCostPerHour', Number(e.target.value))}
+                    value={form.averageFuelPrice ?? 0}
+                    onChange={(e) => set('averageFuelPrice', Number(e.target.value))}
+                  />
+                  <Input
+                    label={`Average Fuel Burned per Hour (${form.fuelPriceUnit ?? 'L'}/hr)`}
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={form.averageFuelBurnPerHour ?? 0}
+                    onChange={(e) => set('averageFuelBurnPerHour', Number(e.target.value))}
+                  />
+                  <Input
+                    label="Fuel Cost per Hour (Auto)"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={calculatedFuelCostPerHour}
+                    disabled
                   />
                   <Input
                     label="Monthly Insurance Cost"
