@@ -956,20 +956,6 @@ export default function BudgetPage() {
     return labourPlannerRows.filter((row) => row.plan.compType === labourTableView);
   }, [labourPlannerRows, labourTableView]);
 
-  const visibleLabourPlannerTotals = useMemo(() => {
-    return visibleLabourPlannerRows.reduce((acc, row) => ({
-      annualLabourCost: acc.annualLabourCost + row.totalEmployeeCostPerYear,
-      annualRevenueGenerated: acc.annualRevenueGenerated + row.annualRevenueGenerated,
-      grossProfitGenerated: acc.grossProfitGenerated + row.grossProfitGenerated,
-      billableHoursYear: acc.billableHoursYear + row.annualBillableHours,
-    }), {
-      annualLabourCost: 0,
-      annualRevenueGenerated: 0,
-      grossProfitGenerated: 0,
-      billableHoursYear: 0,
-    });
-  }, [visibleLabourPlannerRows]);
-
   const labourPlannerTotalsAll = useMemo(() => {
     return labourPlannerRows.reduce((acc, row) => ({
       annualLabourCost: acc.annualLabourCost + row.totalEmployeeCostPerYear,
@@ -988,21 +974,6 @@ export default function BudgetPage() {
   const requiredAverageChargeOutRate = labourPlannerTotalsAll.billableHoursYear > 0
     ? targetLabourRevenue / labourPlannerTotalsAll.billableHoursYear
     : 0;
-
-  const labourSummary = useMemo(() => {
-    const teamSize = labourPlannerRows.length;
-    const totalRevenue = labourPlannerTotalsAll.annualRevenueGenerated;
-    const totalGrossProfit = labourPlannerTotalsAll.grossProfitGenerated;
-    const grossProfitMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
-
-    return {
-      teamSize,
-      totalBillableHours: labourPlannerTotalsAll.billableHoursYear,
-      totalRevenue,
-      totalGrossProfit,
-      grossProfitMargin,
-    };
-  }, [labourPlannerRows.length, labourPlannerTotalsAll]);
 
   const renderLabourPlannerRow = (row: typeof labourPlannerRows[number]) => (
     <tr key={row.employee.id} className="hover:bg-gray-50">
