@@ -46,6 +46,17 @@ function entryLabel(entry: Partial<TimeEntry>, jobs: Array<{ id: string; title: 
   return titles.length > 0 ? titles.join(', ') : 'Job Work';
 }
 
+function entryTypeMeta(entry: Partial<TimeEntry>) {
+  const workType = normalizeWorkType(entry);
+  if (workType === 'drive_time') {
+    return { label: 'Drive Time', className: 'bg-amber-100 text-amber-700' };
+  }
+  if (workType === 'non_billable') {
+    return { label: 'Non-Billable', className: 'bg-slate-100 text-slate-700' };
+  }
+  return { label: 'Job Work', className: 'bg-blue-100 text-blue-700' };
+}
+
 function escapeCsvValue(value: string | number | null | undefined) {
   if (value === null || value === undefined) return '';
   const text = String(value);
@@ -177,6 +188,11 @@ export default function TimeReportsPage({
       })
       .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
   }, [employeeSearchValue, endDate, getEmployeeName, jobFilter, selectedEmployeeId, startDate, timeEntries, workTypeFilter]);
+
+  const recentEntries = useMemo(
+    () => [...timeEntries].sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime()).slice(0, 20),
+    [timeEntries]
+  );
 
   const totalsByType = useMemo(() => {
     const totals: Record<TimeEntryWorkType, number> = {
@@ -496,6 +512,52 @@ export default function TimeReportsPage({
             <p className="text-sm text-gray-500">Showing {filteredEntries.length} entries</p>
           </div>
         </div>
+      </Card>
+
+      <Card className="overflow-hidden mb-6">
+        <div className="p-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-800">Recent Time Entries</h2>
+          <p className="text-xs text-gray-500 mt-1">Latest 20 entries across all employees.</p>
+        </div>
+        {recentEntries.length === 0 ? (
+          <p className="text-sm text-gray-400 p-4">No time entries.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-left text-xs">
+                  <th className="px-4 py-2 font-medium">Employee</th>
+                  <th className="py-2 font-medium">Work Type</th>
+                  <th className="py-2 font-medium">Clock In</th>
+                  <th className="py-2 font-medium">Clock Out</th>
+                  <th className="py-2 font-medium">Job Notes</th>
+                  <th className="px-4 py-2 font-medium text-right">Hours</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {recentEntries.map((entry) => {
+                  const typeMeta = entryTypeMeta(entry);
+                  const hours = durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes);
+                  return (
+                    <tr key={entry.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 font-medium text-gray-800">{getEmployeeName(entry.employeeId)}</td>
+                      <td className="py-2 text-gray-600 max-w-xs">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${typeMeta.className}`}>
+                          {typeMeta.label}
+                        </span>
+                        <p className="text-xs text-gray-500 truncate mt-1">{entryLabel(entry, jobs)}</p>
+                      </td>
+                      <td className="py-2 text-gray-500 text-xs">{formatDateTime(entry.clockIn)}</td>
+                      <td className="py-2 text-gray-500 text-xs">{entry.clockOut ? formatDateTime(entry.clockOut) : <span className="text-green-600 font-medium">Active</span>}</td>
+                      <td className="py-2 text-gray-600 max-w-xs truncate">{entry.notes?.trim() ? entry.notes : '—'}</td>
+                      <td className="px-4 py-2 text-right font-semibold text-brand-600">{hours.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
