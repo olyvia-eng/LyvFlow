@@ -10,7 +10,16 @@
   h1,
   h2,
   h3 {
-    @apply tracking-tight;
+    @apply tracking-tight text-brand-900;
+  }
+
+  h1 {
+    @apply font-semibold;
+  }
+
+  h2,
+  h3 {
+    @apply font-semibold;
   }
 
   table {
@@ -28,7 +37,7 @@
 
 @layer components {
   .panel {
-    @apply bg-white rounded-2xl border border-brand-100 shadow-sm;
+    @apply bg-white rounded-2xl border border-brand-200/80 shadow-sm;
   }
 
   .panel-header {

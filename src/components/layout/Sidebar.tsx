@@ -249,7 +249,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
               setMobileOpen(false);
               onLogout();
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-700 hover:bg-accent-50"
           >
             <LogOut size={16} /> Log Out
           </button>
@@ -314,7 +314,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
           </div>
           <button
             onClick={onLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-700 hover:bg-accent-50"
           >
             <LogOut size={16} /> Log Out
           </button>

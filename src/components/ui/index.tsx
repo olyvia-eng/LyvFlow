@@ -41,11 +41,11 @@ export function StatCard({ label, value, sub, icon, color = 'text-brand-600' }: 
     <Card className="p-5">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-1">{label}</p>
-          <p className={`text-[1.65rem] leading-8 font-bold ${color}`}>{value}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-600 mb-1.5">{label}</p>
+          <p className={`text-[1.75rem] leading-8 font-bold ${color}`}>{value}</p>
           {sub && <p className="text-xs text-gray-400 mt-1 leading-5">{sub}</p>}
         </div>
-        {icon && <div className="text-brand-200 mt-0.5 [&>svg]:h-7 [&>svg]:w-7">{icon}</div>}
+        {icon && <div className="text-brand-300 mt-0.5 [&>svg]:h-7 [&>svg]:w-7">{icon}</div>}
       </div>
     </Card>
   );
@@ -61,8 +61,8 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
   return (
     <div className="flex items-start justify-between mb-7 gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500 mt-1 leading-6">{subtitle}</p>}
+        <h1 className="text-[1.75rem] font-semibold tracking-tight text-brand-900">{title}</h1>
+        {subtitle && <p className="text-sm text-brand-700/90 mt-1 leading-6 max-w-3xl">{subtitle}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -76,11 +76,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ variant = 'primary', size = 'md', children, className = '', ...rest }: ButtonProps) {
-  const base = 'inline-flex items-center justify-center gap-1.5 font-medium rounded-xl transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-1 [&>svg]:h-4 [&>svg]:w-4';
+  const base = 'inline-flex items-center justify-center gap-1.5 font-semibold rounded-xl transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-1 [&>svg]:h-4 [&>svg]:w-4';
   const sizes = { sm: 'h-9 px-3 text-sm', md: 'h-10 px-4 text-sm' };
   const variants = {
-    primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700',
-    secondary: 'bg-white border border-brand-300 text-brand-800 shadow-sm hover:bg-brand-50',
+    primary: 'bg-brand-700 text-white shadow-sm hover:bg-brand-800',
+    secondary: 'bg-cream border border-brand-300 text-brand-800 shadow-sm hover:bg-brand-50',
     danger: 'bg-accent-700 text-white shadow-sm hover:bg-accent-800',
     ghost: 'text-brand-700 hover:bg-brand-100',
   };
@@ -220,7 +220,7 @@ export function Modal({ open, onClose, title, children, footer, wide = false }: 
           <button onClick={onClose} className="text-gray-400 hover:text-brand-700 text-xl leading-none h-8 w-8 rounded-lg hover:bg-brand-100">&times;</button>
         </div>
         <div className="overflow-y-auto flex-1 p-5">{children}</div>
-        {footer && <div className="p-5 border-t border-gray-200 flex justify-end gap-2 bg-gray-50/50">{footer}</div>}
+        {footer && <div className="p-5 border-t border-brand-200 flex justify-end gap-2 bg-brand-50/40">{footer}</div>}
       </div>
     </div>
   );
@@ -235,8 +235,8 @@ interface EmptyStateProps {
 export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-14 text-center px-4">
-      <p className="text-gray-500 text-base font-medium mb-2">{title}</p>
-      {description && <p className="text-gray-400 text-sm mb-4 max-w-md leading-6">{description}</p>}
+      <p className="text-brand-700 text-base font-semibold mb-2">{title}</p>
+      {description && <p className="text-brand-600/90 text-sm mb-4 max-w-md leading-6">{description}</p>}
       {action}
     </div>
   );
