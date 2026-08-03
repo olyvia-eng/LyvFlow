@@ -2,7 +2,6 @@ import {
   BarChart3,
   Briefcase,
   CalendarDays,
-  Calculator,
   ClipboardList,
   Clock,
   FileBox,
@@ -35,7 +34,6 @@ const NAVIGATION_CONFIG: SidebarConfig = {
     { id: 'company-dashboard', type: 'link', to: '/', end: true, label: 'Company Dashboard', icon: icon(LayoutDashboard) },
   ],
   pinnedPages: [
-    { id: 'pin-labour', type: 'link', to: '/budget', label: 'Labour Planner', icon: icon(Wallet) },
     { id: 'pin-calendar', type: 'link', to: '/calendar', label: 'Calendar', icon: icon(CalendarDays) },
     { id: 'pin-clients', type: 'link', to: '/crm', label: 'Clients', icon: icon(Users) },
     { id: 'pin-templates', type: 'link', to: '/estimates/templates', label: 'Estimate Templates', icon: icon(FileText) },
@@ -63,7 +61,6 @@ const NAVIGATION_CONFIG: SidebarConfig = {
       defaultExpanded: false,
       items: [
         { id: 'finance-dashboard', type: 'link', to: '/finance/dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
-        { id: 'finance-labour-planner', type: 'link', to: '/budget', label: 'Labour Planner', icon: icon(Calculator) },
         { id: 'finance-company-budget', type: 'link', to: '/budget', label: 'Company Budget', icon: icon(Wallet) },
         { id: 'finance-invoices', type: 'link', to: '/finance/invoices', label: 'Invoices', icon: icon(Receipt) },
         { id: 'finance-expenses', type: 'link', to: '/finance/expenses', label: 'Expenses', icon: icon(HandCoins) },
