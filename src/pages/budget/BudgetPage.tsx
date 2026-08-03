@@ -48,10 +48,27 @@ const empty = (): Omit<BudgetItem, 'id'> => ({
   category: 'labour',
   equipmentCostType: undefined,
   costCode: '',
+  equipmentPayment: undefined,
+  equipmentPaymentFrequencyPerYear: undefined,
+  fuelCostPerHour: undefined,
+  monthlyInsuranceCost: undefined,
+  monthlyMaintenanceCost: undefined,
+  sellableHoursPerYear: undefined,
+  actualMachineHoursPerYear: undefined,
   description: '',
   budgeted: 0,
   actual: 0,
   period: currentPeriod(),
+});
+
+const equipmentInfoDefaults = () => ({
+  equipmentPayment: 0,
+  equipmentPaymentFrequencyPerYear: 12,
+  fuelCostPerHour: 0,
+  monthlyInsuranceCost: 0,
+  monthlyMaintenanceCost: 0,
+  sellableHoursPerYear: 0,
+  actualMachineHoursPerYear: 0,
 });
 
 const yearlyHoursBase = 2080;
@@ -127,6 +144,7 @@ export default function BudgetPage() {
       ...empty(),
       category: defaultCategory,
       equipmentCostType: defaultCategory === 'equipment' ? 'financed' : undefined,
+      ...(defaultCategory === 'equipment' ? equipmentInfoDefaults() : {}),
       period: defaultPeriod,
     });
     setModalOpen(true);
@@ -137,6 +155,13 @@ export default function BudgetPage() {
       category: b.category,
       equipmentCostType: b.equipmentCostType,
       costCode: b.costCode ?? '',
+      equipmentPayment: b.equipmentPayment,
+      equipmentPaymentFrequencyPerYear: b.equipmentPaymentFrequencyPerYear,
+      fuelCostPerHour: b.fuelCostPerHour,
+      monthlyInsuranceCost: b.monthlyInsuranceCost,
+      monthlyMaintenanceCost: b.monthlyMaintenanceCost,
+      sellableHoursPerYear: b.sellableHoursPerYear,
+      actualMachineHoursPerYear: b.actualMachineHoursPerYear,
       description: b.description,
       budgeted: b.budgeted,
       actual: b.actual,
@@ -147,9 +172,30 @@ export default function BudgetPage() {
   const handleSave = () => {
     if (!form.description.trim()) return;
     const normalizedCostCode = form.costCode?.trim();
+    const normalizeNumber = (value: number | undefined) => Math.max(0, Number.isFinite(value ?? 0) ? (value ?? 0) : 0);
+    const equipmentFields = form.category === 'equipment'
+      ? {
+          equipmentPayment: normalizeNumber(form.equipmentPayment),
+          equipmentPaymentFrequencyPerYear: normalizeNumber(form.equipmentPaymentFrequencyPerYear),
+          fuelCostPerHour: normalizeNumber(form.fuelCostPerHour),
+          monthlyInsuranceCost: normalizeNumber(form.monthlyInsuranceCost),
+          monthlyMaintenanceCost: normalizeNumber(form.monthlyMaintenanceCost),
+          sellableHoursPerYear: normalizeNumber(form.sellableHoursPerYear),
+          actualMachineHoursPerYear: normalizeNumber(form.actualMachineHoursPerYear),
+        }
+      : {
+          equipmentPayment: undefined,
+          equipmentPaymentFrequencyPerYear: undefined,
+          fuelCostPerHour: undefined,
+          monthlyInsuranceCost: undefined,
+          monthlyMaintenanceCost: undefined,
+          sellableHoursPerYear: undefined,
+          actualMachineHoursPerYear: undefined,
+        };
     const yearlyForm = {
       ...form,
       costCode: normalizedCostCode ? normalizedCostCode.toUpperCase() : undefined,
+      ...equipmentFields,
       period: `${year}-01`,
     };
     if (editing) updateBudgetItem(editing.id, yearlyForm);
@@ -167,7 +213,13 @@ export default function BudgetPage() {
 
     const defaultPeriod = `${year}-01`;
     setEditing(null);
-    setForm({ ...empty(), category, period: defaultPeriod });
+    setForm({
+      ...empty(),
+      category,
+      equipmentCostType: category === 'equipment' ? 'financed' : undefined,
+      ...(category === 'equipment' ? equipmentInfoDefaults() : {}),
+      period: defaultPeriod,
+    });
     setModalOpen(true);
   };
 
@@ -1471,15 +1523,75 @@ export default function BudgetPage() {
             <Input label="Year" value={year} disabled />
           </div>
           {form.category === 'equipment' && (
-            <Select
-              label="Equipment Cost Type"
-              value={form.equipmentCostType ?? 'financed'}
-              onChange={(e) => set('equipmentCostType', e.target.value as EquipmentCostType)}
-            >
-              {EQUIPMENT_COST_TYPES.map((costType) => (
-                <option key={costType} value={costType}>{costType.charAt(0).toUpperCase() + costType.slice(1)}</option>
-              ))}
-            </Select>
+            <div className="space-y-4">
+              <Select
+                label="Equipment Cost Type"
+                value={form.equipmentCostType ?? 'financed'}
+                onChange={(e) => set('equipmentCostType', e.target.value as EquipmentCostType)}
+              >
+                {EQUIPMENT_COST_TYPES.map((costType) => (
+                  <option key={costType} value={costType}>{costType.charAt(0).toUpperCase() + costType.slice(1)}</option>
+                ))}
+              </Select>
+
+              <fieldset className="border border-gray-200 rounded-lg p-3">
+                <legend className="text-sm font-medium text-gray-700 px-1">Equipment Info</legend>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                  <Input
+                    label="Payment ($)"
+                    type="number"
+                    min={0}
+                    value={form.equipmentPayment ?? 0}
+                    onChange={(e) => set('equipmentPayment', Number(e.target.value))}
+                  />
+                  <Input
+                    label="Payment Frequency (# per year)"
+                    type="number"
+                    min={0}
+                    value={form.equipmentPaymentFrequencyPerYear ?? 0}
+                    onChange={(e) => set('equipmentPaymentFrequencyPerYear', Number(e.target.value))}
+                  />
+                  <Input
+                    label="Fuel Cost per Hour"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={form.fuelCostPerHour ?? 0}
+                    onChange={(e) => set('fuelCostPerHour', Number(e.target.value))}
+                  />
+                  <Input
+                    label="Monthly Insurance Cost"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={form.monthlyInsuranceCost ?? 0}
+                    onChange={(e) => set('monthlyInsuranceCost', Number(e.target.value))}
+                  />
+                  <Input
+                    label="Monthly Maintenance Cost"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={form.monthlyMaintenanceCost ?? 0}
+                    onChange={(e) => set('monthlyMaintenanceCost', Number(e.target.value))}
+                  />
+                  <Input
+                    label="Sellable Hours per Year"
+                    type="number"
+                    min={0}
+                    value={form.sellableHoursPerYear ?? 0}
+                    onChange={(e) => set('sellableHoursPerYear', Number(e.target.value))}
+                  />
+                  <Input
+                    label="Actual Machine Hours per Year"
+                    type="number"
+                    min={0}
+                    value={form.actualMachineHoursPerYear ?? 0}
+                    onChange={(e) => set('actualMachineHoursPerYear', Number(e.target.value))}
+                  />
+                </div>
+              </fieldset>
+            </div>
           )}
           <Input
             label="Cost Code"

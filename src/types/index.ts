@@ -176,6 +176,13 @@ export interface BudgetItem {
   category: BudgetCategory;
   equipmentCostType?: EquipmentCostType;
   costCode?: string;
+  equipmentPayment?: number;
+  equipmentPaymentFrequencyPerYear?: number;
+  fuelCostPerHour?: number;
+  monthlyInsuranceCost?: number;
+  monthlyMaintenanceCost?: number;
+  sellableHoursPerYear?: number;
+  actualMachineHoursPerYear?: number;
   description: string;
   budgeted: number;
   actual: number;
