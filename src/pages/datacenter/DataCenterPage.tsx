@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import { DollarSign, Clock, TrendingUp, Briefcase, Users, BarChart3 } from 'lucide-react';
 
-const COLORS = ['#4D5D2F', '#6a7b3a', '#81954a', '#D4A017', '#b88513', '#f4c96f'];
+const COLORS = ['#0F172A', '#1e293b', '#334155', '#06B6D4', '#0891b2', '#67e8f9'];
 
 export default function DataCenterPage() {
   const { jobs, customers, estimates, timeEntries, budgetItems } = useStore();
@@ -125,8 +125,8 @@ export default function DataCenterPage() {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="estimated" fill="#d2dab7" radius={[4,4,0,0]} name="Estimated" />
-              <Bar dataKey="actual" fill="#4D5D2F" radius={[4,4,0,0]} name="Actual" />
+              <Bar dataKey="estimated" fill="#cbd5e1" radius={[4,4,0,0]} name="Estimated" />
+              <Bar dataKey="actual" fill="#0F172A" radius={[4,4,0,0]} name="Actual" />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -157,8 +157,8 @@ export default function DataCenterPage() {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v) => formatCurrency(Number(v))} />
               <Legend />
-              <Bar dataKey="budgeted" fill="#6a7b3a" radius={[4,4,0,0]} name="Budgeted" />
-              <Bar dataKey="actual" fill="#D4A017" radius={[4,4,0,0]} name="Actual" />
+              <Bar dataKey="budgeted" fill="#1e293b" radius={[4,4,0,0]} name="Budgeted" />
+              <Bar dataKey="actual" fill="#06B6D4" radius={[4,4,0,0]} name="Actual" />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -171,7 +171,7 @@ export default function DataCenterPage() {
               <XAxis type="number" tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
               <Tooltip />
-              <Bar dataKey="count" fill="#4D5D2F" radius={[0,4,4,0]} name="Jobs" />
+              <Bar dataKey="count" fill="#0F172A" radius={[0,4,4,0]} name="Jobs" />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -184,7 +184,7 @@ export default function DataCenterPage() {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="count" fill="#D4A017" radius={[4,4,0,0]} name="Estimates" />
+              <Bar dataKey="count" fill="#06B6D4" radius={[4,4,0,0]} name="Estimates" />
             </BarChart>
           </ResponsiveContainer>
         </Card>
