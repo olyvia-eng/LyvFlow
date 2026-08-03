@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, Search, Send, RefreshCw, FileText } from 'lucide-
 import { statusColor, formatCurrency, formatDate, calcEstimateSubtotal, calcEstimateTax, calcEstimateTotal, generateId } from '../../utils';
 import type { Estimate, EstimateStatus, LineItem } from '../../types';
 import EstimateLineItemEditor from './EstimateLineItemEditor';
+import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
 
 const STATUSES: EstimateStatus[] = ['draft', 'sent', 'accepted', 'declined', 'converted'];
 
@@ -237,11 +238,13 @@ export default function EstimatesPage() {
             <div className="flex justify-between items-center gap-2">
               <span className="text-gray-500">Tax Rate (%)</span>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 min={0}
                 max={100}
-                value={form.taxRate}
-                onChange={(e) => set('taxRate', Number(e.target.value))}
+                value={formatNumericDisplayValue(form.taxRate)}
+                onChange={(e) => set('taxRate', parseNumericInputValue(e.target.value))}
+                onFocus={(e) => e.currentTarget.select()}
                 className="w-20 border border-gray-300 rounded px-2 py-1 text-right text-sm"
               />
             </div>

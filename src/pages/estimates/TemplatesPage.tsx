@@ -3,6 +3,7 @@ import { useStore } from '../../store';
 import { PageHeader, Button, Card, Modal, Input, TextArea, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { formatDate } from '../../utils';
+import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
 import type { EstimateTemplate } from '../../types';
 import EstimateLineItemEditor from './EstimateLineItemEditor';
 
@@ -79,8 +80,9 @@ export default function TemplatesPage() {
           </div>
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-gray-700">Default Tax Rate (%)</label>
-            <input type="number" min={0} max={100} value={form.taxRate}
-              onChange={(e) => set('taxRate', Number(e.target.value))}
+            <input type="text" inputMode="decimal" min={0} max={100} value={formatNumericDisplayValue(form.taxRate)}
+              onChange={(e) => set('taxRate', parseNumericInputValue(e.target.value))}
+              onFocus={(e) => e.currentTarget.select()}
               className="w-20 border border-gray-300 rounded px-2 py-1 text-sm" />
           </div>
           <TextArea label="Default Notes" value={form.notes} onChange={(e) => set('notes', e.target.value)} />

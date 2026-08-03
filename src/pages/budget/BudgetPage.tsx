@@ -4,6 +4,7 @@ import { useStore } from '../../store';
 import { PageHeader, Button, Card, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, FileDown, Info, Users, Target, BadgeDollarSign } from 'lucide-react';
 import { formatCurrency } from '../../utils';
+import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
 import type { BudgetItem, BudgetCategory, LabourBudgetPlan, LabourCompType, EquipmentCostType, RevenueSalesGoal } from '../../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -784,50 +785,60 @@ export default function BudgetPage() {
       <td className="px-4 py-3 text-right">
         {row.plan.compType === 'hourly' ? (
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             min={0}
-            value={row.plan.hourlyRate}
-            onChange={(e) => updateLabourPlan(row.employee.id, 'hourlyRate', Number(e.target.value))}
+            value={formatNumericDisplayValue(row.plan.hourlyRate)}
+            onChange={(e) => updateLabourPlan(row.employee.id, 'hourlyRate', parseNumericInputValue(e.target.value))}
+            onFocus={(e) => e.currentTarget.select()}
             className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
           />
         ) : (
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             min={0}
-            value={row.plan.annualSalary}
-            onChange={(e) => updateLabourPlan(row.employee.id, 'annualSalary', Number(e.target.value))}
+            value={formatNumericDisplayValue(row.plan.annualSalary)}
+            onChange={(e) => updateLabourPlan(row.employee.id, 'annualSalary', parseNumericInputValue(e.target.value))}
+            onFocus={(e) => e.currentTarget.select()}
             className="w-28 border border-gray-300 rounded px-2 py-1 text-xs text-right"
           />
         )}
       </td>
       <td className="px-4 py-3 text-center">
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           min={0}
           max={100}
           step={1}
-          value={((row.plan.billableHoursYear / Math.max(1, row.plan.billableHoursYear + row.plan.unbillableHoursYear + row.plan.overtimeHoursYear)) * 100).toFixed(0)}
-          onChange={(e) => updateBillablePct(row.employee.id, Number(e.target.value))}
+          value={formatNumericDisplayValue(((row.plan.billableHoursYear / Math.max(1, row.plan.billableHoursYear + row.plan.unbillableHoursYear + row.plan.overtimeHoursYear)) * 100).toFixed(0))}
+          onChange={(e) => updateBillablePct(row.employee.id, parseNumericInputValue(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
           className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
       </td>
       <td className="px-4 py-3 text-right">
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           min={0}
           step={0.1}
-          value={row.plan.labourBurdenPct}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'labourBurdenPct', Number(e.target.value))}
+          value={formatNumericDisplayValue(row.plan.labourBurdenPct)}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'labourBurdenPct', parseNumericInputValue(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
           className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
       </td>
       <td className="px-4 py-3 text-right">{formatCurrency(row.trueCostPerHour)}</td>
       <td className="px-4 py-3 text-right">
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           min={0}
-          value={row.plan.billableHoursYear}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'billableHoursYear', Number(e.target.value))}
+          value={formatNumericDisplayValue(row.plan.billableHoursYear)}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'billableHoursYear', parseNumericInputValue(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
           className="w-24 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
       </td>
@@ -1522,6 +1533,13 @@ export default function BudgetPage() {
             />
             <Input label="Year" value={year} disabled />
           </div>
+          <Input label="Description *" value={form.description} onChange={(e) => set('description', e.target.value)} />
+          <Input
+            label="Cost Code"
+            value={form.costCode ?? ''}
+            onChange={(e) => set('costCode', e.target.value)}
+            placeholder="e.g. 06-200"
+          />
           {form.category === 'equipment' && (
             <div className="space-y-4">
               <Select
@@ -1593,15 +1611,14 @@ export default function BudgetPage() {
               </fieldset>
             </div>
           )}
-          <Input
-            label="Cost Code"
-            value={form.costCode ?? ''}
-            onChange={(e) => set('costCode', e.target.value)}
-            placeholder="e.g. 06-200"
-          />
-          <Input label="Description *" value={form.description} onChange={(e) => set('description', e.target.value)} />
           <div className="grid grid-cols-1 gap-3">
-            <Input label="Budgeted ($)" type="number" min={0} value={form.budgeted} onChange={(e) => set('budgeted', Number(e.target.value))} />
+            <Input
+              label={form.category === 'equipment' ? 'Total Equipment Cos per Year' : 'Budgeted ($)'}
+              type="number"
+              min={0}
+              value={form.budgeted}
+              onChange={(e) => set('budgeted', Number(e.target.value))}
+            />
           </div>
         </div>
       </Modal>

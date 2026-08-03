@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import type { LineItem, LineItemCategory } from '../../types';
 import { generateId, calcLineItemTotal } from '../../utils';
+import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
 import { Button } from '../../components/ui';
 
 const CATEGORIES: LineItemCategory[] = ['material', 'equipment', 'labour', 'subcontractor'];
@@ -79,10 +80,12 @@ export default function EstimateLineItemEditor({ items, onChange }: Props) {
                   </td>
                   <td className="py-1 pr-1">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       min={0}
-                      value={li.quantity}
-                      onChange={(e) => update(li.id, 'quantity', Number(e.target.value))}
+                      value={formatNumericDisplayValue(li.quantity)}
+                      onChange={(e) => update(li.id, 'quantity', parseNumericInputValue(e.target.value))}
+                      onFocus={(e) => e.currentTarget.select()}
                       className="w-full border border-gray-200 rounded px-1 py-0.5 text-right text-xs"
                     />
                   </td>
@@ -95,20 +98,24 @@ export default function EstimateLineItemEditor({ items, onChange }: Props) {
                   </td>
                   <td className="py-1 pr-1">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       min={0}
-                      value={li.unitCost}
-                      onChange={(e) => update(li.id, 'unitCost', Number(e.target.value))}
+                      value={formatNumericDisplayValue(li.unitCost)}
+                      onChange={(e) => update(li.id, 'unitCost', parseNumericInputValue(e.target.value))}
+                      onFocus={(e) => e.currentTarget.select()}
                       className="w-full border border-gray-200 rounded px-1 py-0.5 text-right text-xs"
                     />
                   </td>
                   <td className="py-1 pr-1">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       min={0}
                       max={200}
-                      value={li.markup}
-                      onChange={(e) => update(li.id, 'markup', Number(e.target.value))}
+                      value={formatNumericDisplayValue(li.markup)}
+                      onChange={(e) => update(li.id, 'markup', parseNumericInputValue(e.target.value))}
+                      onFocus={(e) => e.currentTarget.select()}
                       className="w-full border border-gray-200 rounded px-1 py-0.5 text-right text-xs"
                     />
                   </td>

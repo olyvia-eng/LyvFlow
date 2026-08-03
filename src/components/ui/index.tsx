@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import type { ChangeEvent, ChangeEventHandler, FocusEventHandler, ReactNode } from 'react';
+import { formatNumericDisplayValue, normalizeNumericInput } from '../../utils/numberInput';
 
 interface BadgeProps {
   label: string;
@@ -95,12 +96,48 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export function Input({ label, error, className = '', ...rest }: InputProps) {
+  const isNumericInput = rest.type === 'number';
+  const displayedValue = isNumericInput
+    ? formatNumericDisplayValue(rest.value ?? '')
+    : rest.value;
+
+  const handleNumberChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+    const normalized = normalizeNumericInput(event.target.value);
+    if (!/^-?\d*\.?\d*$/.test(normalized)) return;
+
+    if (!rest.onChange) return;
+
+    const patchedEvent = {
+      ...event,
+      target: {
+        ...event.target,
+        value: normalized,
+      },
+      currentTarget: {
+        ...event.currentTarget,
+        value: normalized,
+      },
+    } as ChangeEvent<HTMLInputElement>;
+
+    rest.onChange(patchedEvent);
+  };
+
+  const handleNumberFocus: FocusEventHandler<HTMLInputElement> = (event) => {
+    event.currentTarget.select();
+    rest.onFocus?.(event);
+  };
+
   return (
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <input
         className={`h-10 border border-gray-300 rounded-xl bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 ${error ? 'border-red-400' : ''} ${className}`}
         {...rest}
+        type={isNumericInput ? 'text' : rest.type}
+        inputMode={isNumericInput ? 'decimal' : rest.inputMode}
+        value={displayedValue}
+        onChange={isNumericInput ? handleNumberChange : rest.onChange}
+        onFocus={isNumericInput ? handleNumberFocus : rest.onFocus}
       />
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
