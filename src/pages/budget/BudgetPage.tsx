@@ -1375,7 +1375,7 @@ export default function BudgetPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {activeTab !== 'labour' && (
+          {activeTab !== 'labour' && activeTab !== 'revenue' && (
             <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
               <Card className="p-4">
                 <p className="text-xs text-gray-500">Budgeted {activeTab}</p>
