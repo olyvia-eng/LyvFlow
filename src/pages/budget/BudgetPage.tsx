@@ -122,6 +122,7 @@ export default function BudgetPage() {
   const [labourTableView, setLabourTableView] = useState<LabourTableView>('all');
   const [equipmentTableView, setEquipmentTableView] = useState<EquipmentTableView>('all');
   const [showLabourCalcDetails, setShowLabourCalcDetails] = useState(false);
+  const [showEquipmentCalcDetails, setShowEquipmentCalcDetails] = useState(false);
   const [averageFuelPriceInput, setAverageFuelPriceInput] = useState('0');
   const [averageFuelBurnPerHourInput, setAverageFuelBurnPerHourInput] = useState('0');
   const [pricingInputs, setPricingInputs] = useState({
@@ -160,9 +161,11 @@ export default function BudgetPage() {
     if (defaultEquipmentInfo) {
       setAverageFuelPriceInput(formatNumericDisplayValue(defaultEquipmentInfo.averageFuelPrice));
       setAverageFuelBurnPerHourInput(formatNumericDisplayValue(defaultEquipmentInfo.averageFuelBurnPerHour));
+      setShowEquipmentCalcDetails(false);
     } else {
       setAverageFuelPriceInput('0');
       setAverageFuelBurnPerHourInput('0');
+      setShowEquipmentCalcDetails(false);
     }
     setModalOpen(true);
   };
@@ -191,6 +194,7 @@ export default function BudgetPage() {
     });
     setAverageFuelPriceInput(formatNumericDisplayValue(averageFuelPrice));
     setAverageFuelBurnPerHourInput(formatNumericDisplayValue(averageFuelBurnPerHour));
+    setShowEquipmentCalcDetails(false);
     setModalOpen(true);
   };
   const handleSave = () => {
@@ -269,9 +273,11 @@ export default function BudgetPage() {
     if (defaultEquipmentInfo) {
       setAverageFuelPriceInput(formatNumericDisplayValue(defaultEquipmentInfo.averageFuelPrice));
       setAverageFuelBurnPerHourInput(formatNumericDisplayValue(defaultEquipmentInfo.averageFuelBurnPerHour));
+      setShowEquipmentCalcDetails(false);
     } else {
       setAverageFuelPriceInput('0');
       setAverageFuelBurnPerHourInput('0');
+      setShowEquipmentCalcDetails(false);
     }
     setModalOpen(true);
   };
@@ -669,11 +675,15 @@ export default function BudgetPage() {
   const normalizedMonthlyInsuranceCost = Math.max(0, Number.isFinite(form.monthlyInsuranceCost ?? 0) ? (form.monthlyInsuranceCost ?? 0) : 0);
   const normalizedMonthlyMaintenanceCost = Math.max(0, Number.isFinite(form.monthlyMaintenanceCost ?? 0) ? (form.monthlyMaintenanceCost ?? 0) : 0);
   const normalizedBillableHoursPerYear = Math.max(0, Number.isFinite(form.sellableHoursPerYear ?? 0) ? (form.sellableHoursPerYear ?? 0) : 0);
+  const calculatedAnnualPaymentCost = normalizedEquipmentPayment * normalizedEquipmentPaymentFrequencyPerYear;
+  const calculatedAnnualFuelCost = calculatedFuelCostPerHour * normalizedBillableHoursPerYear;
+  const calculatedAnnualInsuranceCost = normalizedMonthlyInsuranceCost * 12;
+  const calculatedAnnualMaintenanceCost = normalizedMonthlyMaintenanceCost * 12;
   const calculatedTotalEquipmentCostPerYear =
-    (normalizedEquipmentPayment * normalizedEquipmentPaymentFrequencyPerYear)
-    + (calculatedFuelCostPerHour * normalizedBillableHoursPerYear)
-    + (normalizedMonthlyInsuranceCost * 12)
-    + (normalizedMonthlyMaintenanceCost * 12);
+    calculatedAnnualPaymentCost
+    + calculatedAnnualFuelCost
+    + calculatedAnnualInsuranceCost
+    + calculatedAnnualMaintenanceCost;
 
   const marginDivisor = Math.max(0.01, 1 - pricingInputs.targetMarginPct / 100);
   const activeEmployees = employees.filter((employee) => employee.active);
@@ -1758,6 +1768,34 @@ export default function BudgetPage() {
                     disabled
                   />
                 </div>
+                <div className="mt-1">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                    onClick={() => setShowEquipmentCalcDetails((value) => !value)}
+                  >
+                    {showEquipmentCalcDetails ? 'Hide calculation details' : 'Show calculation details'}
+                  </button>
+                </div>
+                {showEquipmentCalcDetails && (
+                  <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
+                    <p>
+                      Annual Payments: {formatCurrency(normalizedEquipmentPayment)} x {formatNumericDisplayValue(normalizedEquipmentPaymentFrequencyPerYear)} = {formatCurrency(calculatedAnnualPaymentCost)}
+                    </p>
+                    <p>
+                      Annual Fuel: {formatCurrency(calculatedFuelCostPerHour)} x {formatNumericDisplayValue(normalizedBillableHoursPerYear)} hrs = {formatCurrency(calculatedAnnualFuelCost)}
+                    </p>
+                    <p>
+                      Annual Insurance: {formatCurrency(normalizedMonthlyInsuranceCost)} x 12 = {formatCurrency(calculatedAnnualInsuranceCost)}
+                    </p>
+                    <p>
+                      Annual Maintenance: {formatCurrency(normalizedMonthlyMaintenanceCost)} x 12 = {formatCurrency(calculatedAnnualMaintenanceCost)}
+                    </p>
+                    <p className="pt-1 border-t border-gray-200 font-semibold text-gray-900">
+                      Total Equipment Cost per Year: {formatCurrency(calculatedTotalEquipmentCostPerYear)}
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <Input
