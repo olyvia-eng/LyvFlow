@@ -1222,7 +1222,7 @@ export default function BudgetPage() {
             <button type="button" onClick={() => setAssumptionsModalOpen(true)} className="text-left rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
               <Card className="p-4 hover:border-brand-300 cursor-pointer">
                 <p className="text-xs text-gray-500">Budgeted Profit</p>
-                <p className={`text-xl font-bold ${budgetedProfit >= 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatCurrency(budgetedProfit)}</p>
+                <p className={`text-xl font-bold ${budgetedProfit >= 0 ? 'text-gray-800' : 'text-accent-700'}`}>{formatCurrency(budgetedProfit)}</p>
                 <p className="text-[11px] text-gray-400 mt-2">Click to edit</p>
               </Card>
             </button>
@@ -1684,7 +1684,7 @@ export default function BudgetPage() {
                       <td className="px-4 py-2">
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" onClick={() => openEdit(b)}><Pencil size={13} /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(b.id)}><Trash2 size={13} className="text-red-400" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(b.id)}><Trash2 size={13} className="text-accent-700" /></Button>
                         </div>
                       </td>
                     </tr>
@@ -1737,7 +1737,7 @@ export default function BudgetPage() {
                         <td className="px-4 py-2">
                           <div className="flex gap-1">
                             <Button variant="ghost" size="sm" onClick={() => openEdit(b)}><Pencil size={13} /></Button>
-                            <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(b.id)}><Trash2 size={13} className="text-red-400" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(b.id)}><Trash2 size={13} className="text-accent-700" /></Button>
                           </div>
                         </td>
                       </tr>
@@ -2127,7 +2127,7 @@ export default function BudgetPage() {
             </div>
           )}
 
-          {labourItemError && <p className="text-sm text-red-600">{labourItemError}</p>}
+          {labourItemError && <p className="text-sm text-accent-700">{labourItemError}</p>}
         </div>
       </Modal>
 

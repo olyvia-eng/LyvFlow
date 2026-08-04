@@ -93,7 +93,7 @@ export default function SignupPage({ onSignup }: SignupPageProps) {
             autoComplete="new-password"
           />
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-accent-700">{error}</p>}
 
           <Button type="submit" className="w-full justify-center py-2.5">
             <UserPlus size={16} /> {submitting ? 'Creating account...' : 'Create Account'}

@@ -123,7 +123,7 @@ export default function EstimateLineItemEditor({ items, onChange }: Props) {
                     ${li.total.toFixed(2)}
                   </td>
                   <td className="py-1">
-                    <button onClick={() => remove(li.id)} className="text-red-400 hover:text-red-600 p-0.5">
+                    <button onClick={() => remove(li.id)} className="text-accent-600 hover:text-accent-800 p-0.5">
                       <Trash2 size={13} />
                     </button>
                   </td>

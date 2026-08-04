@@ -248,7 +248,7 @@ export default function CRMPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => removeProperty(index)}
-                      className="text-red-500 hover:bg-red-50"
+                      className="text-accent-700 hover:bg-accent-50"
                     >
                       <Trash2 size={12} /> Remove
                     </Button>

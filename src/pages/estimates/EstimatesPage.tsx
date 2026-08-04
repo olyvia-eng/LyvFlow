@@ -159,7 +159,7 @@ export default function EstimatesPage() {
                           </Button>
                         )}
                         <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(est.id)} title="Delete">
-                          <Trash2 size={13} className="text-red-400" />
+                          <Trash2 size={13} className="text-accent-700" />
                         </Button>
                       </div>
                     </td>

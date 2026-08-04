@@ -55,7 +55,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             autoComplete="current-password"
           />
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-accent-700">{error}</p>}
 
           <Button type="submit" className="w-full justify-center py-2.5">
             <Lock size={16} /> {submitting ? 'Logging in...' : 'Log In'}
