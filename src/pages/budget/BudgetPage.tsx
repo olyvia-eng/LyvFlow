@@ -1363,7 +1363,7 @@ export default function BudgetPage() {
           {showLabourCalcDetails && renderCalculationDetails()}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <Card className="p-4 border border-brand-200 bg-gradient-to-r from-brand-50 to-white">
+            <Card className="p-4 border border-brand-100 bg-gradient-to-r from-brand-50 to-cream">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Total Annual Labour Cost</p>
@@ -1372,16 +1372,16 @@ export default function BudgetPage() {
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-700"><Users size={18} /></span>
               </div>
             </Card>
-            <Card className="p-4 border border-accent-200 bg-gradient-to-r from-accent-50 to-white">
+            <Card className="p-4 border border-accent-100 bg-gradient-to-r from-accent-50 to-cream">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Target Labour Revenue</p>
-                  <p className="text-3xl font-bold text-accent-700">{formatCurrency(targetLabourRevenue)}</p>
+                  <p className="text-3xl font-bold text-accent-600">{formatCurrency(targetLabourRevenue)}</p>
                 </div>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-accent-100 text-accent-700"><Target size={18} /></span>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-accent-100 text-accent-600"><Target size={18} /></span>
               </div>
             </Card>
-            <Card className="p-4 border border-brand-300 bg-gradient-to-r from-brand-100 to-white">
+            <Card className="p-4 border border-brand-200 bg-gradient-to-r from-brand-100 to-cream">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Required Avg Charge-Out Rate</p>

@@ -201,14 +201,14 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   return (
     <>
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-accent-50 border-b border-accent-100 flex items-center justify-between px-4 h-14">
-        <div className="flex items-center gap-2 font-semibold text-brand-800">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-brand-800 border-b border-brand-100 dark:border-brand-600 flex items-center justify-between px-4 h-14">
+        <div className="flex items-center gap-2 font-semibold text-brand-800 dark:text-brand-100">
           <Leaf size={22} />
           OliveOps
         </div>
         <button
           onClick={() => setMobileOpen((v) => !v)}
-          className="p-2 rounded-lg text-brand-800 hover:bg-accent-100"
+          className="p-2 rounded-lg text-brand-800 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-700"
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -224,7 +224,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
 
       {/* Mobile drawer */}
       <aside
-        className={`lg:hidden fixed top-14 left-0 bottom-0 z-20 w-72 bg-accent-50 border-r border-accent-100 p-4 flex flex-col transform transition-transform ${
+        className={`lg:hidden fixed top-14 left-0 bottom-0 z-20 w-72 bg-white dark:bg-brand-800 border-r border-brand-100 dark:border-brand-600 p-4 flex flex-col transform transition-transform ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -241,10 +241,10 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             ))}
           </div>
 
-          <div className="rounded-xl border border-accent-100 bg-white/80 p-3 mb-4">
+          <div className="rounded-xl border border-brand-100 dark:border-brand-600 bg-white dark:bg-brand-700 p-3 mb-4">
             <button
               type="button"
-              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-600 mb-1"
+              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300 mb-1"
               onClick={() => toggleSection('pinned')}
             >
               Pinned
@@ -268,17 +268,17 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             />
           ))}
         </div>
-        <div className="pt-3 border-t border-accent-100 mt-3">
+        <div className="pt-3 border-t border-brand-100 dark:border-brand-600 mt-3">
           <div className="flex items-center gap-3 px-1 mb-2">
-            <div className="h-8 w-8 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
+            <div className="h-8 w-8 rounded-full bg-accent-100 dark:bg-brand-600 text-accent-600 dark:text-accent-400 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
             <div>
-              <p className="text-xs font-semibold text-brand-900">{businessName}</p>
-              <p className="text-[11px] text-brand-600">{userName}</p>
+              <p className="text-xs font-semibold text-brand-900 dark:text-brand-100">{businessName}</p>
+              <p className="text-[11px] text-brand-600 dark:text-brand-300">{userName}</p>
             </div>
           </div>
           <button
             onClick={toggleTheme}
-            className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 hover:bg-accent-100"
+            className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />} {isDarkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
@@ -287,7 +287,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
               setMobileOpen(false);
               onLogout();
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-700 hover:bg-accent-100"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-brand-600"
           >
             <LogOut size={16} /> Log Out
           </button>
@@ -295,8 +295,8 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-72 min-h-screen bg-accent-50 border-r border-accent-100 p-4 fixed top-0 left-0 bottom-0">
-        <div className="flex items-center gap-2 font-semibold text-brand-800 text-[28px] mb-4 px-1">
+      <aside className="hidden lg:flex flex-col w-72 min-h-screen bg-white dark:bg-brand-800 border-r border-brand-100 dark:border-brand-600 p-4 fixed top-0 left-0 bottom-0">
+        <div className="flex items-center gap-2 font-semibold text-brand-800 dark:text-brand-100 text-[28px] mb-4 px-1">
           <Leaf size={24} />
           <span className="text-2xl">OliveOps</span>
         </div>
@@ -314,10 +314,10 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             ))}
           </div>
 
-          <div className="rounded-xl border border-accent-100 bg-white/80 p-3 mb-4">
+          <div className="rounded-xl border border-brand-100 dark:border-brand-600 bg-white dark:bg-brand-700 p-3 mb-4">
             <button
               type="button"
-              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-600 mb-1"
+              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300 mb-1"
               onClick={() => toggleSection('pinned')}
             >
               Pinned
@@ -342,23 +342,23 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
           ))}
         </div>
 
-        <div className="pt-3 border-t border-accent-100">
+        <div className="pt-3 border-t border-brand-100 dark:border-brand-600">
           <div className="flex items-center gap-3 px-1 mb-2">
-            <div className="h-8 w-8 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
+            <div className="h-8 w-8 rounded-full bg-accent-100 dark:bg-brand-600 text-accent-600 dark:text-accent-400 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
             <div>
-              <p className="text-xs font-semibold text-brand-900">{businessName}</p>
-              <p className="text-[11px] text-brand-600">{userName}</p>
+              <p className="text-xs font-semibold text-brand-900 dark:text-brand-100">{businessName}</p>
+              <p className="text-[11px] text-brand-600 dark:text-brand-300">{userName}</p>
             </div>
           </div>
           <button
             onClick={toggleTheme}
-            className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 hover:bg-accent-100"
+            className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />} {isDarkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
           <button
             onClick={onLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-700 hover:bg-accent-100"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-brand-600"
           >
             <LogOut size={16} /> Log Out
           </button>

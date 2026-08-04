@@ -340,7 +340,7 @@ export default function App() {
 
   if (loadingSession || showBusinessDataLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500 text-sm">
+      <div className="min-h-screen flex items-center justify-center bg-cream text-brand-400 text-sm">
         Loading business data...
       </div>
     );
@@ -355,7 +355,7 @@ export default function App() {
             className={`min-w-64 max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${
               toast.tone === 'success'
                 ? 'border-brand-200 bg-brand-50 text-brand-800'
-                : 'border-accent-200 bg-accent-50 text-accent-800'
+                : 'border-accent-100 bg-accent-50 text-accent-700'
             }`}
           >
             {toast.message}
@@ -364,9 +364,9 @@ export default function App() {
       </div>
       {sessionUser && businessDataError && (
         <div className="fixed top-4 left-4 right-4 z-[90] sm:left-auto sm:right-4 sm:max-w-md">
-          <div className="rounded-lg border border-accent-300 bg-accent-50 px-4 py-3 text-sm text-accent-900 shadow-lg">
+          <div className="rounded-lg border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800 shadow-lg">
             <p className="font-medium">Business data could not be loaded.</p>
-            <p className="mt-1 text-accent-800">{businessDataError}</p>
+            <p className="mt-1 text-accent-700">{businessDataError}</p>
             <div className="mt-3">
               <button
                 type="button"

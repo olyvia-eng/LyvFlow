@@ -49,7 +49,7 @@ function entryLabel(entry: Partial<TimeEntry>, jobs: Array<{ id: string; title: 
 function entryTypeMeta(entry: Partial<TimeEntry>) {
   const workType = normalizeWorkType(entry);
   if (workType === 'drive_time') {
-    return { label: 'Drive Time', className: 'bg-accent-100 text-accent-700' };
+    return { label: 'Drive Time', className: 'bg-accent-50 text-accent-600' };
   }
   if (workType === 'non_billable') {
     return { label: 'Non-Billable', className: 'bg-brand-100 text-brand-700' };

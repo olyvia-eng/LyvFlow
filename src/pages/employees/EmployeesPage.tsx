@@ -32,7 +32,7 @@ const labourTypeLabel: Record<LabourType, string> = {
 };
 
 const roleColor: Record<EmployeeRole, string> = {
-  admin: 'bg-accent-100 text-accent-700',
+  admin: 'bg-accent-50 text-accent-600',
   foreman: 'bg-brand-100 text-brand-700',
   crew_member: 'bg-brand-200 text-brand-800',
 };
@@ -44,7 +44,7 @@ const compensationTypeLabel: Record<CompensationType, string> = {
 
 const compensationTypeColor: Record<CompensationType, string> = {
   hourly: 'bg-brand-100 text-brand-700',
-  salary: 'bg-accent-100 text-accent-700',
+  salary: 'bg-accent-50 text-accent-600',
 };
 
 const toOptionLabel = (value: string) => value

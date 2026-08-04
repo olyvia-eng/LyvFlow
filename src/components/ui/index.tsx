@@ -22,7 +22,7 @@ interface CardProps {
 
 export function Card({ children, className = '' }: CardProps) {
   return (
-    <div className={`bg-white dark:bg-brand-800 rounded-2xl border border-brand-200/80 dark:border-brand-700 shadow-sm ${className}`}>
+    <div className={`bg-white dark:bg-brand-700 rounded-2xl border border-brand-100 dark:border-brand-600 shadow-sm ${className}`}>
       {children}
     </div>
   );
@@ -41,11 +41,11 @@ export function StatCard({ label, value, sub, icon, color = 'text-brand-600' }: 
     <Card className="p-5">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-600 dark:text-brand-300 mb-1.5">{label}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-400 dark:text-brand-200 mb-1.5">{label}</p>
           <p className={`text-[1.75rem] leading-8 font-bold ${color}`}>{value}</p>
-          {sub && <p className="text-xs text-gray-400 dark:text-brand-300 mt-1 leading-5">{sub}</p>}
+          {sub && <p className="text-xs text-gray-400 dark:text-brand-200 mt-1 leading-5">{sub}</p>}
         </div>
-        {icon && <div className="text-brand-300 mt-0.5 [&>svg]:h-7 [&>svg]:w-7">{icon}</div>}
+        {icon && <div className="text-brand-300 dark:text-brand-300 mt-0.5 [&>svg]:h-7 [&>svg]:w-7">{icon}</div>}
       </div>
     </Card>
   );
@@ -62,7 +62,7 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
     <div className="flex items-start justify-between mb-7 gap-4">
       <div>
         <h1 className="text-[1.75rem] font-semibold tracking-tight text-brand-900 dark:text-brand-50">{title}</h1>
-        {subtitle && <p className="text-sm text-brand-700/90 dark:text-brand-300 mt-1 leading-6 max-w-3xl">{subtitle}</p>}
+        {subtitle && <p className="text-sm text-brand-400 dark:text-brand-200 mt-1 leading-6 max-w-3xl">{subtitle}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -79,10 +79,10 @@ export function Button({ variant = 'primary', size = 'md', children, className =
   const base = 'inline-flex items-center justify-center gap-1.5 font-semibold rounded-xl transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-1 [&>svg]:h-4 [&>svg]:w-4';
   const sizes = { sm: 'h-9 px-3 text-sm', md: 'h-10 px-4 text-sm' };
   const variants = {
-    primary: 'bg-brand-700 text-white shadow-sm hover:bg-brand-800',
-    secondary: 'bg-cream dark:bg-brand-700 border border-brand-300 dark:border-brand-600 text-brand-800 dark:text-brand-100 shadow-sm hover:bg-brand-50 dark:hover:bg-brand-600',
+    primary: 'bg-accent-500 text-white shadow-sm hover:bg-accent-600',
+    secondary: 'bg-white dark:bg-brand-700 border border-brand-100 dark:border-brand-600 text-brand-900 dark:text-brand-50 shadow-sm hover:bg-accent-50 dark:hover:bg-brand-600',
     danger: 'bg-accent-700 text-white shadow-sm hover:bg-accent-800',
-    ghost: 'text-brand-700 dark:text-brand-200 hover:bg-brand-100 dark:hover:bg-brand-700',
+    ghost: 'text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-700',
   };
   return (
     <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...rest}>
@@ -148,7 +148,7 @@ export function Input({ label, error, className = '', ...rest }: InputProps) {
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-gray-700 dark:text-brand-200">{label}</label>}
       <input
-        className={`h-10 border border-brand-300 dark:border-brand-600 rounded-xl bg-white dark:bg-brand-700 px-3 text-sm text-brand-900 dark:text-brand-50 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 ${error ? 'border-accent-500' : ''} ${className}`}
+        className={`h-10 border border-brand-100 dark:border-brand-600 rounded-xl bg-white dark:bg-brand-700 px-3 text-sm text-brand-900 dark:text-brand-50 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:border-accent-500 ${error ? 'border-accent-500' : ''} ${className}`}
         {...rest}
         type={isNumericInput ? 'text' : rest.type}
         inputMode={isNumericInput ? 'decimal' : rest.inputMode}
@@ -173,7 +173,7 @@ export function Select({ label, error, className = '', children, ...rest }: Sele
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-gray-700 dark:text-brand-200">{label}</label>}
       <select
-        className={`h-10 border border-brand-300 dark:border-brand-600 rounded-xl px-3 text-sm text-brand-900 dark:text-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 bg-white dark:bg-brand-700 shadow-sm ${className}`}
+        className={`h-10 border border-brand-100 dark:border-brand-600 rounded-xl px-3 text-sm text-brand-900 dark:text-brand-50 focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:border-accent-500 bg-white dark:bg-brand-700 shadow-sm ${className}`}
         {...rest}
       >
         {children}
@@ -193,7 +193,7 @@ export function TextArea({ label, className = '', ...rest }: TextAreaProps) {
       {label && <label className="text-sm font-medium text-gray-700 dark:text-brand-200">{label}</label>}
       <textarea
         rows={3}
-        className={`border border-brand-300 dark:border-brand-600 rounded-xl px-3 py-2 text-sm text-brand-900 dark:text-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 resize-none bg-white dark:bg-brand-700 shadow-sm ${className}`}
+        className={`border border-brand-100 dark:border-brand-600 rounded-xl px-3 py-2 text-sm text-brand-900 dark:text-brand-50 focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:border-accent-500 resize-none bg-white dark:bg-brand-700 shadow-sm ${className}`}
         {...rest}
       />
     </div>
@@ -214,13 +214,13 @@ export function Modal({ open, onClose, title, children, footer, wide = false }: 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className={`relative bg-white dark:bg-brand-800 rounded-2xl shadow-2xl w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col border border-brand-200 dark:border-brand-700`}>
-        <div className="flex items-center justify-between p-5 border-b border-brand-200 dark:border-brand-700">
+      <div className={`relative bg-white dark:bg-brand-700 rounded-2xl shadow-2xl w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col border border-brand-100 dark:border-brand-600`}>
+        <div className="flex items-center justify-between p-5 border-b border-brand-100 dark:border-brand-600">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-brand-50">{title}</h2>
           <button onClick={onClose} className="text-gray-400 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-100 text-xl leading-none h-8 w-8 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-700">&times;</button>
         </div>
         <div className="overflow-y-auto flex-1 p-5">{children}</div>
-        {footer && <div className="p-5 border-t border-brand-200 dark:border-brand-700 flex justify-end gap-2 bg-brand-50/40 dark:bg-brand-900/50">{footer}</div>}
+        {footer && <div className="p-5 border-t border-brand-100 dark:border-brand-600 flex justify-end gap-2 bg-brand-50/60 dark:bg-brand-800/60">{footer}</div>}
       </div>
     </div>
   );
@@ -236,7 +236,7 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-14 text-center px-4">
       <p className="text-brand-700 dark:text-brand-100 text-base font-semibold mb-2">{title}</p>
-      {description && <p className="text-brand-600/90 dark:text-brand-300 text-sm mb-4 max-w-md leading-6">{description}</p>}
+      {description && <p className="text-brand-400 dark:text-brand-200 text-sm mb-4 max-w-md leading-6">{description}</p>}
       {action}
     </div>
   );

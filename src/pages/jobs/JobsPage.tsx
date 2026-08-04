@@ -81,8 +81,8 @@ export default function JobsPage() {
       const laborVarianceHigh = Math.abs(laborVariancePct) > HIGH_LABOR_VARIANCE_THRESHOLD_PCT;
 
       const warningBadges: Array<{ label: string; className: string }> = [];
-      if (overHours) warningBadges.push({ label: 'Over Hours', className: 'bg-accent-200 text-accent-800' });
-      if (lowMargin) warningBadges.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-accent-100 text-accent-700' });
+      if (overHours) warningBadges.push({ label: 'Over Hours', className: 'bg-accent-100 text-accent-700' });
+      if (lowMargin) warningBadges.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-accent-50 text-accent-600' });
       if (laborVarianceHigh) warningBadges.push({ label: `Labor Variance (>${HIGH_LABOR_VARIANCE_THRESHOLD_PCT}%)`, className: 'bg-brand-100 text-brand-700' });
 
       map.set(job.id, {
@@ -208,7 +208,7 @@ export default function JobsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge label={job.status} className={statusColor[job.status]} />
-                      {risk?.atRisk && <Badge label="At Risk" className="bg-accent-200 text-accent-800" />}
+                      {risk?.atRisk && <Badge label="At Risk" className="bg-accent-100 text-accent-700" />}
                       <Link to={`/jobs/${job.id}`} className="font-semibold text-gray-900 hover:text-brand-600 truncate">
                         {job.title}
                       </Link>
@@ -234,7 +234,7 @@ export default function JobsPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-semibold">{formatCurrency(job.contractValue)}</p>
-                    <p className={`text-xs ${profit >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>
+                    <p className={`text-xs ${profit >= 0 ? 'text-brand-700' : 'text-accent-600'}`}>
                       {profit >= 0 ? '+' : ''}{formatCurrency(profit)} margin
                     </p>
                   </div>

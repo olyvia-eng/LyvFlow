@@ -54,19 +54,19 @@ export const calcEstimateTotal = (subtotal: number, tax: number): number =>
 export const statusColor: Record<string, string> = {
   // Estimate
   draft: 'bg-brand-100 text-brand-700',
-  sent: 'bg-accent-100 text-accent-700',
+  sent: 'bg-accent-50 text-accent-600',
   accepted: 'bg-brand-200 text-brand-800',
-  declined: 'bg-accent-200 text-accent-800',
+  declined: 'bg-accent-100 text-accent-700',
   converted: 'bg-brand-300 text-brand-900',
   // Job
-  scheduled: 'bg-accent-100 text-accent-700',
+  scheduled: 'bg-accent-50 text-accent-600',
   in_progress: 'bg-brand-100 text-brand-700',
-  on_hold: 'bg-accent-200 text-accent-800',
+  on_hold: 'bg-accent-100 text-accent-700',
   completed: 'bg-brand-200 text-brand-800',
-  cancelled: 'bg-accent-200 text-accent-800',
+  cancelled: 'bg-accent-100 text-accent-700',
   // Customer
   lead: 'bg-brand-100 text-brand-700',
-  prospect: 'bg-accent-100 text-accent-700',
+  prospect: 'bg-accent-50 text-accent-600',
   active: 'bg-brand-200 text-brand-800',
-  inactive: 'bg-accent-200 text-accent-800',
+  inactive: 'bg-accent-100 text-accent-700',
 };

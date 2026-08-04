@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-cream text-brand-900 dark:bg-brand-900 dark:text-brand-100;
+    @apply bg-cream text-brand-900 dark:bg-brand-900 dark:text-brand-50;
   }
 
   h1,
@@ -37,11 +37,11 @@
 
 @layer components {
   .panel {
-    @apply bg-white dark:bg-brand-800 rounded-2xl border border-brand-200/80 dark:border-brand-700 shadow-sm;
+    @apply bg-white dark:bg-brand-700 rounded-2xl border border-brand-100 dark:border-brand-600 shadow-sm;
   }
 
   .panel-header {
-    @apply p-4 border-b border-brand-100 dark:border-brand-700;
+    @apply p-4 border-b border-brand-100 dark:border-brand-600;
   }
 
   .panel-title {
@@ -49,11 +49,11 @@
   }
 
   .table-shell {
-    @apply overflow-x-auto rounded-2xl border border-brand-100 dark:border-brand-700 bg-white dark:bg-brand-800 shadow-sm;
+    @apply overflow-x-auto rounded-2xl border border-brand-100 dark:border-brand-600 bg-white dark:bg-brand-700 shadow-sm;
   }
 
   .table-head-row {
-    @apply border-b border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-200 text-left;
+    @apply border-b border-brand-100 dark:border-brand-600 text-brand-700 dark:text-brand-200 text-left;
   }
 
   .table-header-cell {
@@ -66,12 +66,80 @@
 }
 
 @layer utilities {
+  .text-gray-900 {
+    @apply text-brand-900;
+  }
+
+  .text-gray-800 {
+    @apply text-brand-800;
+  }
+
+  .text-gray-700 {
+    @apply text-brand-700;
+  }
+
+  .text-gray-600 {
+    @apply text-brand-400;
+  }
+
+  .text-gray-500 {
+    @apply text-brand-400;
+  }
+
+  .text-gray-400 {
+    @apply text-brand-300;
+  }
+
+  .bg-gray-50 {
+    @apply bg-brand-50;
+  }
+
+  .bg-gray-100 {
+    @apply bg-brand-100;
+  }
+
+  .border-gray-100 {
+    @apply border-brand-100;
+  }
+
+  .border-gray-200 {
+    @apply border-brand-100;
+  }
+
+  .border-gray-300 {
+    @apply border-brand-200;
+  }
+
+  .divide-gray-50 > :not([hidden]) ~ :not([hidden]) {
+    @apply border-brand-100;
+  }
+
+  .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+    @apply border-brand-100;
+  }
+
+  .hover\:bg-gray-50:hover {
+    @apply bg-brand-50;
+  }
+
+  .hover\:bg-gray-100:hover {
+    @apply bg-brand-100;
+  }
+
+  .hover\:text-gray-700:hover {
+    @apply text-brand-700;
+  }
+
+  .hover\:text-gray-900:hover {
+    @apply text-brand-900;
+  }
+
   .dark .text-gray-900 {
     @apply text-brand-50;
   }
 
   .dark .text-gray-800 {
-    @apply text-brand-100;
+    @apply text-brand-50;
   }
 
   .dark .text-gray-700 {
@@ -79,11 +147,11 @@
   }
 
   .dark .text-gray-600 {
-    @apply text-brand-300;
+    @apply text-brand-200;
   }
 
   .dark .text-gray-500 {
-    @apply text-brand-300;
+    @apply text-brand-200;
   }
 
   .dark .text-gray-400 {
@@ -91,7 +159,7 @@
   }
 
   .dark .bg-gray-50 {
-    @apply bg-brand-800;
+    @apply bg-brand-700;
   }
 
   .dark .bg-gray-100 {
@@ -99,11 +167,11 @@
   }
 
   .dark .border-gray-100 {
-    @apply border-brand-700;
+    @apply border-brand-600;
   }
 
   .dark .border-gray-200 {
-    @apply border-brand-700;
+    @apply border-brand-600;
   }
 
   .dark .border-gray-300 {
@@ -111,11 +179,11 @@
   }
 
   .dark .divide-gray-50 > :not([hidden]) ~ :not([hidden]) {
-    @apply border-brand-700;
+    @apply border-brand-600;
   }
 
   .dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
-    @apply border-brand-700;
+    @apply border-brand-600;
   }
 
   .dark .hover\:bg-gray-50:hover {

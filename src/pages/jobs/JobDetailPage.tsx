@@ -83,11 +83,11 @@ export default function JobDetailPage() {
     const warnings: Array<{ label: string; className: string }> = [];
 
     if (job.estimatedHours > 0 && job.actualHours > job.estimatedHours) {
-      warnings.push({ label: 'Over Hours', className: 'bg-accent-200 text-accent-800' });
+      warnings.push({ label: 'Over Hours', className: 'bg-accent-100 text-accent-700' });
     }
 
     if (profitability.projectedMarginFromTracking < LOW_MARGIN_THRESHOLD_PCT) {
-      warnings.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-accent-100 text-accent-700' });
+      warnings.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-accent-50 text-accent-600' });
     }
 
     if (Math.abs(profitability.laborVariancePct) > HIGH_LABOR_VARIANCE_THRESHOLD_PCT) {
@@ -99,7 +99,7 @@ export default function JobDetailPage() {
 
   const timeEntryTypeMeta = (entry: { workType?: string }) => {
     if (entry.workType === 'drive_time') {
-      return { label: 'Drive Time', className: 'bg-accent-100 text-accent-700' };
+      return { label: 'Drive Time', className: 'bg-accent-50 text-accent-600' };
     }
     if (entry.workType === 'non_billable') {
       return { label: 'Non-Billable', className: 'bg-brand-100 text-brand-700' };
