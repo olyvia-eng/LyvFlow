@@ -51,7 +51,7 @@ export default function SidebarItem({
         type="button"
         onClick={() => onAction?.(item.actionId)}
         style={indentStyle}
-        className={`w-full flex items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-sm font-medium text-gray-600 dark:text-brand-200 hover:bg-gray-100 dark:hover:bg-brand-800 hover:text-gray-900 dark:hover:text-brand-50`}
+        className={`w-full flex items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-sm font-medium text-brand-700 hover:bg-accent-100 hover:text-brand-900`}
       >
         {Icon ? <Icon size={compact ? 14 : 15} /> : null}
         <span className="truncate">{item.label}</span>
@@ -71,8 +71,8 @@ export default function SidebarItem({
           className={({ isActive }) =>
             `group relative flex min-w-0 flex-1 items-center gap-2 ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} pl-3 rounded-lg text-sm font-medium transition-colors ${
               isActive
-                ? 'bg-brand-50 dark:bg-brand-700 text-brand-800 dark:text-brand-50'
-                : 'text-brand-700 dark:text-brand-200 hover:bg-brand-50 dark:hover:bg-brand-800 hover:text-brand-900 dark:hover:text-brand-50'
+                ? 'bg-white text-brand-900'
+                : 'text-brand-700 hover:bg-accent-100 hover:text-brand-900'
             }`
           }
         >
@@ -80,7 +80,7 @@ export default function SidebarItem({
             <>
               <span
                 className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r ${
-                  isActive ? 'bg-accent-500' : 'bg-transparent group-hover:bg-brand-200 dark:group-hover:bg-brand-500'
+                  isActive ? 'bg-accent-500' : 'bg-transparent group-hover:bg-accent-300'
                 }`}
               />
               {Icon ? <Icon size={compact ? 14 : 15} /> : null}
@@ -94,8 +94,8 @@ export default function SidebarItem({
           title={pinned ? 'Unpin page' : 'Pin page'}
           className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
             pinned
-              ? 'text-accent-700 hover:bg-accent-50 dark:hover:bg-accent-900/20'
-              : 'text-brand-300 dark:text-brand-400 hover:text-accent-700 hover:bg-brand-50 dark:hover:bg-brand-800'
+              ? 'text-accent-700 hover:bg-accent-100'
+              : 'text-brand-400 hover:text-accent-700 hover:bg-accent-100'
           }`}
           onClick={(event) => {
             event.preventDefault();
@@ -123,8 +123,8 @@ export default function SidebarItem({
         type="button"
         className={`w-full flex items-center justify-between ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-sm font-medium transition-colors ${
           isBranchActive
-            ? 'text-brand-800 dark:text-brand-50 bg-brand-50 dark:bg-brand-700'
-            : 'text-brand-700 dark:text-brand-200 hover:bg-brand-50 dark:hover:bg-brand-800 hover:text-brand-900 dark:hover:text-brand-50'
+            ? 'text-brand-900 bg-white'
+            : 'text-brand-700 hover:bg-accent-100 hover:text-brand-900'
         }`}
         onClick={() => {
           if (!isCollapsible) return;
@@ -141,7 +141,7 @@ export default function SidebarItem({
       </button>
 
       {expanded && (
-        <div className="mt-1 ml-2 pl-2 border-l border-brand-100 dark:border-brand-700 space-y-0.5" role="menu" aria-label={`${item.label} submenu`}>
+        <div className="mt-1 ml-2 pl-2 border-l border-accent-200 space-y-0.5" role="menu" aria-label={`${item.label} submenu`}>
           {item.children.map((child) => (
             <SidebarItem
               key={child.id}

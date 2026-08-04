@@ -26,7 +26,7 @@ export default function SidebarSection({
     <div className="mb-3">
       <button
         type="button"
-        className="w-full flex items-center justify-between px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-200"
+        className="w-full flex items-center justify-between px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand-700"
         onClick={() => {
           if (!isCollapsible) return;
           onToggle?.(section.id);
