@@ -4,6 +4,8 @@ import {
   X,
   Leaf,
   Pin,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +17,7 @@ import SidebarSection from './SidebarSection';
 import { usePinnedPages } from '../../navigation/PinnedPagesContext';
 
 const EXPANDED_SECTIONS_STORAGE_KEY = 'oliveops.sidebar.expanded-sections.v1';
+const THEME_STORAGE_KEY = 'oliveops.theme.v1';
 
 const ACTION_ROUTE_MAP: Record<string, string> = {
   'placeholder-leads': '/revenue/leads',
@@ -44,6 +47,7 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const navigation = useMemo(() => getSidebarConfig(userRole), [userRole]);
   const linkCandidates = useMemo(() => getSidebarLinkItems(userRole), [userRole]);
   const { pinnedPages, reorderPinnedPages } = usePinnedPages();
@@ -92,6 +96,34 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
 
     previousPinnedCountRef.current = currentCount;
   }, [pinnedPages.length]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (storedTheme === 'dark') {
+      setIsDarkMode(true);
+      return;
+    }
+    if (storedTheme === 'light') {
+      setIsDarkMode(false);
+      return;
+    }
+
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setIsDarkMode(prefersDark);
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    document.documentElement.classList.toggle('dark', isDarkMode);
+    window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  const toggleTheme = () => {
+    setIsDarkMode((current) => !current);
+  };
 
   const handleNavigate = () => {
     setMobileOpen(false);
@@ -169,14 +201,14 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
   return (
     <>
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-cream border-b border-brand-100 flex items-center justify-between px-4 h-14">
-        <div className="flex items-center gap-2 font-semibold text-brand-700">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-cream dark:bg-brand-900 border-b border-brand-100 dark:border-brand-700 flex items-center justify-between px-4 h-14">
+        <div className="flex items-center gap-2 font-semibold text-brand-700 dark:text-brand-100">
           <Leaf size={22} />
           OliveOps
         </div>
         <button
           onClick={() => setMobileOpen((v) => !v)}
-          className="p-2 rounded-lg text-brand-700 hover:bg-brand-50"
+          className="p-2 rounded-lg text-brand-700 dark:text-brand-100 hover:bg-brand-50 dark:hover:bg-brand-800"
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -185,14 +217,14 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-20 bg-brand-900/30"
+          className="lg:hidden fixed inset-0 z-20 bg-brand-900/50"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Mobile drawer */}
       <aside
-        className={`lg:hidden fixed top-14 left-0 bottom-0 z-20 w-72 bg-cream border-r border-brand-100 p-4 flex flex-col transform transition-transform ${
+        className={`lg:hidden fixed top-14 left-0 bottom-0 z-20 w-72 bg-cream dark:bg-brand-900 border-r border-brand-100 dark:border-brand-700 p-4 flex flex-col transform transition-transform ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -209,10 +241,10 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             ))}
           </div>
 
-          <div className="rounded-xl border border-brand-100 bg-white p-3 mb-4">
+          <div className="rounded-xl border border-brand-100 dark:border-brand-700 bg-white dark:bg-brand-800 p-3 mb-4">
             <button
               type="button"
-              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-500 mb-1"
+              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-500 dark:text-brand-300 mb-1"
               onClick={() => toggleSection('pinned')}
             >
               Pinned
@@ -236,20 +268,26 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             />
           ))}
         </div>
-        <div className="pt-3 border-t border-brand-100 mt-3">
+        <div className="pt-3 border-t border-brand-100 dark:border-brand-700 mt-3">
           <div className="flex items-center gap-3 px-1 mb-2">
             <div className="h-8 w-8 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
             <div>
-              <p className="text-xs font-semibold text-brand-900">{businessName}</p>
-              <p className="text-[11px] text-brand-600">{userName}</p>
+              <p className="text-xs font-semibold text-brand-900 dark:text-brand-100">{businessName}</p>
+              <p className="text-[11px] text-brand-600 dark:text-brand-300">{userName}</p>
             </div>
           </div>
+          <button
+            onClick={toggleTheme}
+            className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-brand-50 dark:hover:bg-brand-800"
+          >
+            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />} {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+          </button>
           <button
             onClick={() => {
               setMobileOpen(false);
               onLogout();
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-700 hover:bg-accent-50"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-700 hover:bg-accent-50 dark:hover:bg-accent-900/20"
           >
             <LogOut size={16} /> Log Out
           </button>
@@ -257,8 +295,8 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-72 min-h-screen bg-cream border-r border-brand-100 p-4 fixed top-0 left-0 bottom-0">
-        <div className="flex items-center gap-2 font-semibold text-brand-700 text-[28px] mb-4 px-1">
+      <aside className="hidden lg:flex flex-col w-72 min-h-screen bg-cream dark:bg-brand-900 border-r border-brand-100 dark:border-brand-700 p-4 fixed top-0 left-0 bottom-0">
+        <div className="flex items-center gap-2 font-semibold text-brand-700 dark:text-brand-100 text-[28px] mb-4 px-1">
           <Leaf size={24} />
           <span className="text-2xl">OliveOps</span>
         </div>
@@ -276,10 +314,10 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
             ))}
           </div>
 
-          <div className="rounded-xl border border-brand-100 bg-white p-3 mb-4">
+          <div className="rounded-xl border border-brand-100 dark:border-brand-700 bg-white dark:bg-brand-800 p-3 mb-4">
             <button
               type="button"
-              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-500 mb-1"
+              className="w-full text-left px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-500 dark:text-brand-300 mb-1"
               onClick={() => toggleSection('pinned')}
             >
               Pinned
@@ -304,17 +342,23 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
           ))}
         </div>
 
-        <div className="pt-3 border-t border-brand-100">
+        <div className="pt-3 border-t border-brand-100 dark:border-brand-700">
           <div className="flex items-center gap-3 px-1 mb-2">
             <div className="h-8 w-8 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
             <div>
-              <p className="text-xs font-semibold text-brand-900">{businessName}</p>
-              <p className="text-[11px] text-brand-600">{userName}</p>
+              <p className="text-xs font-semibold text-brand-900 dark:text-brand-100">{businessName}</p>
+              <p className="text-[11px] text-brand-600 dark:text-brand-300">{userName}</p>
             </div>
           </div>
           <button
+            onClick={toggleTheme}
+            className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-brand-50 dark:hover:bg-brand-800"
+          >
+            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />} {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+          </button>
+          <button
             onClick={onLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-700 hover:bg-accent-50"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-accent-700 hover:bg-accent-50 dark:hover:bg-accent-900/20"
           >
             <LogOut size={16} /> Log Out
           </button>

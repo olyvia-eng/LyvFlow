@@ -4,13 +4,13 @@
 
 @layer base {
   body {
-    @apply bg-cream text-brand-900;
+    @apply bg-cream text-brand-900 dark:bg-brand-900 dark:text-brand-100;
   }
 
   h1,
   h2,
   h3 {
-    @apply tracking-tight text-brand-900;
+    @apply tracking-tight text-brand-900 dark:text-brand-50;
   }
 
   h1 {
@@ -27,33 +27,33 @@
   }
 
   th {
-    @apply font-medium text-brand-700;
+    @apply font-medium text-brand-700 dark:text-brand-200;
   }
 
   td {
-    @apply text-brand-900;
+    @apply text-brand-900 dark:text-brand-100;
   }
 }
 
 @layer components {
   .panel {
-    @apply bg-white rounded-2xl border border-brand-200/80 shadow-sm;
+    @apply bg-white dark:bg-brand-800 rounded-2xl border border-brand-200/80 dark:border-brand-700 shadow-sm;
   }
 
   .panel-header {
-    @apply p-4 border-b border-brand-100;
+    @apply p-4 border-b border-brand-100 dark:border-brand-700;
   }
 
   .panel-title {
-    @apply font-semibold text-brand-900;
+    @apply font-semibold text-brand-900 dark:text-brand-50;
   }
 
   .table-shell {
-    @apply overflow-x-auto rounded-2xl border border-brand-100 bg-white shadow-sm;
+    @apply overflow-x-auto rounded-2xl border border-brand-100 dark:border-brand-700 bg-white dark:bg-brand-800 shadow-sm;
   }
 
   .table-head-row {
-    @apply border-b border-brand-100 text-brand-700 text-left;
+    @apply border-b border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-200 text-left;
   }
 
   .table-header-cell {

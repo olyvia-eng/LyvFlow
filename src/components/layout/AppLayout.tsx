@@ -33,7 +33,7 @@ function PinPageButton() {
 export default function AppLayout({ userName, businessName, userRole, onLogout }: AppLayoutProps) {
   return (
     <PinnedPagesProvider userRole={userRole}>
-      <div className="min-h-screen bg-cream">
+      <div className="min-h-screen bg-cream dark:bg-brand-900">
         <Sidebar userName={userName} businessName={businessName} userRole={userRole} onLogout={onLogout} />
         {/* Content area shifts right on desktop, down on mobile */}
         <main className="lg:ml-72 pt-14 lg:pt-0 min-h-screen">
