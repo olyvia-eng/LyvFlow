@@ -3,6 +3,7 @@ import type {
   Customer,
   Estimate,
   EstimateTemplate,
+  EquipmentAsset,
   Expense,
   Invoice,
   Job,
@@ -64,6 +65,7 @@ interface AppState {
   estimates: Estimate[];
   templates: EstimateTemplate[];
   expenses: Expense[];
+  equipmentAssets: EquipmentAsset[];
   invoices: Invoice[];
   jobs: Job[];
   employees: Employee[];
@@ -100,6 +102,11 @@ interface AppState {
   updateExpense: (id: ID, data: Partial<Expense>) => void;
   deleteExpense: (id: ID) => void;
 
+  // Equipment
+  addEquipmentAsset: (e: Omit<EquipmentAsset, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateEquipmentAsset: (id: ID, data: Partial<EquipmentAsset>) => void;
+  deleteEquipmentAsset: (id: ID) => void;
+
   // Jobs
   addJob: (j: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateJob: (id: ID, data: Partial<Job>) => void;
@@ -135,6 +142,7 @@ export const useStore = create<AppState>()((set, get) => ({
       estimates: [],
       templates: [],
       expenses: [],
+      equipmentAssets: [],
       invoices: [],
       jobs: [],
       employees: [],
@@ -487,6 +495,58 @@ export const useStore = create<AppState>()((set, get) => ({
         })).catch((error: unknown) => {
           set({ expenses: previous });
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Expense could not be deleted.') });
+        });
+      },
+
+      // ── Equipment ────────────────────────────────────────────────────────
+      addEquipmentAsset: (e) => {
+        const previous = get().equipmentAssets;
+        const equipmentAsset = { ...e, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
+        set((s) => ({ equipmentAssets: [equipmentAsset, ...s.equipmentAssets] }));
+
+        void ensureOk(fetch(dataUrl('equipment-assets'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: equipmentAsset }),
+        })).catch((error: unknown) => {
+          set({ equipmentAssets: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Equipment asset could not be saved.') });
+        });
+      },
+      updateEquipmentAsset: (id, data) => {
+        const previous = get().equipmentAssets;
+        const updatedAt = nowISO();
+        set((s) => ({
+          equipmentAssets: s.equipmentAssets.map((equipmentAsset) =>
+            equipmentAsset.id === id ? { ...equipmentAsset, ...data, updatedAt } : equipmentAsset
+          ),
+        }));
+
+        void ensureOk(fetch(dataUrl('equipment-assets', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch((error: unknown) => {
+          set({ equipmentAssets: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Equipment changes could not be saved.') });
+        });
+      },
+      deleteEquipmentAsset: (id) => {
+        const previous = get().equipmentAssets;
+        set((s) => ({ equipmentAssets: s.equipmentAssets.filter((equipmentAsset) => equipmentAsset.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('equipment-assets', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch((error: unknown) => {
+          set({ equipmentAssets: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Equipment asset could not be deleted.') });
         });
       },
 

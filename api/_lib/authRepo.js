@@ -52,6 +52,14 @@ function expenseSk(expenseId) {
   return `EXPENSE#${expenseId}`;
 }
 
+function equipmentSk(equipmentId) {
+  return `EQUIPMENT#${equipmentId}`;
+}
+
+function receiptSk(receiptId) {
+  return `RECEIPT#${receiptId}`;
+}
+
 function templateSk(templateId) {
   return `TEMPLATE#${templateId}`;
 }
@@ -1224,6 +1232,157 @@ export async function deleteExpenseForBusiness(businessId, expenseId) {
       Key: {
         PK: businessPk(businessId),
         SK: expenseSk(expenseId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function createReceiptForBusiness({ businessId, receipt }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: receiptSk(receipt.id),
+        entityType: 'RECEIPT',
+        businessId,
+        receiptId: receipt.id,
+        ...receipt,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getReceiptForBusiness(businessId, receiptId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: receiptSk(receiptId),
+      },
+    })
+  );
+
+  if (!result.Item) return null;
+
+  return {
+    id: result.Item.receiptId,
+    fileName: result.Item.fileName,
+    mimeType: result.Item.mimeType,
+    dataBase64: result.Item.dataBase64,
+    sizeBytes: result.Item.sizeBytes,
+    uploadedAt: result.Item.uploadedAt,
+  };
+}
+
+export async function listEquipmentAssetsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'EQUIPMENT#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.equipmentId,
+    name: item.name,
+    type: item.type,
+    status: item.status,
+    costType: item.costType,
+    serialNumber: item.serialNumber,
+    purchaseDate: item.purchaseDate,
+    hourlyCost: item.hourlyCost,
+    currentJobId: item.currentJobId,
+    notes: item.notes,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+}
+
+export async function createEquipmentAssetForBusiness({ businessId, equipmentAsset }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: equipmentSk(equipmentAsset.id),
+        entityType: 'EQUIPMENT_ASSET',
+        businessId,
+        equipmentId: equipmentAsset.id,
+        ...equipmentAsset,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getEquipmentAssetForBusiness(businessId, equipmentId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: equipmentSk(equipmentId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.equipmentId,
+        name: result.Item.name,
+        type: result.Item.type,
+        status: result.Item.status,
+        costType: result.Item.costType,
+        serialNumber: result.Item.serialNumber,
+        purchaseDate: result.Item.purchaseDate,
+        hourlyCost: result.Item.hourlyCost,
+        currentJobId: result.Item.currentJobId,
+        notes: result.Item.notes,
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateEquipmentAssetForBusiness({ businessId, equipmentAsset }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: equipmentSk(equipmentAsset.id),
+        entityType: 'EQUIPMENT_ASSET',
+        businessId,
+        equipmentId: equipmentAsset.id,
+        ...equipmentAsset,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteEquipmentAssetForBusiness(businessId, equipmentId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: equipmentSk(equipmentId),
       },
     })
   );

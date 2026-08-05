@@ -24,9 +24,10 @@ import DataCenterDashboardPage from './pages/department-dashboards/DataCenterDas
 import ModulePlaceholderPage from './pages/placeholders/ModulePlaceholderPage';
 import InvoicesPage from './pages/finance/InvoicesPage';
 import ExpensesPage from './pages/finance/ExpensesPage';
+import EquipmentPage from './pages/operations/EquipmentPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Expense, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
+import type { BudgetItem, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
@@ -75,6 +76,7 @@ export default function App() {
         estimates?: Estimate[];
         invoices?: Invoice[];
         expenses?: Expense[];
+        equipmentAssets?: EquipmentAsset[];
         templates?: EstimateTemplate[];
         budgetItems?: BudgetItem[];
         labourBudgetPlans?: LabourBudgetPlan[];
@@ -96,6 +98,7 @@ export default function App() {
         estimates: payload.estimates ?? [],
         invoices: payload.invoices ?? [],
         expenses: payload.expenses ?? [],
+        equipmentAssets: payload.equipmentAssets ?? [],
         templates: payload.templates ?? [],
         budgetItems: payload.budgetItems ?? [],
         labourBudgetPlans: payload.labourBudgetPlans ?? [],
@@ -194,6 +197,7 @@ export default function App() {
       customers: [],
       estimates: [],
       expenses: [],
+      equipmentAssets: [],
       invoices: [],
       templates: [],
       jobs: [],
@@ -464,16 +468,7 @@ export default function App() {
                 }
               />
               <Route path="operations/dashboard" element={<OperationsDashboardPage />} />
-              <Route
-                path="operations/equipment"
-                element={
-                  <ModulePlaceholderPage
-                    title="Equipment"
-                    question="What equipment is available, assigned, or underutilized right now?"
-                    summary="Coordinate field equipment status and assignments so crews have what they need without unnecessary rental or idle cost."
-                  />
-                }
-              />
+              <Route path="operations/equipment" element={<EquipmentPage />} />
               <Route
                 path="operations/inventory"
                 element={

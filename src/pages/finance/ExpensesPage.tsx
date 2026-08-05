@@ -53,6 +53,8 @@ export default function ExpensesPage() {
   const [editing, setEditing] = useState<Expense | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [form, setForm] = useState(emptyExpenseForm());
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const [receiptUploadError, setReceiptUploadError] = useState('');
 
   const jobLookup = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
   const customerLookup = useMemo(() => new Map(customers.map((customer) => [customer.id, customer])), [customers]);
@@ -96,6 +98,7 @@ export default function ExpensesPage() {
   const openNew = () => {
     setEditing(null);
     setForm(emptyExpenseForm());
+    setReceiptUploadError('');
     setModalOpen(true);
   };
 
@@ -112,11 +115,60 @@ export default function ExpensesPage() {
       notes: expense.notes,
       receiptUrl: expense.receiptUrl ?? '',
     });
+    setReceiptUploadError('');
     setModalOpen(true);
   };
 
   const setField = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const uploadReceiptFile = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      setReceiptUploadError('Receipt file must be 2 MB or smaller.');
+      return;
+    }
+
+    setReceiptUploadError('');
+    setReceiptUploading(true);
+
+    try {
+      const dataBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = typeof reader.result === 'string' ? reader.result : '';
+          const comma = result.indexOf(',');
+          resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = () => reject(new Error('Could not read receipt file.'));
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch('/api/receipts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          dataBase64,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok?: boolean; error?: string; receiptUrl?: string };
+      if (!response.ok || !payload?.ok || typeof payload.receiptUrl !== 'string') {
+        setReceiptUploadError(payload?.error ?? 'Could not upload receipt.');
+        return;
+      }
+
+      setField('receiptUrl', payload.receiptUrl);
+    } catch {
+      setReceiptUploadError('Could not upload receipt.');
+    } finally {
+      setReceiptUploading(false);
+    }
   };
 
   const saveExpense = () => {
@@ -296,6 +348,28 @@ export default function ExpensesPage() {
             <option value="">General / Overhead</option>
             {jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
           </Select>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Receipt File (Optional)</label>
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                void uploadReceiptFile(file);
+                event.currentTarget.value = '';
+              }}
+              className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700"
+              disabled={receiptUploading}
+            />
+            {receiptUploading && <p className="text-xs text-gray-500">Uploading receipt...</p>}
+            {receiptUploadError && <p className="text-xs text-accent-700">{receiptUploadError}</p>}
+            {form.receiptUrl ? (
+              <a href={form.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-brand-700 hover:text-brand-800">
+                <LinkIcon size={13} /> View uploaded receipt
+              </a>
+            ) : null}
+          </div>
           <Input
             label="Receipt URL (Optional)"
             value={form.receiptUrl}

@@ -121,6 +121,25 @@ export interface Expense {
   updatedAt: string;
 }
 
+// ─── Equipment ──────────────────────────────────────────────────────────────
+
+export type EquipmentStatus = 'available' | 'in_use' | 'maintenance' | 'inactive';
+
+export interface EquipmentAsset {
+  id: ID;
+  name: string;
+  type: string;
+  status: EquipmentStatus;
+  costType: EquipmentCostType;
+  serialNumber: string;
+  purchaseDate?: string;
+  hourlyCost: number;
+  currentJobId?: ID;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Jobs ────────────────────────────────────────────────────────────────────
 
 export type JobStatus = 'scheduled' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';

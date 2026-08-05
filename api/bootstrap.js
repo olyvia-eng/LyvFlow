@@ -5,6 +5,7 @@ import {
   listBudgetItemsForBusiness,
   listCustomersForBusiness,
   listEmployeesForBusiness,
+  listEquipmentAssetsForBusiness,
   listEstimatesForBusiness,
   listExpensesForBusiness,
   listInvoicesForBusiness,
@@ -24,12 +25,13 @@ export default async function handler(req, res) {
   if (!session) return;
 
   try {
-    const [customers, jobs, estimates, invoices, expenses, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
+    const [customers, jobs, estimates, invoices, expenses, equipmentAssets, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
       listCustomersForBusiness(session.businessId),
       listJobsForBusiness(session.businessId),
       listEstimatesForBusiness(session.businessId),
       listInvoicesForBusiness(session.businessId),
       listExpensesForBusiness(session.businessId),
+      listEquipmentAssetsForBusiness(session.businessId),
       listTemplatesForBusiness(session.businessId),
       listBudgetItemsForBusiness(session.businessId),
       listLabourBudgetPlansForBusiness(session.businessId),
@@ -46,6 +48,7 @@ export default async function handler(req, res) {
       estimates,
       invoices,
       expenses,
+      equipmentAssets,
       templates,
       budgetItems,
       labourBudgetPlans,

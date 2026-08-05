@@ -3,6 +3,7 @@ import {
   createAuditEventForBusiness,
   createCustomerForBusiness,
   createEmployeeForBusiness,
+  createEquipmentAssetForBusiness,
   createEstimateForBusiness,
   createExpenseForBusiness,
   createInvoiceForBusiness,
@@ -17,6 +18,7 @@ import {
   deleteAuditEventForBusiness,
   deleteCustomerForBusiness,
   deleteEmployeeForBusiness,
+  deleteEquipmentAssetForBusiness,
   deleteEstimateForBusiness,
   deleteExpenseForBusiness,
   deleteInvoiceForBusiness,
@@ -30,6 +32,7 @@ import {
   getAuditEventForBusiness,
   getCustomerForBusiness,
   getEmployeeForBusiness,
+  getEquipmentAssetForBusiness,
   getEstimateForBusiness,
   getExpenseForBusiness,
   getInvoiceForBusiness,
@@ -43,6 +46,7 @@ import {
   listAuditEventsForBusiness,
   listCustomersForBusiness,
   listEmployeesForBusiness,
+  listEquipmentAssetsForBusiness,
   listEstimatesForBusiness,
   listExpensesForBusiness,
   listInvoicesForBusiness,
@@ -56,6 +60,7 @@ import {
   updateAuditEventForBusiness,
   updateCustomerForBusiness,
   updateEmployeeForBusiness,
+  updateEquipmentAssetForBusiness,
   updateEstimateForBusiness,
   updateExpenseForBusiness,
   updateInvoiceForBusiness,
@@ -212,6 +217,19 @@ const ENTITY_CONFIG = {
     createArgKey: 'employee',
     updateArgKey: 'employee',
   },
+  'equipment-assets': {
+    readRoles: null,
+    writeRoles: ['owner', 'admin'],
+    list: listEquipmentAssetsForBusiness,
+    get: getEquipmentAssetForBusiness,
+    create: createEquipmentAssetForBusiness,
+    update: updateEquipmentAssetForBusiness,
+    remove: deleteEquipmentAssetForBusiness,
+    payloadKey: 'equipmentAsset',
+    idParam: 'equipmentId',
+    createArgKey: 'equipmentAsset',
+    updateArgKey: 'equipmentAsset',
+  },
   'time-entries': {
     readRoles: null,
     writeRoles: null,
@@ -247,6 +265,8 @@ function getConfig(entity) {
 const INVOICE_STATUSES = new Set(['draft', 'sent', 'paid', 'overdue']);
 const EXPENSE_STATUSES = new Set(['pending', 'approved', 'paid']);
 const EXPENSE_CATEGORIES = new Set(['materials', 'equipment', 'subcontractor', 'travel', 'permits', 'overhead', 'other']);
+const EQUIPMENT_STATUSES = new Set(['available', 'in_use', 'maintenance', 'inactive']);
+const EQUIPMENT_COST_TYPES = new Set(['financed', 'leased', 'owned']);
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function isNonEmptyString(value) {
@@ -290,6 +310,28 @@ function validateExpenseRecord(record) {
   if (record.jobId !== undefined && record.jobId !== null && typeof record.jobId !== 'string') {
     return 'Expense job is invalid.';
   }
+  return null;
+}
+
+function validateEquipmentAssetRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Equipment id is required.';
+  if (!isNonEmptyString(record.name)) return 'Equipment name is required.';
+  if (!isNonEmptyString(record.type)) return 'Equipment type is required.';
+  if (!EQUIPMENT_STATUSES.has(record.status)) return 'Equipment status is invalid.';
+  if (!EQUIPMENT_COST_TYPES.has(record.costType)) return 'Equipment cost type is invalid.';
+  if (record.serialNumber !== undefined && record.serialNumber !== null && typeof record.serialNumber !== 'string') {
+    return 'Equipment serial number is invalid.';
+  }
+  if (record.purchaseDate !== undefined && record.purchaseDate !== null && record.purchaseDate !== '' && !isValidDateOnly(record.purchaseDate)) {
+    return 'Equipment purchase date must use YYYY-MM-DD format.';
+  }
+  if (typeof record.hourlyCost !== 'number' || Number.isNaN(record.hourlyCost) || record.hourlyCost < 0) {
+    return 'Equipment hourly cost must be zero or greater.';
+  }
+  if (record.currentJobId !== undefined && record.currentJobId !== null && typeof record.currentJobId !== 'string') {
+    return 'Equipment job assignment is invalid.';
+  }
+  if (typeof record.notes !== 'string') return 'Equipment notes must be a string.';
   return null;
 }
 
@@ -377,6 +419,13 @@ export default async function handler(req, res) {
       }
     }
 
+    if (entity === 'equipment-assets') {
+      const validationError = validateEquipmentAssetRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
     try {
       await config.create({ businessId: session.businessId, [config.createArgKey]: record });
       return res.status(200).json({ ok: true });
@@ -434,6 +483,13 @@ export default async function handler(req, res) {
 
       if (entity === 'expenses') {
         const validationError = validateExpenseRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
+      if (entity === 'equipment-assets') {
+        const validationError = validateEquipmentAssetRecord(next);
         if (validationError) {
           return res.status(400).json({ ok: false, error: validationError });
         }
