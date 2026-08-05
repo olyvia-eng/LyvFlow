@@ -23,9 +23,10 @@ import EmployeesDashboardPage from './pages/department-dashboards/EmployeesDashb
 import DataCenterDashboardPage from './pages/department-dashboards/DataCenterDashboardPage';
 import ModulePlaceholderPage from './pages/placeholders/ModulePlaceholderPage';
 import InvoicesPage from './pages/finance/InvoicesPage';
+import ExpensesPage from './pages/finance/ExpensesPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
+import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Expense, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
@@ -73,6 +74,7 @@ export default function App() {
         jobs?: Job[];
         estimates?: Estimate[];
         invoices?: Invoice[];
+        expenses?: Expense[];
         templates?: EstimateTemplate[];
         budgetItems?: BudgetItem[];
         labourBudgetPlans?: LabourBudgetPlan[];
@@ -93,6 +95,7 @@ export default function App() {
         jobs: payload.jobs ?? [],
         estimates: payload.estimates ?? [],
         invoices: payload.invoices ?? [],
+        expenses: payload.expenses ?? [],
         templates: payload.templates ?? [],
         budgetItems: payload.budgetItems ?? [],
         labourBudgetPlans: payload.labourBudgetPlans ?? [],
@@ -190,6 +193,7 @@ export default function App() {
     useStore.setState({
       customers: [],
       estimates: [],
+      expenses: [],
       invoices: [],
       templates: [],
       jobs: [],
@@ -448,16 +452,7 @@ export default function App() {
               />
               <Route path="finance/dashboard" element={<FinanceDashboardPage />} />
               <Route path="finance/invoices" element={<InvoicesPage />} />
-              <Route
-                path="finance/expenses"
-                element={
-                  <ModulePlaceholderPage
-                    title="Expenses"
-                    question="Where is money being spent and are costs staying inside plan?"
-                    summary="Capture and categorize expenses with simple controls so cost trends are easy to review and decisions can be made early."
-                  />
-                }
-              />
+              <Route path="finance/expenses" element={<ExpensesPage />} />
               <Route
                 path="finance/profit-loss"
                 element={

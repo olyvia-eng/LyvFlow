@@ -3,6 +3,7 @@ import type {
   Customer,
   Estimate,
   EstimateTemplate,
+  Expense,
   Invoice,
   Job,
   Employee,
@@ -62,6 +63,7 @@ interface AppState {
   customers: Customer[];
   estimates: Estimate[];
   templates: EstimateTemplate[];
+  expenses: Expense[];
   invoices: Invoice[];
   jobs: Job[];
   employees: Employee[];
@@ -92,6 +94,11 @@ interface AppState {
   addInvoice: (i: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateInvoice: (id: ID, data: Partial<Invoice>) => void;
   deleteInvoice: (id: ID) => void;
+
+  // Expenses
+  addExpense: (e: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateExpense: (id: ID, data: Partial<Expense>) => void;
+  deleteExpense: (id: ID) => void;
 
   // Jobs
   addJob: (j: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -127,6 +134,7 @@ export const useStore = create<AppState>()((set, get) => ({
       customers: [],
       estimates: [],
       templates: [],
+      expenses: [],
       invoices: [],
       jobs: [],
       employees: [],
@@ -427,6 +435,58 @@ export const useStore = create<AppState>()((set, get) => ({
         })).catch((error: unknown) => {
           set({ invoices: previous });
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Invoice could not be deleted.') });
+        });
+      },
+
+      // ── Expenses ─────────────────────────────────────────────────────────
+      addExpense: (e) => {
+        const previous = get().expenses;
+        const expense = { ...e, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
+        set((s) => ({ expenses: [expense, ...s.expenses] }));
+
+        void ensureOk(fetch(dataUrl('expenses'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: expense }),
+        })).catch((error: unknown) => {
+          set({ expenses: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Expense could not be saved.') });
+        });
+      },
+      updateExpense: (id, data) => {
+        const previous = get().expenses;
+        const updatedAt = nowISO();
+        set((s) => ({
+          expenses: s.expenses.map((expense) =>
+            expense.id === id ? { ...expense, ...data, updatedAt } : expense
+          ),
+        }));
+
+        void ensureOk(fetch(dataUrl('expenses', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch((error: unknown) => {
+          set({ expenses: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Expense changes could not be saved.') });
+        });
+      },
+      deleteExpense: (id) => {
+        const previous = get().expenses;
+        set((s) => ({ expenses: s.expenses.filter((expense) => expense.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('expenses', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch((error: unknown) => {
+          set({ expenses: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Expense could not be deleted.') });
         });
       },
 

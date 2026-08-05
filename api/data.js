@@ -4,6 +4,7 @@ import {
   createCustomerForBusiness,
   createEmployeeForBusiness,
   createEstimateForBusiness,
+  createExpenseForBusiness,
   createInvoiceForBusiness,
   createJobForBusiness,
   createRevenueSalesGoalForBusiness,
@@ -17,6 +18,7 @@ import {
   deleteCustomerForBusiness,
   deleteEmployeeForBusiness,
   deleteEstimateForBusiness,
+  deleteExpenseForBusiness,
   deleteInvoiceForBusiness,
   deleteJobForBusiness,
   deleteRevenueSalesGoalForBusiness,
@@ -29,6 +31,7 @@ import {
   getCustomerForBusiness,
   getEmployeeForBusiness,
   getEstimateForBusiness,
+  getExpenseForBusiness,
   getInvoiceForBusiness,
   getJobForBusiness,
   getRevenueSalesGoalForBusiness,
@@ -41,6 +44,7 @@ import {
   listCustomersForBusiness,
   listEmployeesForBusiness,
   listEstimatesForBusiness,
+  listExpensesForBusiness,
   listInvoicesForBusiness,
   listJobsForBusiness,
   listRevenueSalesGoalsForBusiness,
@@ -53,6 +57,7 @@ import {
   updateCustomerForBusiness,
   updateEmployeeForBusiness,
   updateEstimateForBusiness,
+  updateExpenseForBusiness,
   updateInvoiceForBusiness,
   updateJobForBusiness,
   updateRevenueSalesGoalForBusiness,
@@ -128,6 +133,19 @@ const ENTITY_CONFIG = {
     idParam: 'invoiceId',
     createArgKey: 'invoice',
     updateArgKey: 'invoice',
+  },
+  expenses: {
+    readRoles: null,
+    writeRoles: ['owner', 'admin'],
+    list: listExpensesForBusiness,
+    get: getExpenseForBusiness,
+    create: createExpenseForBusiness,
+    update: updateExpenseForBusiness,
+    remove: deleteExpenseForBusiness,
+    payloadKey: 'expense',
+    idParam: 'expenseId',
+    createArgKey: 'expense',
+    updateArgKey: 'expense',
   },
   budget: {
     readRoles: null,
@@ -227,6 +245,8 @@ function getConfig(entity) {
 }
 
 const INVOICE_STATUSES = new Set(['draft', 'sent', 'paid', 'overdue']);
+const EXPENSE_STATUSES = new Set(['pending', 'approved', 'paid']);
+const EXPENSE_CATEGORIES = new Set(['materials', 'equipment', 'subcontractor', 'travel', 'permits', 'overhead', 'other']);
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function isNonEmptyString(value) {
@@ -249,6 +269,23 @@ function validateInvoiceRecord(record) {
   if (!INVOICE_STATUSES.has(record.status)) return 'Invoice status is invalid.';
   if (typeof record.amount !== 'number' || Number.isNaN(record.amount) || record.amount <= 0) {
     return 'Invoice amount must be greater than 0.';
+  }
+  return null;
+}
+
+function validateExpenseRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Expense id is required.';
+  if (!isNonEmptyString(record.vendor)) return 'Vendor is required.';
+  if (!isNonEmptyString(record.description)) return 'Description is required.';
+  if (!EXPENSE_CATEGORIES.has(record.category)) return 'Expense category is invalid.';
+  if (!isValidDateOnly(record.expenseDate)) return 'Expense date must use YYYY-MM-DD format.';
+  if (typeof record.amount !== 'number' || Number.isNaN(record.amount) || record.amount <= 0) {
+    return 'Expense amount must be greater than 0.';
+  }
+  if (!EXPENSE_STATUSES.has(record.status)) return 'Expense status is invalid.';
+  if (typeof record.notes !== 'string') return 'Expense notes must be a string.';
+  if (record.jobId !== undefined && record.jobId !== null && typeof record.jobId !== 'string') {
+    return 'Expense job is invalid.';
   }
   return null;
 }
@@ -330,6 +367,13 @@ export default async function handler(req, res) {
       }
     }
 
+    if (entity === 'expenses') {
+      const validationError = validateExpenseRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
     try {
       await config.create({ businessId: session.businessId, [config.createArgKey]: record });
       return res.status(200).json({ ok: true });
@@ -382,6 +426,13 @@ export default async function handler(req, res) {
 
         if (conflict) {
           return res.status(409).json({ ok: false, error: 'Proposal number already exists.' });
+        }
+      }
+
+      if (entity === 'expenses') {
+        const validationError = validateExpenseRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
         }
       }
 
