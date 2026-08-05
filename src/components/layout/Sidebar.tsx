@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   LogOut,
   Menu,
   X,
@@ -7,6 +8,7 @@ import {
   Moon,
   Sun,
   ChevronsLeft,
+  Settings,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -58,6 +60,7 @@ export default function Sidebar({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
   const navigation = useMemo(() => getSidebarConfig(userRole), [userRole]);
   const linkCandidates = useMemo(() => getSidebarLinkItems(userRole), [userRole]);
   const { pinnedPages, reorderPinnedPages } = usePinnedPages();
@@ -144,6 +147,13 @@ export default function Sidebar({
     if (!path) return;
     navigate(path);
   };
+
+  const navigateFromProfile = (path: string) => {
+    setMobileOpen(false);
+    navigate(path);
+  };
+
+  const canViewUserAccess = userRole === 'owner' || userRole === 'admin';
 
   const isExpanded = (sectionId: string) => expandedSectionIds.includes(sectionId);
   const toggleSection = (sectionId: string) => {
@@ -287,6 +297,31 @@ export default function Sidebar({
             </div>
           </div>
           <button
+            onClick={() => setSettingsExpanded((current) => !current)}
+            className="w-full mb-1 flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
+          >
+            <span className="inline-flex items-center gap-2"><Settings size={16} /> Settings</span>
+            <ChevronDown size={14} className={`transition-transform ${settingsExpanded ? 'rotate-180' : 'rotate-0'}`} />
+          </button>
+          {settingsExpanded && (
+            <div className="mb-2 ml-3 pl-3 border-l border-brand-100 dark:border-brand-600 space-y-1">
+              <button
+                onClick={() => navigateFromProfile('/data-center/settings')}
+                className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
+              >
+                General Settings
+              </button>
+              {canViewUserAccess && (
+                <button
+                  onClick={() => navigateFromProfile('/user-access')}
+                  className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
+                >
+                  User Access
+                </button>
+              )}
+            </div>
+          )}
+          <button
             onClick={toggleTheme}
             className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
           >
@@ -375,6 +410,31 @@ export default function Sidebar({
               <p className="text-[11px] text-brand-600 dark:text-brand-300">{userName}</p>
             </div>
           </div>
+          <button
+            onClick={() => setSettingsExpanded((current) => !current)}
+            className="w-full mb-1 flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
+          >
+            <span className="inline-flex items-center gap-2"><Settings size={16} /> Settings</span>
+            <ChevronDown size={14} className={`transition-transform ${settingsExpanded ? 'rotate-180' : 'rotate-0'}`} />
+          </button>
+          {settingsExpanded && (
+            <div className="mb-2 ml-3 pl-3 border-l border-brand-100 dark:border-brand-600 space-y-1">
+              <button
+                onClick={() => navigateFromProfile('/data-center/settings')}
+                className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
+              >
+                General Settings
+              </button>
+              {canViewUserAccess && (
+                <button
+                  onClick={() => navigateFromProfile('/user-access')}
+                  className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
+                >
+                  User Access
+                </button>
+              )}
+            </div>
+          )}
           <button
             onClick={toggleTheme}
             className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
