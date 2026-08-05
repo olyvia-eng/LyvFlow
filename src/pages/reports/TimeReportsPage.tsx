@@ -549,7 +549,16 @@ export default function TimeReportsPage({
                       </td>
                       <td className="py-2 text-gray-500 text-xs">{formatDateTime(entry.clockIn)}</td>
                       <td className="py-2 text-gray-500 text-xs">{entry.clockOut ? formatDateTime(entry.clockOut) : <span className="text-brand-700 font-medium">Active</span>}</td>
-                      <td className="py-2 text-gray-600 max-w-xs truncate">{entry.notes?.trim() ? entry.notes : '—'}</td>
+                      <td className="py-2 text-gray-600 max-w-xs truncate">
+                        {entry.notes?.trim() ? entry.notes : '—'}
+                        {entry.photoAttachmentUrl ? (
+                          <div className="mt-1">
+                            <a href={entry.photoAttachmentUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-700 hover:text-brand-800">
+                              View photo
+                            </a>
+                          </div>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-2 text-right font-semibold text-brand-600">{hours.toFixed(2)}</td>
                     </tr>
                   );
@@ -684,7 +693,16 @@ export default function TimeReportsPage({
                     <td className="py-2 text-gray-600 max-w-xs truncate">{entryLabel(entry, jobs)}</td>
                     <td className="py-2 text-gray-500 text-xs">{formatDateTime(entry.clockIn)}</td>
                     <td className="py-2 text-gray-500 text-xs">{entry.clockOut ? formatDateTime(entry.clockOut) : <span className="text-brand-700 font-medium">Active</span>}</td>
-                    <td className="py-2 text-gray-600 max-w-xs truncate">{entry.notes?.trim() ? entry.notes : '—'}</td>
+                    <td className="py-2 text-gray-600 max-w-xs truncate">
+                      {entry.notes?.trim() ? entry.notes : '—'}
+                      {entry.photoAttachmentUrl ? (
+                        <div className="mt-1">
+                          <a href={entry.photoAttachmentUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-700 hover:text-brand-800">
+                            View photo
+                          </a>
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="py-2 text-right font-semibold text-brand-600">{hours.toFixed(2)}</td>
                   </tr>
                 );

@@ -282,6 +282,11 @@ export default function JobDetailPage() {
                       </p>
                       <p className="text-xs text-gray-400">{formatDateTime(te.clockIn)} → {te.clockOut ? formatDateTime(te.clockOut) : 'Active'}</p>
                       <p className="text-xs text-gray-500">Notes: {te.notes?.trim() ? te.notes : '—'}</p>
+                      {te.photoAttachmentUrl ? (
+                        <a href={te.photoAttachmentUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800">
+                          View attached photo
+                        </a>
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-brand-600">{hrs.toFixed(2)}h</span>
