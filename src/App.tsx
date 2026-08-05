@@ -22,6 +22,7 @@ import OperationsDashboardPage from './pages/department-dashboards/OperationsDas
 import EmployeesDashboardPage from './pages/department-dashboards/EmployeesDashboardPage';
 import DataCenterDashboardPage from './pages/department-dashboards/DataCenterDashboardPage';
 import ModulePlaceholderPage from './pages/placeholders/ModulePlaceholderPage';
+import InvoicesPage from './pages/finance/InvoicesPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
 import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
@@ -443,16 +444,7 @@ export default function App() {
                 }
               />
               <Route path="finance/dashboard" element={<FinanceDashboardPage />} />
-              <Route
-                path="finance/invoices"
-                element={
-                  <ModulePlaceholderPage
-                    title="Invoices"
-                    question="What should be invoiced now and what cash is still outstanding?"
-                    summary="Manage invoice readiness, issued invoices, and overdue balances so your team can move quickly from completed work to collected cash."
-                  />
-                }
-              />
+              <Route path="finance/invoices" element={<InvoicesPage />} />
               <Route
                 path="finance/expenses"
                 element={
