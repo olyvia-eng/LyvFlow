@@ -116,6 +116,7 @@ export interface Expense {
   amount: number;
   status: ExpenseStatus;
   notes: string;
+  receiptUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

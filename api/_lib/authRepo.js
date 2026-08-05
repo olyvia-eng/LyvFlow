@@ -1144,6 +1144,7 @@ export async function listExpensesForBusiness(businessId) {
     amount: item.amount,
     status: item.status,
     notes: item.notes,
+    receiptUrl: item.receiptUrl,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   }));
@@ -1190,6 +1191,7 @@ export async function getExpenseForBusiness(businessId, expenseId) {
         amount: result.Item.amount,
         status: result.Item.status,
         notes: result.Item.notes,
+        receiptUrl: result.Item.receiptUrl,
         createdAt: result.Item.createdAt,
         updatedAt: result.Item.updatedAt,
       }

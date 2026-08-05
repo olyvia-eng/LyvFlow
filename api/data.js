@@ -284,6 +284,9 @@ function validateExpenseRecord(record) {
   }
   if (!EXPENSE_STATUSES.has(record.status)) return 'Expense status is invalid.';
   if (typeof record.notes !== 'string') return 'Expense notes must be a string.';
+  if (record.receiptUrl !== undefined && record.receiptUrl !== null && typeof record.receiptUrl !== 'string') {
+    return 'Expense receipt URL is invalid.';
+  }
   if (record.jobId !== undefined && record.jobId !== null && typeof record.jobId !== 'string') {
     return 'Expense job is invalid.';
   }
