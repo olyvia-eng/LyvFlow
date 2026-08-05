@@ -5,7 +5,12 @@ import {
   removeStoredFile,
   validateUploadPayload,
 } from './_lib/storage.js';
-import { createAuditEventForBusiness } from './_lib/authRepo.js';
+import {
+  createAuditEventForBusiness,
+  createFileForBusiness,
+  deleteFileForBusiness,
+  listFilesForBusiness,
+} from './_lib/authRepo.js';
 
 function parseJsonBody(req) {
   if (typeof req.body === 'string') {
@@ -77,6 +82,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: result.error });
       }
 
+      await deleteFileForBusiness(session.businessId, key.split('/')[1] ?? '');
       return res.status(200).json({ ok: true });
     }
 
@@ -86,10 +92,23 @@ export default async function handler(req, res) {
     }
 
     if (action === 'complete-upload') {
-      const { fileId: incomingFileId, key: incomingKey, fileName: incomingFileName } = body ?? {};
+      const { fileId: incomingFileId, key: incomingKey, fileName: incomingFileName, mimeType: incomingMimeType, sizeBytes: incomingSizeBytes } = body ?? {};
       if (typeof incomingFileId !== 'string' || !incomingFileId || typeof incomingKey !== 'string' || !incomingKey) {
         return res.status(400).json({ ok: false, error: 'Invalid upload completion payload.' });
       }
+
+      await createFileForBusiness({
+        businessId: session.businessId,
+        file: {
+          id: incomingFileId,
+          key: incomingKey,
+          fileName: typeof incomingFileName === 'string' && incomingFileName ? incomingFileName : 'uploaded-file',
+          mimeType: typeof incomingMimeType === 'string' && incomingMimeType ? incomingMimeType : 'application/octet-stream',
+          sizeBytes: Number.isFinite(Number(incomingSizeBytes)) ? Number(incomingSizeBytes) : 0,
+          uploadedAt: new Date().toISOString(),
+          uploadedByUserId: session.id,
+        },
+      });
 
       await createAuditEventForBusiness({
         businessId: session.businessId,
@@ -111,6 +130,12 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
+    const view = req.query?.view;
+    if (view === 'files') {
+      const files = await listFilesForBusiness(session.businessId);
+      return res.status(200).json({ ok: true, files });
+    }
+
     return res.status(200).json({ ok: true, message: 'Storage API is ready.' });
   }
 
