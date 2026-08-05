@@ -124,9 +124,10 @@ export default function ClockInModal({ open, onClose }: Props) {
             </p>
           </div>
           <div className="w-full space-y-2">
-            <label className="text-sm font-medium text-gray-700">Job Notes</label>
+            <label className="text-sm font-medium text-gray-700">Job Notes <span className="text-accent-700">*</span></label>
             <input
               type="text"
+              required
               value={jobNotes}
               onChange={(e) => setJobNotes(e.target.value)}
               placeholder="What was completed on this job?"

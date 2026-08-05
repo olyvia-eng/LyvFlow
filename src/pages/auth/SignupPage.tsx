@@ -63,17 +63,20 @@ export default function SignupPage({ onSignup }: SignupPageProps) {
         <form onSubmit={submit} className="space-y-4">
           <Input
             label="Business Name *"
+            required
             value={businessName}
             onChange={(event) => setBusinessName(event.target.value)}
           />
           <Input
             label="Owner Full Name *"
+            required
             value={ownerName}
             onChange={(event) => setOwnerName(event.target.value)}
           />
           <Input
             label="Owner Email *"
             type="email"
+            required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
@@ -81,6 +84,7 @@ export default function SignupPage({ onSignup }: SignupPageProps) {
           <Input
             label="Password *"
             type="password"
+            required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
@@ -88,6 +92,7 @@ export default function SignupPage({ onSignup }: SignupPageProps) {
           <Input
             label="Confirm Password *"
             type="password"
+            required
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             autoComplete="new-password"

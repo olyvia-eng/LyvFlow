@@ -372,6 +372,7 @@ export default function EstimatesPage() {
           <div className="grid grid-cols-2 gap-3">
             <Select
               label="Customer *"
+              required
               value={form.customerId}
               onChange={(e) => set('customerId', e.target.value)}
             >
@@ -386,7 +387,7 @@ export default function EstimatesPage() {
             />
           </div>
           <div className="grid grid-cols-1 gap-3">
-            <Input label="Title *" value={form.title} onChange={(e) => set('title', e.target.value)} />
+            <Input label="Title *" required value={form.title} onChange={(e) => set('title', e.target.value)} />
           </div>
           <TextArea label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} />
           <TextArea

@@ -221,7 +221,7 @@ export default function CRMPage() {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Full Name *" value={form.name} onChange={(e) => set('name', e.target.value)} />
+            <Input label="Full Name *" required value={form.name} onChange={(e) => set('name', e.target.value)} />
             <Input label="Company" value={form.company} onChange={(e) => set('company', e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">

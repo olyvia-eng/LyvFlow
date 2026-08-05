@@ -133,16 +133,18 @@ export default function UserAccessPage({ users, currentUserRole, onCreateUser, o
         <Card className="p-4 xl:col-span-1">
           <h2 className="font-semibold text-gray-800 mb-3">Add User</h2>
           <form onSubmit={submit} className="space-y-3">
-            <Input label="Full Name" value={name} onChange={(event) => setName(event.target.value)} />
-            <Input label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <Input label="Full Name" required value={name} onChange={(event) => setName(event.target.value)} />
+            <Input label="Email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
             <Input
               label="Temporary Password"
               type="password"
+              required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
             <Select
               label="Role"
+              required
               value={role}
               onChange={(event) => setRole(event.target.value as BusinessUserRole)}
             >

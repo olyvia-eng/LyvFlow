@@ -72,7 +72,7 @@ export default function TemplatesPage() {
         </>}
       >
         <div className="space-y-4">
-          <Input label="Template Name *" value={form.name} onChange={(e) => set('name', e.target.value)} />
+          <Input label="Template Name *" required value={form.name} onChange={(e) => set('name', e.target.value)} />
           <TextArea label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} />
           <div>
             <p className="text-sm font-medium text-gray-700 mb-2">Default Line Items</p>

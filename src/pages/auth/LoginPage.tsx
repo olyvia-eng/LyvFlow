@@ -43,6 +43,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <Input
             label="Email"
             type="email"
+            required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
@@ -50,6 +51,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <Input
             label="Password"
             type="password"
+            required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="current-password"

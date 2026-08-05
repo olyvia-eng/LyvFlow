@@ -365,17 +365,17 @@ export default function ExpensesPage() {
         )}
       >
         <div className="space-y-3">
-          <Input label="Vendor" value={form.vendor} onChange={(event) => setField('vendor', event.target.value)} placeholder="e.g. Acme Supply" />
-          <Input label="Description" value={form.description} onChange={(event) => setField('description', event.target.value)} placeholder="What was purchased" />
+          <Input label="Vendor" required value={form.vendor} onChange={(event) => setField('vendor', event.target.value)} placeholder="e.g. Acme Supply" />
+          <Input label="Description" required value={form.description} onChange={(event) => setField('description', event.target.value)} placeholder="What was purchased" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Select label="Category" value={form.category} onChange={(event) => setField('category', event.target.value as ExpenseCategory)}>
+            <Select label="Category" required value={form.category} onChange={(event) => setField('category', event.target.value as ExpenseCategory)}>
               {categories.map((category) => <option key={category} value={category}>{category.charAt(0).toUpperCase() + category.slice(1)}</option>)}
             </Select>
-            <Input label="Expense Date" type="date" value={form.expenseDate} onChange={(event) => setField('expenseDate', event.target.value)} />
+            <Input label="Expense Date" type="date" required value={form.expenseDate} onChange={(event) => setField('expenseDate', event.target.value)} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Amount" type="number" min={0} value={form.amount} onChange={(event) => setField('amount', Number(event.target.value))} />
-            <Select label="Status" value={form.status} onChange={(event) => setField('status', event.target.value as ExpenseStatus)}>
+            <Input label="Amount" type="number" min={0} required value={form.amount} onChange={(event) => setField('amount', Number(event.target.value))} />
+            <Select label="Status" required value={form.status} onChange={(event) => setField('status', event.target.value as ExpenseStatus)}>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="paid">Paid</option>

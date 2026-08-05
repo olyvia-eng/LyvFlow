@@ -311,8 +311,8 @@ export default function EmployeesPage() {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Input label="First Name *" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
-            <Input label="Last Name *" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
+            <Input label="First Name *" required value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
+            <Input label="Last Name *" required value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Select label="Role" value={form.role} onChange={(e) => set('role', e.target.value as EmployeeRole)}>
@@ -323,7 +323,7 @@ export default function EmployeesPage() {
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
+            <Input label="Email" type="email" required value={form.email} onChange={(e) => set('email', e.target.value)} />
             <Input label="Phone" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
           </div>
           <div className="space-y-2">
@@ -352,6 +352,7 @@ export default function EmployeesPage() {
             <Input
               label="Employee Login Password *"
               type="password"
+              required
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
@@ -383,7 +384,7 @@ export default function EmployeesPage() {
       >
         <div className="space-y-4">
           <p className="text-gray-600">Add job notes before clocking out.</p>
-          <Input label="Job Notes" value={jobNotes} onChange={(e) => setJobNotes(e.target.value)} placeholder="Required before clocking out" />
+          <Input label="Job Notes" required value={jobNotes} onChange={(e) => setJobNotes(e.target.value)} placeholder="Required before clocking out" />
           {!jobNotes.trim() && <p className="text-xs text-accent-700">Job notes are required before clocking out.</p>}
         </div>
       </Modal>

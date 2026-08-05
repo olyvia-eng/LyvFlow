@@ -261,7 +261,7 @@ export default function JobsPage() {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Select label="Customer *" value={form.customerId} onChange={(e) => set('customerId', e.target.value)}>
+            <Select label="Customer *" required value={form.customerId} onChange={(e) => set('customerId', e.target.value)}>
               <option value="">— Select —</option>
               {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
@@ -269,7 +269,7 @@ export default function JobsPage() {
               {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
             </Select>
           </div>
-          <Input label="Title *" value={form.title} onChange={(e) => set('title', e.target.value)} />
+          <Input label="Title *" required value={form.title} onChange={(e) => set('title', e.target.value)} />
           <TextArea label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} />
           <TextArea
             label="Work Areas"

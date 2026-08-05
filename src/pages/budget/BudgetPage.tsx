@@ -1771,7 +1771,7 @@ export default function BudgetPage() {
             />
             <Input label="Year" value={year} disabled />
           </div>
-          <Input label="Description *" value={form.description} onChange={(e) => set('description', e.target.value)} />
+          <Input label="Description *" required value={form.description} onChange={(e) => set('description', e.target.value)} />
           <Input
             label="Cost Code"
             value={form.costCode ?? ''}
@@ -2043,8 +2043,8 @@ export default function BudgetPage() {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Input label="First Name *" value={labourItemForm.firstName} onChange={(e) => setLabourField('firstName', e.target.value)} />
-            <Input label="Last Name *" value={labourItemForm.lastName} onChange={(e) => setLabourField('lastName', e.target.value)} />
+            <Input label="First Name *" required value={labourItemForm.firstName} onChange={(e) => setLabourField('firstName', e.target.value)} />
+            <Input label="Last Name *" required value={labourItemForm.lastName} onChange={(e) => setLabourField('lastName', e.target.value)} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -2120,12 +2120,14 @@ export default function BudgetPage() {
               <Input
                 label="Email *"
                 type="email"
+                required={createAsEmployee}
                 value={labourItemForm.email}
                 onChange={(e) => setLabourField('email', e.target.value)}
               />
               <Input
                 label="Employee Login Password *"
                 type="password"
+                required={createAsEmployee}
                 value={labourItemPassword}
                 onChange={(e) => setLabourItemPassword(e.target.value)}
               />

@@ -259,6 +259,7 @@ export default function InvoicesPage() {
         <div className="space-y-3">
           <Select
             label="Job"
+            required
             value={form.jobId}
             onChange={(event) => setField('jobId', event.target.value)}
           >
@@ -267,13 +268,13 @@ export default function InvoicesPage() {
               <option key={job.id} value={job.id}>{job.title}</option>
             ))}
           </Select>
-          <Input label="Invoice Number" value={form.number} onChange={(event) => setField('number', event.target.value)} placeholder="e.g. INV-2026-001" />
+          <Input label="Invoice Number" required value={form.number} onChange={(event) => setField('number', event.target.value)} placeholder="e.g. INV-2026-001" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Issue Date" type="date" value={form.issueDate} onChange={(event) => setField('issueDate', event.target.value)} />
-            <Input label="Due Date" type="date" value={form.dueDate} onChange={(event) => setField('dueDate', event.target.value)} />
+            <Input label="Issue Date" type="date" required value={form.issueDate} onChange={(event) => setField('issueDate', event.target.value)} />
+            <Input label="Due Date" type="date" required value={form.dueDate} onChange={(event) => setField('dueDate', event.target.value)} />
           </div>
-          <Input label="Amount" type="number" min={0} value={form.amount} onChange={(event) => setField('amount', Number(event.target.value))} />
-          <Select label="Status" value={form.status} onChange={(event) => setField('status', event.target.value as InvoiceStatus)}>
+          <Input label="Amount" type="number" min={0} required value={form.amount} onChange={(event) => setField('amount', Number(event.target.value))} />
+          <Select label="Status" required value={form.status} onChange={(event) => setField('status', event.target.value as InvoiceStatus)}>
             <option value="draft">Draft</option>
             <option value="sent">Sent</option>
             <option value="paid">Paid</option>

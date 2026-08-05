@@ -96,6 +96,18 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
+function renderFieldLabel(label: string, required?: boolean) {
+  const hasAsterisk = label.includes('*');
+  const baseLabel = label.replace(/\s*\*+\s*$/, '').trim();
+
+  return (
+    <label className="text-sm font-medium text-gray-700 dark:text-brand-200">
+      {baseLabel}
+      {(required || hasAsterisk) && <span className="ml-1 text-accent-700">*</span>}
+    </label>
+  );
+}
+
 export function Input({ label, error, className = '', ...rest }: InputProps) {
   const isNumericInput = rest.type === 'number';
   const [numericDraftValue, setNumericDraftValue] = useState<string | null>(null);
@@ -146,7 +158,7 @@ export function Input({ label, error, className = '', ...rest }: InputProps) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      {label && <label className="text-sm font-medium text-gray-700 dark:text-brand-200">{label}</label>}
+      {label && renderFieldLabel(label, rest.required)}
       <input
         className={`h-10 border border-brand-100 dark:border-brand-600 rounded-xl bg-white dark:bg-brand-700 px-3 text-sm text-brand-900 dark:text-brand-50 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:border-accent-500 ${error ? 'border-accent-500' : ''} ${className}`}
         {...rest}
@@ -171,7 +183,7 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 export function Select({ label, error, className = '', children, ...rest }: SelectProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      {label && <label className="text-sm font-medium text-gray-700 dark:text-brand-200">{label}</label>}
+      {label && renderFieldLabel(label, rest.required)}
       <select
         className={`h-10 border border-brand-100 dark:border-brand-600 rounded-xl px-3 text-sm text-brand-900 dark:text-brand-50 focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:border-accent-500 bg-white dark:bg-brand-700 shadow-sm ${className}`}
         {...rest}
@@ -190,7 +202,7 @@ interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 export function TextArea({ label, className = '', ...rest }: TextAreaProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      {label && <label className="text-sm font-medium text-gray-700 dark:text-brand-200">{label}</label>}
+      {label && renderFieldLabel(label, rest.required)}
       <textarea
         rows={3}
         className={`border border-brand-100 dark:border-brand-600 rounded-xl px-3 py-2 text-sm text-brand-900 dark:text-brand-50 focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:border-accent-500 resize-none bg-white dark:bg-brand-700 shadow-sm ${className}`}
