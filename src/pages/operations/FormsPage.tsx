@@ -536,7 +536,7 @@ export default function FormsPage() {
     deleteForm(selectedForm.id);
   };
 
-  const useTemplate = (template: FormTemplate) => {
+  const handleUseTemplate = (template: FormTemplate) => {
     const created = addForm({
       name: template.name,
       description: template.description,
@@ -1108,7 +1108,7 @@ export default function FormsPage() {
               </div>
               <p className="mt-3 text-xs text-gray-500">{template.fields.length} field(s)</p>
               <div className="mt-4 flex gap-2">
-                <Button size="sm" onClick={() => useTemplate(template)}>
+                <Button size="sm" onClick={() => handleUseTemplate(template)}>
                   <Plus size={14} /> Add Template
                 </Button>
               </div>

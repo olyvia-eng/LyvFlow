@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { requireEnv } from './env.js';
 import { SESSION_COOKIE, parseCookies } from './cookies.js';
+import { canReadEntity, canWriteEntity } from './authorization.js';
 
 const jwtSecret = requireEnv('JWT_SECRET');
 
@@ -13,6 +14,7 @@ export function createSessionToken(user) {
       email: user.email,
       role: user.role,
       businessName: user.businessName,
+      employeeId: user.employeeId,
     },
     jwtSecret,
     { expiresIn: '7d' }
@@ -46,22 +48,35 @@ export function getSessionFromRequest(req) {
       email: payload.email,
       role: payload.role,
       businessName: payload.businessName,
+      employeeId: typeof payload.employeeId === 'string' ? payload.employeeId : undefined,
     };
   } catch {
     return null;
   }
 }
 
-export function requireSession(req, res, allowedRoles) {
+export function requireSession(req, res, allowedRoles, entity) {
   const session = getSessionFromRequest(req);
   if (!session) {
     res.status(401).json({ ok: false, error: 'Unauthorized' });
     return null;
   }
 
-  if (Array.isArray(allowedRoles) && !allowedRoles.includes(session.role)) {
+  const normalizedRole = session.role === 'employee' ? 'crew_member' : session.role;
+  const isAllowedRole = !Array.isArray(allowedRoles) || allowedRoles.includes(normalizedRole);
+  if (!isAllowedRole) {
     res.status(403).json({ ok: false, error: 'Forbidden' });
     return null;
+  }
+
+  if (entity) {
+    const readAllowed = canReadEntity(entity, normalizedRole);
+    const writeAllowed = canWriteEntity(entity, normalizedRole);
+    const method = req.method === 'GET' ? readAllowed : writeAllowed;
+    if (!method) {
+      res.status(403).json({ ok: false, error: 'Forbidden' });
+      return null;
+    }
   }
 
   return session;
