@@ -1,5 +1,6 @@
 import {
   ChevronDown,
+  Edit3,
   LogOut,
   Menu,
   X,
@@ -15,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import type { BusinessUserRole } from '../../auth/types';
 import { getSidebarConfig, getSidebarLinkItems } from '../../navigation/sidebarConfig';
 import type { SidebarNavItem } from '../../navigation/types';
+import { Button, Input, Modal } from '../ui';
 import SidebarItem from './SidebarItem';
 import SidebarSection from './SidebarSection';
 import { usePinnedPages } from '../../navigation/PinnedPagesContext';
@@ -41,6 +43,7 @@ const ACTION_ROUTE_MAP: Record<string, string> = {
 
 interface SidebarProps {
   userName: string;
+  userEmail: string;
   businessName: string;
   userRole: BusinessUserRole;
   onLogout: () => void | Promise<void>;
@@ -50,6 +53,7 @@ interface SidebarProps {
 
 export default function Sidebar({
   userName,
+  userEmail,
   businessName,
   userRole,
   onLogout,
@@ -61,6 +65,15 @@ export default function Sidebar({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileName, setProfileName] = useState(userName);
+  const [profileEmail, setProfileEmail] = useState(userEmail);
+  const [profilePassword, setProfilePassword] = useState('');
+  const [profilePasswordConfirm, setProfilePasswordConfirm] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [displayName, setDisplayName] = useState(userName);
+  const [displayEmail, setDisplayEmail] = useState(userEmail);
   const navigation = useMemo(() => getSidebarConfig(userRole), [userRole]);
   const linkCandidates = useMemo(() => getSidebarLinkItems(userRole), [userRole]);
   const { pinnedPages, reorderPinnedPages } = usePinnedPages();
@@ -134,6 +147,14 @@ export default function Sidebar({
     window.localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
+  useEffect(() => {
+    setDisplayName(userName);
+  }, [userName]);
+
+  useEffect(() => {
+    setDisplayEmail(userEmail);
+  }, [userEmail]);
+
   const toggleTheme = () => {
     setIsDarkMode((current) => !current);
   };
@@ -154,6 +175,70 @@ export default function Sidebar({
   };
 
   const canViewUserAccess = userRole === 'owner' || userRole === 'admin';
+
+  const openProfileModal = () => {
+    setProfileName(displayName);
+    setProfileEmail(displayEmail);
+    setProfilePassword('');
+    setProfilePasswordConfirm('');
+    setProfileError('');
+    setProfileModalOpen(true);
+  };
+
+  const saveProfile = async () => {
+    setProfileError('');
+
+    if (!profileName.trim() || !profileEmail.trim()) {
+      setProfileError('Name and email are required.');
+      return;
+    }
+
+    if (profilePassword && profilePassword.length < 8) {
+      setProfileError('Password must be at least 8 characters.');
+      return;
+    }
+
+    if (profilePassword !== profilePasswordConfirm) {
+      setProfileError('Passwords do not match.');
+      return;
+    }
+
+    setProfileSaving(true);
+    try {
+      const payload: { name: string; email: string; password?: string } = {
+        name: profileName.trim(),
+        email: profileEmail.trim(),
+      };
+
+      if (profilePassword) {
+        payload.password = profilePassword;
+      }
+
+      const response = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      const body = await response.json() as { ok?: boolean; error?: string; user?: { name: string; email: string } };
+      if (!response.ok || !body?.ok) {
+        setProfileError(body?.error ?? 'Could not update profile.');
+        setProfileSaving(false);
+        return;
+      }
+
+      setDisplayName(body.user?.name ?? payload.name);
+      setDisplayEmail(body.user?.email ?? payload.email);
+      setProfileModalOpen(false);
+    } catch {
+      setProfileError('Could not update profile.');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const isExpanded = (sectionId: string) => expandedSectionIds.includes(sectionId);
   const toggleSection = (sectionId: string) => {
@@ -211,7 +296,7 @@ export default function Sidebar({
     </div>
   );
 
-  const userInitials = userName
+  const userInitials = displayName
     .split(' ')
     .map((part) => part[0])
     .join('')
@@ -289,13 +374,18 @@ export default function Sidebar({
           ))}
         </div>
         <div className="pt-3 border-t border-brand-100 dark:border-brand-600 mt-3">
-          <div className="flex items-center gap-3 px-1 mb-2">
+          <button
+            type="button"
+            onClick={openProfileModal}
+            className="w-full flex items-center gap-3 px-1 mb-2 text-left rounded-lg hover:bg-accent-50 dark:hover:bg-brand-600"
+          >
             <div className="h-8 w-8 rounded-full bg-accent-100 dark:bg-brand-600 text-accent-600 dark:text-accent-400 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
-            <div>
-              <p className="text-xs font-semibold text-brand-900 dark:text-brand-100">{businessName}</p>
-              <p className="text-[11px] text-brand-600 dark:text-brand-300">{userName}</p>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-brand-900 dark:text-brand-100 truncate">{displayName}</p>
+              <p className="text-[11px] text-brand-600 dark:text-brand-300 truncate">{displayEmail}</p>
             </div>
-          </div>
+            <Edit3 size={14} className="ml-auto text-brand-400 dark:text-brand-300" />
+          </button>
           <button
             onClick={() => setSettingsExpanded((current) => !current)}
             className="w-full mb-1 flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
@@ -403,13 +493,18 @@ export default function Sidebar({
         </div>
 
         <div className="pt-3 border-t border-brand-100 dark:border-brand-600">
-          <div className="flex items-center gap-3 px-1 mb-2">
+          <button
+            type="button"
+            onClick={openProfileModal}
+            className="w-full flex items-center gap-3 px-1 mb-2 text-left rounded-lg hover:bg-accent-50 dark:hover:bg-brand-600"
+          >
             <div className="h-8 w-8 rounded-full bg-accent-100 dark:bg-brand-600 text-accent-600 dark:text-accent-400 flex items-center justify-center text-xs font-semibold">{userInitials}</div>
-            <div>
-              <p className="text-xs font-semibold text-brand-900 dark:text-brand-100">{businessName}</p>
-              <p className="text-[11px] text-brand-600 dark:text-brand-300">{userName}</p>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-brand-900 dark:text-brand-100 truncate">{displayName}</p>
+              <p className="text-[11px] text-brand-600 dark:text-brand-300 truncate">{displayEmail}</p>
             </div>
-          </div>
+            <Edit3 size={14} className="ml-auto text-brand-400 dark:text-brand-300" />
+          </button>
           <button
             onClick={() => setSettingsExpanded((current) => !current)}
             className="w-full mb-1 flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
@@ -449,6 +544,27 @@ export default function Sidebar({
           </button>
         </div>
       </aside>
+
+      <Modal
+        open={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        title="Edit Profile"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setProfileModalOpen(false)} disabled={profileSaving}>Cancel</Button>
+            <Button onClick={() => void saveProfile()} disabled={profileSaving}>{profileSaving ? 'Saving...' : 'Save Changes'}</Button>
+          </>
+        )}
+      >
+        <div className="space-y-3">
+          <Input label="Business" value={businessName} disabled />
+          <Input label="Full Name" value={profileName} onChange={(event) => setProfileName(event.target.value)} />
+          <Input label="Email" type="email" value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} />
+          <Input label="New Password (optional)" type="password" value={profilePassword} onChange={(event) => setProfilePassword(event.target.value)} />
+          <Input label="Confirm New Password" type="password" value={profilePasswordConfirm} onChange={(event) => setProfilePasswordConfirm(event.target.value)} />
+          {profileError && <p className="text-sm text-accent-700">{profileError}</p>}
+        </div>
+      </Modal>
     </>
   );
 }

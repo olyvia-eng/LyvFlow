@@ -381,24 +381,80 @@ export async function getBusinessUserById(businessId, userId) {
 }
 
 export async function updateBusinessUser({ businessId, user }) {
+  const existing = await getBusinessUserById(businessId, user.id);
+  if (!existing) {
+    return { ok: false, error: 'User not found' };
+  }
+
   const normalizedEmail = normalizeEmail(user.email);
+  const previousEmail = normalizeEmail(existing.email);
+
+  const userItem = {
+    PK: businessPk(businessId),
+    SK: userSk(user.id),
+    entityType: 'USER',
+    userId: user.id,
+    businessId,
+    name: user.name,
+    email: normalizedEmail,
+    role: user.role,
+    active: user.active,
+    passwordHash: user.passwordHash,
+    createdAt: user.createdAt,
+  };
+
+  if (previousEmail !== normalizedEmail) {
+    try {
+      await ddb.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Put: {
+                TableName: tableName,
+                Item: userItem,
+                ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+              },
+            },
+            {
+              Delete: {
+                TableName: tableName,
+                Key: {
+                  PK: emailPk(previousEmail),
+                  SK: 'USER',
+                },
+              },
+            },
+            {
+              Put: {
+                TableName: tableName,
+                Item: {
+                  PK: emailPk(normalizedEmail),
+                  SK: 'USER',
+                  entityType: 'EMAIL_LOOKUP',
+                  businessId,
+                  userId: user.id,
+                  createdAt: nowIso(),
+                },
+                ConditionExpression: 'attribute_not_exists(PK)',
+              },
+            },
+          ],
+        })
+      );
+    } catch (error) {
+      if (error?.name === 'TransactionCanceledException') {
+        return { ok: false, error: 'A user with this email already exists.' };
+      }
+      throw error;
+    }
+
+    return { ok: true };
+  }
 
   await ddb.send(
     new PutCommand({
       TableName: tableName,
-      Item: {
-        PK: businessPk(businessId),
-        SK: userSk(user.id),
-        entityType: 'USER',
-        userId: user.id,
-        businessId,
-        name: user.name,
-        email: normalizedEmail,
-        role: user.role,
-        active: user.active,
-        passwordHash: user.passwordHash,
-        createdAt: user.createdAt,
-      },
+      Item: userItem,
       ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
     })
   );

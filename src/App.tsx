@@ -412,6 +412,7 @@ export default function App() {
               element={
                 <AppLayout
                   userName={sessionUser.name}
+                  userEmail={sessionUser.email}
                   businessName={sessionUser.businessName}
                   userRole={sessionUser.role}
                   onLogout={logout}
