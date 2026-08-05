@@ -171,6 +171,7 @@ export default async function handler(req, res) {
       idempotencyKey,
       breakMinutes: req.body?.breakMinutes ?? 0,
       notes: req.body?.notes ?? '',
+      photoAttachmentFileId: req.body?.photoAttachmentFileId ?? undefined,
       photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
     };
     const hashedPayload = payloadHash(payload);
@@ -249,6 +250,7 @@ export default async function handler(req, res) {
       auditEventId: `${session.id}:${clockOutAt}`,
       breakMinutes: req.body?.breakMinutes ?? 0,
       notes: req.body?.notes ?? '',
+      photoAttachmentFileId: req.body?.photoAttachmentFileId ?? undefined,
       photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
       employeeName: employee?.name ?? '',
     });
@@ -265,6 +267,7 @@ export default async function handler(req, res) {
         clockOut: clockOutAt,
         breakMinutes: req.body?.breakMinutes ?? 0,
         notes: req.body?.notes ?? '',
+        photoAttachmentFileId: req.body?.photoAttachmentFileId ?? undefined,
         photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
         status: 'clocked_out',
       };

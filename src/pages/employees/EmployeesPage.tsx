@@ -3,7 +3,7 @@ import { useStore } from '../../store';
 import { PageHeader, Button, Card, Badge, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Clock, LogOut } from 'lucide-react';
 import { formatCurrency, formatDateTime, durationHours } from '../../utils';
-import { uploadFileToStorage } from '../../utils/fileUpload';
+import { uploadFileToStorage } from '../../utils/fileUploadClient';
 import type { Employee, EmployeeRole } from '../../types';
 import ClockInModal from './ClockInModal';
 

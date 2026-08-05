@@ -3,6 +3,7 @@ import { endOfWeek, format, startOfMonth, startOfWeek, subWeeks } from 'date-fns
 import { useStore } from '../../store';
 import { Card, PageHeader, StatCard, Button, Select, Input } from '../../components/ui';
 import { durationHours, formatDateTime, generateId, nowISO } from '../../utils';
+import { resolveAttachmentUrl } from '../../utils/fileUploadClient';
 import type { BusinessUserRole } from '../../auth/types';
 import type { AuditEvent, TimeEntry, TimeEntryWorkType } from '../../types';
 import { emitAppToast } from '../../toast';
@@ -84,6 +85,7 @@ export default function TimeReportsPage({
   const [backfillAuditEvents, setBackfillAuditEvents] = useState<AuditEvent[]>([]);
   const [loadingBackfillAudits, setLoadingBackfillAudits] = useState(false);
   const [expandedAuditEventId, setExpandedAuditEventId] = useState<string | null>(null);
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const detailSectionRef = useRef<HTMLDivElement | null>(null);
 
   const employeeSearchValue = employeeSearch.trim().toLowerCase();
@@ -92,6 +94,32 @@ export default function TimeReportsPage({
 
   const getEmployeeName = (employeeId: string) => employees.find((employee) => employee.id === employeeId)?.name ?? 'Unknown';
   const getJobTitle = (jobId: string) => jobs.find((job) => job.id === jobId)?.title ?? 'Unknown job';
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveUrls = async () => {
+      const candidates = timeEntries.filter((entry) => Boolean(entry.clockOutPhotoFileId || entry.photoAttachmentFileId || entry.photoAttachmentUrl));
+      const pairs = await Promise.all(
+        candidates.map(async (entry) => {
+          const url = await resolveAttachmentUrl({
+            fileId: entry.clockOutPhotoFileId ?? entry.photoAttachmentFileId,
+            legacyUrl: entry.photoAttachmentUrl,
+          });
+          return [entry.id, url] as const;
+        })
+      );
+
+      if (cancelled) return;
+      setAttachmentUrls(Object.fromEntries(pairs));
+    };
+
+    void resolveUrls();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [timeEntries]);
 
   const applyPayrollPreset = (preset: PayrollPeriodPreset) => {
     setPayrollPeriodPreset(preset);
@@ -551,9 +579,9 @@ export default function TimeReportsPage({
                       <td className="py-2 text-gray-500 text-xs">{entry.clockOut ? formatDateTime(entry.clockOut) : <span className="text-brand-700 font-medium">Active</span>}</td>
                       <td className="py-2 text-gray-600 max-w-xs truncate">
                         {entry.notes?.trim() ? entry.notes : '—'}
-                        {entry.photoAttachmentUrl ? (
+                        {attachmentUrls[entry.id] ? (
                           <div className="mt-1">
-                            <a href={entry.photoAttachmentUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-700 hover:text-brand-800">
+                            <a href={attachmentUrls[entry.id]} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-700 hover:text-brand-800">
                               View photo
                             </a>
                           </div>
@@ -695,9 +723,9 @@ export default function TimeReportsPage({
                     <td className="py-2 text-gray-500 text-xs">{entry.clockOut ? formatDateTime(entry.clockOut) : <span className="text-brand-700 font-medium">Active</span>}</td>
                     <td className="py-2 text-gray-600 max-w-xs truncate">
                       {entry.notes?.trim() ? entry.notes : '—'}
-                      {entry.photoAttachmentUrl ? (
+                      {attachmentUrls[entry.id] ? (
                         <div className="mt-1">
-                          <a href={entry.photoAttachmentUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-700 hover:text-brand-800">
+                          <a href={attachmentUrls[entry.id]} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-700 hover:text-brand-800">
                             View photo
                           </a>
                         </div>

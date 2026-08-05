@@ -136,7 +136,7 @@ interface AppState {
 
   // Time Entries
   clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[] }) => void;
-  clockOut: (entryId: ID, breakMinutes?: number, notes?: string, photoAttachmentUrl?: string) => void;
+  clockOut: (entryId: ID, breakMinutes?: number, notes?: string, photoAttachmentReference?: string) => void;
   addTimeEntry: (e: Omit<TimeEntry, 'id'>) => void;
   updateTimeEntry: (id: ID, data: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: ID) => void;
@@ -787,10 +787,13 @@ export const useStore = create<AppState>()((set, get) => ({
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-in could not be saved.') });
         });
       },
-      clockOut: (entryId, breakMinutes = 0, notes = '', photoAttachmentUrl = '') => {
+      clockOut: (entryId, breakMinutes = 0, notes = '', photoAttachmentReference = '') => {
         const previous = get().timeEntries;
         const clockOutAt = nowISO();
-        const nextPhotoAttachmentUrl = photoAttachmentUrl || undefined;
+        const normalizedAttachment = photoAttachmentReference.trim();
+        const isLegacyAttachmentUrl = normalizedAttachment.startsWith('/api/receipts') || normalizedAttachment.startsWith('http://') || normalizedAttachment.startsWith('https://');
+        const nextPhotoAttachmentUrl = normalizedAttachment && isLegacyAttachmentUrl ? normalizedAttachment : undefined;
+        const nextPhotoAttachmentFileId = normalizedAttachment && !isLegacyAttachmentUrl ? normalizedAttachment : undefined;
         const optimisticEntry = get().timeEntries.find((te) => te.id === entryId);
         set((s) => ({
           timeEntries: s.timeEntries.map((te) =>
@@ -801,6 +804,8 @@ export const useStore = create<AppState>()((set, get) => ({
                   breakMinutes,
                   notes,
                   photoAttachmentUrl: nextPhotoAttachmentUrl,
+                  photoAttachmentFileId: nextPhotoAttachmentFileId,
+                  clockOutPhotoFileId: nextPhotoAttachmentFileId,
                   status: 'clocked_out',
                 }
               : te
@@ -818,6 +823,7 @@ export const useStore = create<AppState>()((set, get) => ({
             breakMinutes,
             notes,
             photoAttachmentUrl: nextPhotoAttachmentUrl,
+            photoAttachmentFileId: nextPhotoAttachmentFileId,
             requestId: generateId(),
             idempotencyKey: `${entryId}:${clockOutAt}`,
           }),

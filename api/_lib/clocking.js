@@ -185,10 +185,12 @@ export function buildClockOutTransaction({
   auditEventId,
   breakMinutes = 0,
   notes = '',
+  photoAttachmentFileId,
   photoAttachmentUrl,
   employeeName = '',
 }) {
   const now = clockOutAt ?? nowIso();
+  const hasPhotoAttachmentFileId = typeof photoAttachmentFileId === 'string' && photoAttachmentFileId.trim().length > 0;
   const hasPhotoAttachment = typeof photoAttachmentUrl === 'string' && photoAttachmentUrl.trim().length > 0;
   const idempotencyItem = {
     PK: businessPk(businessId),
@@ -206,6 +208,8 @@ export function buildClockOutTransaction({
       clockOut: now,
       breakMinutes,
       notes,
+      photoAttachmentFileId: hasPhotoAttachmentFileId ? photoAttachmentFileId : undefined,
+      clockOutPhotoFileId: hasPhotoAttachmentFileId ? photoAttachmentFileId : undefined,
       photoAttachmentUrl: hasPhotoAttachment ? photoAttachmentUrl : undefined,
       status: 'clocked_out',
     },
@@ -259,6 +263,15 @@ export function buildClockOutTransaction({
     updateExpressionParts.push('#photoAttachmentUrl = :photoAttachmentUrl');
     expressionAttributeNames['#photoAttachmentUrl'] = 'photoAttachmentUrl';
     expressionAttributeValues[':photoAttachmentUrl'] = photoAttachmentUrl;
+  }
+
+  if (hasPhotoAttachmentFileId) {
+    updateExpressionParts.push('#photoAttachmentFileId = :photoAttachmentFileId');
+    updateExpressionParts.push('#clockOutPhotoFileId = :clockOutPhotoFileId');
+    expressionAttributeNames['#photoAttachmentFileId'] = 'photoAttachmentFileId';
+    expressionAttributeNames['#clockOutPhotoFileId'] = 'clockOutPhotoFileId';
+    expressionAttributeValues[':photoAttachmentFileId'] = photoAttachmentFileId;
+    expressionAttributeValues[':clockOutPhotoFileId'] = photoAttachmentFileId;
   }
 
   return {

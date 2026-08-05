@@ -2694,6 +2694,9 @@ export async function listTimeEntriesForBusiness(businessId) {
     breakMinutes: item.breakMinutes ?? 0,
     notes: item.notes ?? '',
     photoAttachmentUrl: item.photoAttachmentUrl ?? undefined,
+    photoAttachmentFileId: item.photoAttachmentFileId ?? undefined,
+    clockInPhotoFileId: item.clockInPhotoFileId ?? undefined,
+    clockOutPhotoFileId: item.clockOutPhotoFileId ?? undefined,
     status: item.status,
   }));
 }
@@ -2742,6 +2745,9 @@ export async function getTimeEntryForBusiness(businessId, entryId) {
         breakMinutes: result.Item.breakMinutes ?? 0,
         notes: result.Item.notes ?? '',
         photoAttachmentUrl: result.Item.photoAttachmentUrl ?? undefined,
+        photoAttachmentFileId: result.Item.photoAttachmentFileId ?? undefined,
+        clockInPhotoFileId: result.Item.clockInPhotoFileId ?? undefined,
+        clockOutPhotoFileId: result.Item.clockOutPhotoFileId ?? undefined,
         status: result.Item.status,
       }
     : null;

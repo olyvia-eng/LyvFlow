@@ -4,7 +4,7 @@ import { Clock, LogOut, ShieldCheck } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Card, Input, Modal, Select } from '../../components/ui';
 import { durationHours, formatDateTime } from '../../utils';
-import { uploadFileToStorage } from '../../utils/fileUpload';
+import { uploadFileToStorage } from '../../utils/fileUploadClient';
 import type { FormRecord, TimeEntryWorkType } from '../../types';
 
 interface EmployeePortalPageProps {

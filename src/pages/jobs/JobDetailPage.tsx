@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Card, Button, Badge, Modal, Input, Select } from '../../components/ui';
 import { statusColor, formatCurrency, formatDate, formatDateTime, durationHours } from '../../utils';
+import { resolveAttachmentUrl } from '../../utils/fileUploadClient';
 import { HIGH_LABOR_VARIANCE_THRESHOLD_PCT, LOW_MARGIN_THRESHOLD_PCT } from '../../config/profitability';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { CostEntry, LineItemCategory, JobStatus } from '../../types';
@@ -15,6 +16,7 @@ export default function JobDetailPage() {
   const { jobs, customers, employees, timeEntries, updateJob, addCostEntry, deleteTimeEntry } = useStore();
 
   const job = jobs.find((j) => j.id === id);
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const [costModal, setCostModal] = useState(false);
   const [costForm, setCostForm] = useState<Omit<CostEntry, 'id'>>({
     category: 'labour', description: '', quantity: 1, unit: 'hr', unitCost: 0, total: 0, date: new Date().toISOString().slice(0, 10),
@@ -28,6 +30,31 @@ export default function JobDetailPage() {
       : (entry.jobId ? [entry.jobId] : []);
 
   const jobTimeEntries = job ? timeEntries.filter((te) => entryJobIds(te).includes(id)) : [];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveUrls = async () => {
+      const pairs = await Promise.all(
+        jobTimeEntries.map(async (entry) => {
+          const url = await resolveAttachmentUrl({
+            fileId: entry.clockOutPhotoFileId ?? entry.photoAttachmentFileId,
+            legacyUrl: entry.photoAttachmentUrl,
+          });
+          return [entry.id, url] as const;
+        })
+      );
+
+      if (cancelled) return;
+      setAttachmentUrls(Object.fromEntries(pairs));
+    };
+
+    void resolveUrls();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [jobTimeEntries]);
 
   const actualCostTotal = job ? job.actualCosts.reduce((s, c) => s + c.total, 0) : 0;
   const profit = job ? job.contractValue - actualCostTotal : 0;
@@ -298,8 +325,8 @@ export default function JobDetailPage() {
                       </p>
                       <p className="text-xs text-gray-400">{formatDateTime(te.clockIn)} → {te.clockOut ? formatDateTime(te.clockOut) : 'Active'}</p>
                       <p className="text-xs text-gray-500">Notes: {te.notes?.trim() ? te.notes : '—'}</p>
-                      {te.photoAttachmentUrl ? (
-                        <a href={te.photoAttachmentUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800">
+                      {attachmentUrls[te.id] ? (
+                        <a href={attachmentUrls[te.id]} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800">
                           View attached photo
                         </a>
                       ) : null}
