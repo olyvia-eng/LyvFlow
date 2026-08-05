@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PageHeader, Button, Card, Modal, Input, Select, EmptyState } from '../../components/ui';
-import { Plus, Pencil, Trash2, FileDown, Info, Users, Target, BadgeDollarSign } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileDown, Info, Users } from 'lucide-react';
 import { formatCurrency } from '../../utils';
 import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
 import type {
@@ -970,11 +970,6 @@ export default function BudgetPage() {
     });
   }, [labourPlannerRows]);
 
-  const targetLabourRevenue = labourPlannerTotalsAll.annualLabourCost * (1 + pricingInputs.overheadRecoveryPct / 100) / marginDivisor;
-  const requiredAverageChargeOutRate = labourPlannerTotalsAll.billableHoursYear > 0
-    ? targetLabourRevenue / labourPlannerTotalsAll.billableHoursYear
-    : 0;
-
   const renderLabourPlannerRow = (row: typeof labourPlannerRows[number]) => (
     <tr key={row.employee.id} className="hover:bg-gray-50">
       <td className="px-4 py-3">
@@ -1362,7 +1357,7 @@ export default function BudgetPage() {
 
           {showLabourCalcDetails && renderCalculationDetails()}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 gap-4 mb-6">
             <Card className="p-4 border border-brand-100 bg-gradient-to-r from-brand-50 to-cream">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1370,24 +1365,6 @@ export default function BudgetPage() {
                   <p className="text-3xl font-bold text-brand-700">{formatCurrency(labourPlannerTotalsAll.annualLabourCost)}</p>
                 </div>
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-700"><Users size={18} /></span>
-              </div>
-            </Card>
-            <Card className="p-4 border border-accent-100 bg-gradient-to-r from-accent-50 to-cream">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Target Labour Revenue</p>
-                  <p className="text-3xl font-bold text-accent-600">{formatCurrency(targetLabourRevenue)}</p>
-                </div>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-accent-100 text-accent-600"><Target size={18} /></span>
-              </div>
-            </Card>
-            <Card className="p-4 border border-brand-200 bg-gradient-to-r from-brand-100 to-cream">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Required Avg Charge-Out Rate</p>
-                  <p className="text-3xl font-bold text-brand-800">{formatCurrency(requiredAverageChargeOutRate)}<span className="text-xl">/hr</span></p>
-                </div>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-200 text-brand-800"><BadgeDollarSign size={18} /></span>
               </div>
             </Card>
           </div>
