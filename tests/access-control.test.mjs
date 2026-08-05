@@ -5,6 +5,7 @@ import {
   canWriteEntity,
   filterRecordsForSession,
   authorizeRecordAccess,
+  canClockForEmployee,
 } from '../api/_lib/authorization.js';
 
 test('owner and admin roles retain broad access', () => {
@@ -31,6 +32,21 @@ test('crew members can only access jobs assigned to them', () => {
   ];
 
   assert.deepEqual(filterRecordsForSession(session, 'jobs', records), [{ id: 'job-1', assignedEmployeeIds: ['emp-1'] }]);
+});
+
+test('clocking authorization allows self-service and blocks other employees for crew members', () => {
+  const session = { role: 'crew_member', employeeId: 'emp-1', businessId: 'biz-1' };
+
+  assert.equal(canClockForEmployee(session, 'emp-1'), true);
+  assert.equal(canClockForEmployee(session, 'emp-2'), false);
+});
+
+test('owners and admins can clock any employee', () => {
+  const ownerSession = { role: 'owner', employeeId: 'emp-1', businessId: 'biz-1' };
+  const adminSession = { role: 'admin', employeeId: 'emp-1', businessId: 'biz-1' };
+
+  assert.equal(canClockForEmployee(ownerSession, 'emp-2'), true);
+  assert.equal(canClockForEmployee(adminSession, 'emp-2'), true);
 });
 
 test('crew members cannot write budgets or invoices', () => {

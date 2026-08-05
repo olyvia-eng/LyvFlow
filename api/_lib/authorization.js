@@ -83,6 +83,16 @@ export function authorizeRecordAccess(session, entity, record) {
   return false;
 }
 
+export function canClockForEmployee(session, employeeId) {
+  if (!session || typeof employeeId !== 'string') return false;
+
+  const role = normalizeRole(session.role);
+  if (role === 'owner' || role === 'admin') return true;
+  if (role !== 'crew_member') return false;
+
+  return typeof session.employeeId === 'string' && session.employeeId === employeeId;
+}
+
 export function filterRecordsForSession(session, entity, records) {
   if (!Array.isArray(records)) return [];
   const role = normalizeRole(session.role);

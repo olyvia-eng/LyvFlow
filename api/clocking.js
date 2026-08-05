@@ -9,6 +9,7 @@ import {
 import { ddb, tableName } from './_lib/db.js';
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { getEmployeeForBusiness, listTimeEntriesForBusiness } from './_lib/authRepo.js';
+import { canClockForEmployee } from './_lib/authorization.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -22,6 +23,11 @@ function ensureClockingEmployee(session, employeeId) {
   if (typeof employeeId !== 'string' || employeeId.trim().length === 0) {
     return { ok: false, status: 400, error: 'Employee is required.' };
   }
+
+  if (!canClockForEmployee(session, employeeId)) {
+    return { ok: false, status: 403, error: 'Forbidden' };
+  }
+
   return { ok: true };
 }
 
@@ -151,6 +157,10 @@ export default async function handler(req, res) {
     if (!activeEntry) {
       const response = getClockingErrorResponse({ statusCode: 409, code: 'NO_ACTIVE_SHIFT' });
       return res.status(response.status).json({ ok: false, error: response.error });
+    }
+
+    if (!canClockForEmployee(session, activeEntry.employeeId)) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
     const employee = await getEmployeeForBusiness(session.businessId, activeEntry.employeeId);

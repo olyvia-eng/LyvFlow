@@ -96,6 +96,10 @@ function labourBudgetPlanSk(labourBudgetPlanId) {
   return `LABOUR_BUDGET#${labourBudgetPlanId}`;
 }
 
+export function buildLabourBudgetPlanId(budgetId, employeeId, year) {
+  return `${budgetId}-${employeeId}-${year}`;
+}
+
 function labourHoursSalesGoalSk(labourHoursSalesGoalId) {
   return `LABOUR_HOURS_GOAL#${labourHoursSalesGoalId}`;
 }
@@ -2476,6 +2480,16 @@ export async function listEmployeesForBusiness(businessId) {
 }
 
 export async function createEmployeeForBusiness({ businessId, employee }) {
+  const existingEmployees = await listEmployeesForBusiness(businessId);
+  const normalizedEmail = typeof employee.email === 'string' ? normalizeEmail(employee.email) : '';
+  const existingEmployee = normalizedEmail
+    ? existingEmployees.find((item) => normalizeEmail(item.email) === normalizedEmail)
+    : null;
+
+  if (existingEmployee) {
+    return { ok: true, existing: true, employee: existingEmployee };
+  }
+
   await ddb.send(
     new PutCommand({
       TableName: tableName,
@@ -2491,7 +2505,7 @@ export async function createEmployeeForBusiness({ businessId, employee }) {
     })
   );
 
-  return { ok: true };
+  return { ok: true, existing: false, employee };
 }
 
 export async function getEmployeeForBusiness(businessId, employeeId) {
