@@ -1,6 +1,6 @@
-import { listEmployeesForBusiness, listTimeEntriesForBusiness, listFormSubmissionsForBusiness, listFormsForBusiness, createFormSubmissionForBusiness, getEmployeeForBusiness, getTimeEntryForBusiness } from './_lib/authRepo.js';
+import { listTimeEntriesForBusiness, listFormSubmissionsForBusiness, listFormsForBusiness, createFormSubmissionForBusiness, getEmployeeForBusiness } from './_lib/authRepo.js';
 import { requireSession } from './_lib/session.js';
-import { filterRecordsForSession, authorizeRecordAccess } from './_lib/authorization.js';
+import { filterRecordsForSession } from './_lib/authorization.js';
 
 function buildEmployeeResponse(employee) {
   return employee ? {

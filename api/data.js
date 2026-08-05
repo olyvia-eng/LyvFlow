@@ -1007,7 +1007,6 @@ export default async function handler(req, res) {
       }
 
       if (entity === 'employees') {
-        const employee = await getEmployeeForBusiness(session.businessId, id);
         if (existing?.email) {
           const authDelete = await deleteAuthUserForBusinessByEmail(session.businessId, existing.email);
           if (!authDelete.ok) {

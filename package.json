@@ -12,7 +12,8 @@
     "dev:vite": "vite --port 5174 --strictPort",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test tests/access-control.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1095.0",

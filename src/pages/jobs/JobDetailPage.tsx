@@ -15,23 +15,42 @@ export default function JobDetailPage() {
   const { jobs, customers, employees, timeEntries, updateJob, addCostEntry, deleteTimeEntry } = useStore();
 
   const job = jobs.find((j) => j.id === id);
-  if (!job) return <div className="p-8 text-gray-400">Job not found.</div>;
+  const [costModal, setCostModal] = useState(false);
+  const [costForm, setCostForm] = useState<Omit<CostEntry, 'id'>>({
+    category: 'labour', description: '', quantity: 1, unit: 'hr', unitCost: 0, total: 0, date: new Date().toISOString().slice(0, 10),
+  });
 
-  const customer = customers.find((c) => c.id === job.customerId);
-  const assignedEmployees = employees.filter((e) => job.assignedEmployeeIds.includes(e.id));
+  const customer = customers.find((c) => c.id === job?.customerId);
+  const assignedEmployees = employees.filter((e) => job?.assignedEmployeeIds.includes(e.id));
   const entryJobIds = (entry: { jobIds?: string[]; jobId?: string }) =>
     Array.isArray(entry.jobIds) && entry.jobIds.length > 0
       ? entry.jobIds
       : (entry.jobId ? [entry.jobId] : []);
 
-  const jobTimeEntries = timeEntries.filter((te) => entryJobIds(te).includes(id));
+  const jobTimeEntries = job ? timeEntries.filter((te) => entryJobIds(te).includes(id)) : [];
 
-  const actualCostTotal = job.actualCosts.reduce((s, c) => s + c.total, 0);
-  const profit = job.contractValue - actualCostTotal;
-  const marginPct = job.contractValue > 0 ? (profit / job.contractValue) * 100 : 0;
-  const hoursPct = job.estimatedHours > 0 ? Math.min(100, (job.actualHours / job.estimatedHours) * 100) : 0;
+  const actualCostTotal = job ? job.actualCosts.reduce((s, c) => s + c.total, 0) : 0;
+  const profit = job ? job.contractValue - actualCostTotal : 0;
+  const marginPct = job && job.contractValue > 0 ? (profit / job.contractValue) * 100 : 0;
+  const hoursPct = job && job.estimatedHours > 0 ? Math.min(100, (job.actualHours / job.estimatedHours) * 100) : 0;
 
   const profitability = useMemo(() => {
+    if (!job) {
+      return {
+        trackedHours: 0,
+        trackedBillableHours: 0,
+        trackedNonBillableHours: 0,
+        trackedLaborCost: 0,
+        recordedLaborCosts: 0,
+        recordedNonLaborCosts: 0,
+        projectedCostFromTracking: 0,
+        projectedProfitFromTracking: 0,
+        projectedMarginFromTracking: 0,
+        laborVariance: 0,
+        laborVariancePct: 0,
+      };
+    }
+
     let trackedHours = 0;
     let trackedBillableHours = 0;
     let trackedNonBillableHours = 0;
@@ -77,25 +96,25 @@ export default function JobDetailPage() {
       laborVariance,
       laborVariancePct,
     };
-  }, [employees, job.actualCosts, job.contractValue, jobTimeEntries]);
+  }, [employees, job, jobTimeEntries]);
 
   const profitabilityWarnings = useMemo(() => {
     const warnings: Array<{ label: string; className: string }> = [];
 
-    if (job.estimatedHours > 0 && job.actualHours > job.estimatedHours) {
+    if (job && job.estimatedHours > 0 && job.actualHours > job.estimatedHours) {
       warnings.push({ label: 'Over Hours', className: 'bg-accent-100 text-accent-700' });
     }
 
-    if (profitability.projectedMarginFromTracking < LOW_MARGIN_THRESHOLD_PCT) {
+    if (job && profitability.projectedMarginFromTracking < LOW_MARGIN_THRESHOLD_PCT) {
       warnings.push({ label: `Low Margin (<${LOW_MARGIN_THRESHOLD_PCT}%)`, className: 'bg-accent-50 text-accent-600' });
     }
 
-    if (Math.abs(profitability.laborVariancePct) > HIGH_LABOR_VARIANCE_THRESHOLD_PCT) {
+    if (job && Math.abs(profitability.laborVariancePct) > HIGH_LABOR_VARIANCE_THRESHOLD_PCT) {
       warnings.push({ label: `Labor Variance High (>${HIGH_LABOR_VARIANCE_THRESHOLD_PCT}%)`, className: 'bg-brand-100 text-brand-700' });
     }
 
     return warnings;
-  }, [job.actualHours, job.estimatedHours, profitability.laborVariancePct, profitability.projectedMarginFromTracking]);
+  }, [job, profitability.laborVariancePct, profitability.projectedMarginFromTracking]);
 
   const timeEntryTypeMeta = (entry: { workType?: string }) => {
     if (entry.workType === 'drive_time') {
@@ -107,11 +126,6 @@ export default function JobDetailPage() {
     return { label: 'Job Work', className: 'bg-brand-200 text-brand-800' };
   };
 
-  const [costModal, setCostModal] = useState(false);
-  const [costForm, setCostForm] = useState<Omit<CostEntry, 'id'>>({
-    category: 'labour', description: '', quantity: 1, unit: 'hr', unitCost: 0, total: 0, date: new Date().toISOString().slice(0, 10),
-  });
-
   const setC = (key: keyof typeof costForm, value: unknown) =>
     setCostForm((f) => {
       const updated = { ...f, [key]: value };
@@ -120,10 +134,12 @@ export default function JobDetailPage() {
     });
 
   const saveCost = () => {
-    if (!costForm.description.trim()) return;
+    if (!job || !costForm.description.trim()) return;
     addCostEntry(job.id, costForm);
     setCostModal(false);
   };
+
+  if (!job) return <div className="p-8 text-gray-400">Job not found.</div>;
 
   return (
     <div>
