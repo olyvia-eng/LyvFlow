@@ -222,6 +222,104 @@ export interface AuditEvent {
   metadata?: Record<string, unknown>;
 }
 
+// ─── Forms ───────────────────────────────────────────────────────────────────
+
+export type FormCategory =
+  | 'safety'
+  | 'vehicle'
+  | 'equipment'
+  | 'job_site'
+  | 'hr'
+  | 'operations'
+  | 'maintenance'
+  | 'custom';
+
+export type FormStatus = 'active' | 'draft' | 'archived';
+
+export type FormAssignmentType =
+  | 'everyone'
+  | 'role'
+  | 'employee'
+  | 'division'
+  | 'job'
+  | 'equipment';
+
+export type FormTrigger =
+  | 'before_clock_in'
+  | 'after_clock_out'
+  | 'before_starting_job'
+  | 'after_completing_job'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'on_demand';
+
+export type FormFieldType =
+  | 'section_header'
+  | 'paragraph_text'
+  | 'single_line_text'
+  | 'multi_line_text'
+  | 'number'
+  | 'currency'
+  | 'date'
+  | 'time'
+  | 'yes_no'
+  | 'checkbox'
+  | 'multiple_choice'
+  | 'dropdown'
+  | 'photo_upload'
+  | 'file_upload'
+  | 'signature'
+  | 'employee_selector'
+  | 'job_selector'
+  | 'customer_selector';
+
+export interface FormRecord {
+  id: ID;
+  name: string;
+  description: string;
+  category: FormCategory;
+  status: FormStatus;
+  assignedTo: FormAssignmentType;
+  assignmentValue?: string;
+  trigger: FormTrigger[];
+  division?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FormField {
+  id: ID;
+  formId: ID;
+  type: FormFieldType;
+  label: string;
+  helpText?: string;
+  required: boolean;
+  defaultValue?: string;
+  placeholder?: string;
+  options?: string[];
+  order: number;
+}
+
+export type FormSubmissionStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+
+export interface FormSubmission {
+  id: ID;
+  formId: ID;
+  employeeId: ID;
+  jobId?: ID;
+  submittedAt: string;
+  status: FormSubmissionStatus;
+  submittedBy?: string;
+}
+
+export interface FormResponse {
+  id: ID;
+  submissionId: ID;
+  fieldId: ID;
+  value: string;
+}
+
 // ─── Budget ──────────────────────────────────────────────────────────────────
 
 export type BudgetCategory =

@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import type {
   Budget,
+  FormField,
+  FormRecord,
+  FormResponse,
+  FormSubmission,
   Customer,
   Estimate,
   EstimateTemplate,
@@ -76,6 +80,10 @@ interface AppState {
   labourBudgetPlans: LabourBudgetPlan[];
   labourHoursSalesGoals: LabourHoursSalesGoal[];
   revenueSalesGoals: RevenueSalesGoal[];
+  forms: FormRecord[];
+  formFields: FormField[];
+  formSubmissions: FormSubmission[];
+  formResponses: FormResponse[];
 
   // CRM
   addCustomer: (c: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -140,6 +148,19 @@ interface AppState {
   deleteLabourHoursSalesGoal: (id: ID) => void;
   upsertRevenueSalesGoal: (goal: RevenueSalesGoal) => void;
   deleteRevenueSalesGoal: (id: ID) => void;
+
+  // Forms
+  addForm: (form: Omit<FormRecord, 'id' | 'createdAt' | 'updatedAt'>) => FormRecord;
+  updateForm: (id: ID, data: Partial<FormRecord>) => void;
+  deleteForm: (id: ID) => void;
+  addFormField: (field: Omit<FormField, 'id'>) => FormField;
+  updateFormField: (id: ID, data: Partial<FormField>) => void;
+  deleteFormField: (id: ID) => void;
+  addFormSubmission: (submission: Omit<FormSubmission, 'id'>) => FormSubmission;
+  updateFormSubmission: (id: ID, data: Partial<FormSubmission>) => void;
+  deleteFormSubmission: (id: ID) => void;
+  upsertFormResponse: (response: FormResponse) => void;
+  deleteFormResponse: (id: ID) => void;
 }
 
 export const useStore = create<AppState>()((set, get) => ({
@@ -157,6 +178,10 @@ export const useStore = create<AppState>()((set, get) => ({
       labourBudgetPlans: [],
       labourHoursSalesGoals: [],
       revenueSalesGoals: [],
+      forms: [],
+      formFields: [],
+      formSubmissions: [],
+      formResponses: [],
 
       // ── CRM ──────────────────────────────────────────────────────────────
       addCustomer: (c) => {
@@ -805,6 +830,222 @@ export const useStore = create<AppState>()((set, get) => ({
         })).catch(() => {
           set({ timeEntries: previous });
           emitAppToast({ tone: 'error', message: 'Time entry could not be deleted.' });
+        });
+      },
+
+      // ── Forms ─────────────────────────────────────────────────────────────
+      addForm: (formInput) => {
+        const previous = get().forms;
+        const form = {
+          ...formInput,
+          id: generateId(),
+          createdAt: nowISO(),
+          updatedAt: nowISO(),
+        };
+        set((state) => ({ forms: [...state.forms, form] }));
+
+        void ensureOk(fetch(dataUrl('forms'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: form }),
+        })).catch((error: unknown) => {
+          set({ forms: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form could not be saved.') });
+        });
+
+        return form;
+      },
+      updateForm: (id, data) => {
+        const previous = get().forms;
+        const updatedAt = nowISO();
+        set((state) => ({
+          forms: state.forms.map((form) => (form.id === id ? { ...form, ...data, updatedAt } : form)),
+        }));
+
+        void ensureOk(fetch(dataUrl('forms', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch((error: unknown) => {
+          set({ forms: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form changes could not be saved.') });
+        });
+      },
+      deleteForm: (id) => {
+        const previousForms = get().forms;
+        const previousFields = get().formFields;
+        const previousSubmissions = get().formSubmissions;
+        const previousResponses = get().formResponses;
+        const submissionIds = previousSubmissions.filter((submission) => submission.formId === id).map((submission) => submission.id);
+
+        set((state) => ({
+          forms: state.forms.filter((form) => form.id !== id),
+          formFields: state.formFields.filter((field) => field.formId !== id),
+          formSubmissions: state.formSubmissions.filter((submission) => submission.formId !== id),
+          formResponses: state.formResponses.filter((response) => !submissionIds.includes(response.submissionId)),
+        }));
+
+        void ensureOk(fetch(dataUrl('forms', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch((error: unknown) => {
+          set({
+            forms: previousForms,
+            formFields: previousFields,
+            formSubmissions: previousSubmissions,
+            formResponses: previousResponses,
+          });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form could not be deleted.') });
+        });
+      },
+      addFormField: (fieldInput) => {
+        const previous = get().formFields;
+        const field = {
+          ...fieldInput,
+          id: generateId(),
+        };
+        set((state) => ({ formFields: [...state.formFields, field] }));
+
+        void ensureOk(fetch(dataUrl('form-fields'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: field }),
+        })).catch((error: unknown) => {
+          set({ formFields: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form field could not be saved.') });
+        });
+
+        return field;
+      },
+      updateFormField: (id, data) => {
+        const previous = get().formFields;
+        set((state) => ({
+          formFields: state.formFields.map((field) => (field.id === id ? { ...field, ...data } : field)),
+        }));
+
+        void ensureOk(fetch(dataUrl('form-fields', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data }),
+        })).catch((error: unknown) => {
+          set({ formFields: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form field could not be updated.') });
+        });
+      },
+      deleteFormField: (id) => {
+        const previous = get().formFields;
+        set((state) => ({ formFields: state.formFields.filter((field) => field.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('form-fields', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch((error: unknown) => {
+          set({ formFields: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form field could not be deleted.') });
+        });
+      },
+      addFormSubmission: (submissionInput) => {
+        const previous = get().formSubmissions;
+        const submission = {
+          ...submissionInput,
+          id: generateId(),
+        };
+        set((state) => ({ formSubmissions: [...state.formSubmissions, submission] }));
+
+        void ensureOk(fetch(dataUrl('form-submissions'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: submission }),
+        })).catch((error: unknown) => {
+          set({ formSubmissions: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form submission could not be saved.') });
+        });
+
+        return submission;
+      },
+      updateFormSubmission: (id, data) => {
+        const previous = get().formSubmissions;
+        set((state) => ({
+          formSubmissions: state.formSubmissions.map((submission) => (submission.id === id ? { ...submission, ...data } : submission)),
+        }));
+
+        void ensureOk(fetch(dataUrl('form-submissions', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data }),
+        })).catch((error: unknown) => {
+          set({ formSubmissions: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form submission could not be updated.') });
+        });
+      },
+      deleteFormSubmission: (id) => {
+        const previousSubmissions = get().formSubmissions;
+        const previousResponses = get().formResponses;
+        set((state) => ({
+          formSubmissions: state.formSubmissions.filter((submission) => submission.id !== id),
+          formResponses: state.formResponses.filter((response) => response.submissionId !== id),
+        }));
+
+        void ensureOk(fetch(dataUrl('form-submissions', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch((error: unknown) => {
+          set({ formSubmissions: previousSubmissions, formResponses: previousResponses });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form submission could not be deleted.') });
+        });
+      },
+      upsertFormResponse: (response) => {
+        const previous = get().formResponses;
+        const exists = previous.some((value) => value.id === response.id);
+        set((state) => ({
+          formResponses: exists
+            ? state.formResponses.map((value) => (value.id === response.id ? { ...value, ...response } : value))
+            : [...state.formResponses, response],
+        }));
+
+        const method = exists ? 'PATCH' : 'POST';
+        const url = exists ? dataUrl('form-responses', response.id) : dataUrl('form-responses');
+
+        void ensureOk(fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: response }),
+        })).catch((error: unknown) => {
+          set({ formResponses: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form response could not be saved.') });
+        });
+      },
+      deleteFormResponse: (id) => {
+        const previous = get().formResponses;
+        set((state) => ({ formResponses: state.formResponses.filter((response) => response.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('form-responses', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch((error: unknown) => {
+          set({ formResponses: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Form response could not be deleted.') });
         });
       },
 

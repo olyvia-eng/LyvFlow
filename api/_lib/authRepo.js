@@ -60,6 +60,22 @@ function receiptSk(receiptId) {
   return `RECEIPT#${receiptId}`;
 }
 
+function formSk(formId) {
+  return `FORM#${formId}`;
+}
+
+function formFieldSk(fieldId) {
+  return `FORM_FIELD#${fieldId}`;
+}
+
+function formSubmissionSk(submissionId) {
+  return `FORM_SUBMISSION#${submissionId}`;
+}
+
+function formResponseSk(responseId) {
+  return `FORM_RESPONSE#${responseId}`;
+}
+
 function templateSk(templateId) {
   return `TEMPLATE#${templateId}`;
 }
@@ -1283,6 +1299,410 @@ export async function getReceiptForBusiness(businessId, receiptId) {
     sizeBytes: result.Item.sizeBytes,
     uploadedAt: result.Item.uploadedAt,
   };
+}
+
+export async function listFormsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'FORM#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.formId,
+    name: item.name,
+    description: item.description ?? '',
+    category: item.category,
+    status: item.status,
+    assignedTo: item.assignedTo,
+    assignmentValue: item.assignmentValue,
+    trigger: item.trigger ?? [],
+    division: item.division,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+}
+
+export async function createFormForBusiness({ businessId, form }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: formSk(form.id),
+        entityType: 'FORM',
+        businessId,
+        formId: form.id,
+        ...form,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getFormForBusiness(businessId, formId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: formSk(formId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.formId,
+        name: result.Item.name,
+        description: result.Item.description ?? '',
+        category: result.Item.category,
+        status: result.Item.status,
+        assignedTo: result.Item.assignedTo,
+        assignmentValue: result.Item.assignmentValue,
+        trigger: result.Item.trigger ?? [],
+        division: result.Item.division,
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateFormForBusiness({ businessId, form }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: formSk(form.id),
+        entityType: 'FORM',
+        businessId,
+        formId: form.id,
+        ...form,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteFormForBusiness(businessId, formId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: formSk(formId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listFormFieldsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'FORM_FIELD#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.formFieldId,
+    formId: item.formId,
+    type: item.type,
+    label: item.label,
+    helpText: item.helpText,
+    required: Boolean(item.required),
+    defaultValue: item.defaultValue,
+    placeholder: item.placeholder,
+    options: item.options ?? [],
+    order: item.order ?? 0,
+  }));
+}
+
+export async function createFormFieldForBusiness({ businessId, formField }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: formFieldSk(formField.id),
+        entityType: 'FORM_FIELD',
+        businessId,
+        formFieldId: formField.id,
+        ...formField,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getFormFieldForBusiness(businessId, formFieldId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: formFieldSk(formFieldId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.formFieldId,
+        formId: result.Item.formId,
+        type: result.Item.type,
+        label: result.Item.label,
+        helpText: result.Item.helpText,
+        required: Boolean(result.Item.required),
+        defaultValue: result.Item.defaultValue,
+        placeholder: result.Item.placeholder,
+        options: result.Item.options ?? [],
+        order: result.Item.order ?? 0,
+      }
+    : null;
+}
+
+export async function updateFormFieldForBusiness({ businessId, formField }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: formFieldSk(formField.id),
+        entityType: 'FORM_FIELD',
+        businessId,
+        formFieldId: formField.id,
+        ...formField,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteFormFieldForBusiness(businessId, formFieldId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: formFieldSk(formFieldId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listFormSubmissionsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'FORM_SUBMISSION#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.formSubmissionId,
+    formId: item.formId,
+    employeeId: item.employeeId,
+    jobId: item.jobId,
+    submittedAt: item.submittedAt,
+    status: item.status,
+    submittedBy: item.submittedBy,
+  }));
+}
+
+export async function createFormSubmissionForBusiness({ businessId, formSubmission }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: formSubmissionSk(formSubmission.id),
+        entityType: 'FORM_SUBMISSION',
+        businessId,
+        formSubmissionId: formSubmission.id,
+        ...formSubmission,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getFormSubmissionForBusiness(businessId, formSubmissionId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: formSubmissionSk(formSubmissionId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.formSubmissionId,
+        formId: result.Item.formId,
+        employeeId: result.Item.employeeId,
+        jobId: result.Item.jobId,
+        submittedAt: result.Item.submittedAt,
+        status: result.Item.status,
+        submittedBy: result.Item.submittedBy,
+      }
+    : null;
+}
+
+export async function updateFormSubmissionForBusiness({ businessId, formSubmission }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: formSubmissionSk(formSubmission.id),
+        entityType: 'FORM_SUBMISSION',
+        businessId,
+        formSubmissionId: formSubmission.id,
+        ...formSubmission,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteFormSubmissionForBusiness(businessId, formSubmissionId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: formSubmissionSk(formSubmissionId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listFormResponsesForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'FORM_RESPONSE#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.formResponseId,
+    submissionId: item.submissionId,
+    fieldId: item.fieldId,
+    value: typeof item.value === 'string' ? item.value : JSON.stringify(item.value ?? ''),
+  }));
+}
+
+export async function createFormResponseForBusiness({ businessId, formResponse }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: formResponseSk(formResponse.id),
+        entityType: 'FORM_RESPONSE',
+        businessId,
+        formResponseId: formResponse.id,
+        ...formResponse,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getFormResponseForBusiness(businessId, formResponseId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: formResponseSk(formResponseId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.formResponseId,
+        submissionId: result.Item.submissionId,
+        fieldId: result.Item.fieldId,
+        value: typeof result.Item.value === 'string' ? result.Item.value : JSON.stringify(result.Item.value ?? ''),
+      }
+    : null;
+}
+
+export async function updateFormResponseForBusiness({ businessId, formResponse }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: formResponseSk(formResponse.id),
+        entityType: 'FORM_RESPONSE',
+        businessId,
+        formResponseId: formResponse.id,
+        ...formResponse,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteFormResponseForBusiness(businessId, formResponseId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: formResponseSk(formResponseId),
+      },
+    })
+  );
+
+  return { ok: true };
 }
 
 export async function listEquipmentAssetsForBusiness(businessId) {

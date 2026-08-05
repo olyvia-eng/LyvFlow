@@ -7,6 +7,10 @@ import {
   createEquipmentAssetForBusiness,
   createEstimateForBusiness,
   createExpenseForBusiness,
+  createFormFieldForBusiness,
+  createFormForBusiness,
+  createFormResponseForBusiness,
+  createFormSubmissionForBusiness,
   createInvoiceForBusiness,
   createJobForBusiness,
   createRevenueSalesGoalForBusiness,
@@ -23,6 +27,10 @@ import {
   deleteEquipmentAssetForBusiness,
   deleteEstimateForBusiness,
   deleteExpenseForBusiness,
+  deleteFormFieldForBusiness,
+  deleteFormForBusiness,
+  deleteFormResponseForBusiness,
+  deleteFormSubmissionForBusiness,
   deleteInvoiceForBusiness,
   deleteJobForBusiness,
   deleteRevenueSalesGoalForBusiness,
@@ -38,6 +46,10 @@ import {
   getEquipmentAssetForBusiness,
   getEstimateForBusiness,
   getExpenseForBusiness,
+  getFormFieldForBusiness,
+  getFormForBusiness,
+  getFormResponseForBusiness,
+  getFormSubmissionForBusiness,
   getInvoiceForBusiness,
   getJobForBusiness,
   getRevenueSalesGoalForBusiness,
@@ -53,6 +65,10 @@ import {
   listEquipmentAssetsForBusiness,
   listEstimatesForBusiness,
   listExpensesForBusiness,
+  listFormFieldsForBusiness,
+  listFormsForBusiness,
+  listFormResponsesForBusiness,
+  listFormSubmissionsForBusiness,
   listInvoicesForBusiness,
   listJobsForBusiness,
   listRevenueSalesGoalsForBusiness,
@@ -68,6 +84,10 @@ import {
   updateEquipmentAssetForBusiness,
   updateEstimateForBusiness,
   updateExpenseForBusiness,
+  updateFormFieldForBusiness,
+  updateFormForBusiness,
+  updateFormResponseForBusiness,
+  updateFormSubmissionForBusiness,
   updateInvoiceForBusiness,
   updateJobForBusiness,
   updateRevenueSalesGoalForBusiness,
@@ -169,6 +189,58 @@ const ENTITY_CONFIG = {
     idParam: 'expenseId',
     createArgKey: 'expense',
     updateArgKey: 'expense',
+  },
+  forms: {
+    readRoles: null,
+    writeRoles: ['owner', 'admin'],
+    list: listFormsForBusiness,
+    get: getFormForBusiness,
+    create: createFormForBusiness,
+    update: updateFormForBusiness,
+    remove: deleteFormForBusiness,
+    payloadKey: 'form',
+    idParam: 'formId',
+    createArgKey: 'form',
+    updateArgKey: 'form',
+  },
+  'form-fields': {
+    readRoles: null,
+    writeRoles: ['owner', 'admin'],
+    list: listFormFieldsForBusiness,
+    get: getFormFieldForBusiness,
+    create: createFormFieldForBusiness,
+    update: updateFormFieldForBusiness,
+    remove: deleteFormFieldForBusiness,
+    payloadKey: 'formField',
+    idParam: 'formFieldId',
+    createArgKey: 'formField',
+    updateArgKey: 'formField',
+  },
+  'form-submissions': {
+    readRoles: null,
+    writeRoles: null,
+    list: listFormSubmissionsForBusiness,
+    get: getFormSubmissionForBusiness,
+    create: createFormSubmissionForBusiness,
+    update: updateFormSubmissionForBusiness,
+    remove: deleteFormSubmissionForBusiness,
+    payloadKey: 'formSubmission',
+    idParam: 'formSubmissionId',
+    createArgKey: 'formSubmission',
+    updateArgKey: 'formSubmission',
+  },
+  'form-responses': {
+    readRoles: null,
+    writeRoles: null,
+    list: listFormResponsesForBusiness,
+    get: getFormResponseForBusiness,
+    create: createFormResponseForBusiness,
+    update: updateFormResponseForBusiness,
+    remove: deleteFormResponseForBusiness,
+    payloadKey: 'formResponse',
+    idParam: 'formResponseId',
+    createArgKey: 'formResponse',
+    updateArgKey: 'formResponse',
   },
   budget: {
     readRoles: null,
@@ -288,6 +360,40 @@ const EQUIPMENT_COST_TYPES = new Set(['financed', 'leased', 'owned']);
 const BUDGET_TYPES = new Set(['operating', 'capital', 'project', 'forecast', 'custom']);
 const BUDGET_DIVISIONS = new Set(['company_wide', 'earthworks', 'septic', 'landscaping', 'other']);
 const BUDGET_STATUSES = new Set(['draft', 'active', 'archived']);
+const FORM_CATEGORIES = new Set(['safety', 'vehicle', 'equipment', 'job_site', 'hr', 'operations', 'maintenance', 'custom']);
+const FORM_STATUSES = new Set(['active', 'draft', 'archived']);
+const FORM_ASSIGNMENTS = new Set(['everyone', 'role', 'employee', 'division', 'job', 'equipment']);
+const FORM_TRIGGERS = new Set([
+  'before_clock_in',
+  'after_clock_out',
+  'before_starting_job',
+  'after_completing_job',
+  'daily',
+  'weekly',
+  'monthly',
+  'on_demand',
+]);
+const FORM_FIELD_TYPES = new Set([
+  'section_header',
+  'paragraph_text',
+  'single_line_text',
+  'multi_line_text',
+  'number',
+  'currency',
+  'date',
+  'time',
+  'yes_no',
+  'checkbox',
+  'multiple_choice',
+  'dropdown',
+  'photo_upload',
+  'file_upload',
+  'signature',
+  'employee_selector',
+  'job_selector',
+  'customer_selector',
+]);
+const FORM_SUBMISSION_STATUSES = new Set(['draft', 'submitted', 'approved', 'rejected']);
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const YEAR_REGEX = /^\d{4}$/;
 
@@ -366,6 +472,71 @@ function validateBudgetRecord(record) {
     return 'Fiscal year must use YYYY format.';
   }
   if (!BUDGET_STATUSES.has(record.status)) return 'Budget status is invalid.';
+  return null;
+}
+
+function validateFormRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Form id is required.';
+  if (!isNonEmptyString(record.name)) return 'Form name is required.';
+  if (typeof record.description !== 'string') return 'Form description must be a string.';
+  if (!FORM_CATEGORIES.has(record.category)) return 'Form category is invalid.';
+  if (!FORM_STATUSES.has(record.status)) return 'Form status is invalid.';
+  if (!FORM_ASSIGNMENTS.has(record.assignedTo)) return 'Form assignment is invalid.';
+  if (record.assignmentValue !== undefined && record.assignmentValue !== null && typeof record.assignmentValue !== 'string') {
+    return 'Form assignment value is invalid.';
+  }
+  if (record.division !== undefined && record.division !== null && typeof record.division !== 'string') {
+    return 'Form division is invalid.';
+  }
+  if (!Array.isArray(record.trigger)) return 'Form trigger must be an array.';
+  if (record.trigger.some((value) => !FORM_TRIGGERS.has(value))) return 'Form trigger includes invalid values.';
+  return null;
+}
+
+function validateFormFieldRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Form field id is required.';
+  if (!isNonEmptyString(record.formId)) return 'Form field form id is required.';
+  if (!FORM_FIELD_TYPES.has(record.type)) return 'Form field type is invalid.';
+  if (!isNonEmptyString(record.label)) return 'Form field label is required.';
+  if (record.helpText !== undefined && record.helpText !== null && typeof record.helpText !== 'string') {
+    return 'Form field help text is invalid.';
+  }
+  if (typeof record.required !== 'boolean') return 'Form field required flag is invalid.';
+  if (record.defaultValue !== undefined && record.defaultValue !== null && typeof record.defaultValue !== 'string') {
+    return 'Form field default value is invalid.';
+  }
+  if (record.placeholder !== undefined && record.placeholder !== null && typeof record.placeholder !== 'string') {
+    return 'Form field placeholder is invalid.';
+  }
+  if (record.options !== undefined && record.options !== null && (!Array.isArray(record.options) || record.options.some((opt) => typeof opt !== 'string'))) {
+    return 'Form field options are invalid.';
+  }
+  if (typeof record.order !== 'number' || Number.isNaN(record.order) || record.order < 0) {
+    return 'Form field order must be zero or greater.';
+  }
+  return null;
+}
+
+function validateFormSubmissionRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Form submission id is required.';
+  if (!isNonEmptyString(record.formId)) return 'Form submission form id is required.';
+  if (!isNonEmptyString(record.employeeId)) return 'Form submission employee id is required.';
+  if (record.jobId !== undefined && record.jobId !== null && typeof record.jobId !== 'string') {
+    return 'Form submission job is invalid.';
+  }
+  if (!isNonEmptyString(record.submittedAt)) return 'Form submission timestamp is required.';
+  if (!FORM_SUBMISSION_STATUSES.has(record.status)) return 'Form submission status is invalid.';
+  if (record.submittedBy !== undefined && record.submittedBy !== null && typeof record.submittedBy !== 'string') {
+    return 'Form submission submittedBy is invalid.';
+  }
+  return null;
+}
+
+function validateFormResponseRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Form response id is required.';
+  if (!isNonEmptyString(record.submissionId)) return 'Form response submission id is required.';
+  if (!isNonEmptyString(record.fieldId)) return 'Form response field id is required.';
+  if (typeof record.value !== 'string') return 'Form response value must be a string.';
   return null;
 }
 
@@ -467,6 +638,34 @@ export default async function handler(req, res) {
       }
     }
 
+    if (entity === 'forms') {
+      const validationError = validateFormRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
+    if (entity === 'form-fields') {
+      const validationError = validateFormFieldRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
+    if (entity === 'form-submissions') {
+      const validationError = validateFormSubmissionRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
+    if (entity === 'form-responses') {
+      const validationError = validateFormResponseRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
     try {
       await config.create({ businessId: session.businessId, [config.createArgKey]: record });
       return res.status(200).json({ ok: true });
@@ -538,6 +737,34 @@ export default async function handler(req, res) {
 
       if (entity === 'budgets') {
         const validationError = validateBudgetRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
+      if (entity === 'forms') {
+        const validationError = validateFormRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
+      if (entity === 'form-fields') {
+        const validationError = validateFormFieldRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
+      if (entity === 'form-submissions') {
+        const validationError = validateFormSubmissionRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
+      if (entity === 'form-responses') {
+        const validationError = validateFormResponseRecord(next);
         if (validationError) {
           return res.status(400).json({ ok: false, error: validationError });
         }

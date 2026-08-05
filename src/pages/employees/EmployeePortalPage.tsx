@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, LogOut, ShieldCheck } from 'lucide-react';
 import { useStore } from '../../store';
-import { Button, Card, Input, Select } from '../../components/ui';
+import { Button, Card, Input, Modal, Select } from '../../components/ui';
 import { durationHours, formatDateTime } from '../../utils';
-import type { TimeEntryWorkType } from '../../types';
+import type { FormRecord, TimeEntryWorkType } from '../../types';
 
 interface EmployeePortalPageProps {
   sessionEmployeeEmail?: string;
@@ -12,11 +12,14 @@ interface EmployeePortalPageProps {
 }
 
 export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: EmployeePortalPageProps) {
-  const { employees, jobs, timeEntries, clockIn, clockOut } = useStore();
+  const { employees, jobs, timeEntries, forms, formSubmissions, clockIn, clockOut, addFormSubmission } = useStore();
 
   const [clockType, setClockType] = useState<TimeEntryWorkType>('job');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [jobNotes, setJobNotes] = useState('');
+  const [requiredFormsModalOpen, setRequiredFormsModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'clock_in' | 'clock_out' | null>(null);
+  const [requiredFormsQueue, setRequiredFormsQueue] = useState<FormRecord[]>([]);
 
   const sessionEmployee = useMemo(() => {
     if (!sessionEmployeeEmail) return null;
@@ -53,7 +56,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
     setJobNotes('');
   };
 
-  const handleClockIn = () => {
+  const runClockIn = () => {
     if (!employee) return;
     if (clockType === 'job' && selectedJobIds.length === 0) return;
 
@@ -64,12 +67,95 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
     setSelectedJobIds([]);
   };
 
-  const handleClockOut = () => {
+  const runClockOut = () => {
     if (!activeEntry) return;
     if (!jobNotes.trim()) return;
     clockOut(activeEntry.id, 0, jobNotes.trim());
     setJobNotes('');
   };
+
+  const isFormAssignedToEmployee = (form: FormRecord) => {
+    if (!employee) return false;
+    if (form.assignedTo === 'everyone') return true;
+    if (form.assignedTo === 'role') return form.assignmentValue === employee.role;
+    if (form.assignedTo === 'employee') return form.assignmentValue === employee.id;
+    if (form.assignedTo === 'job') {
+      if (activeEntry?.jobId && form.assignmentValue === activeEntry.jobId) return true;
+      if (selectedJobIds.includes(form.assignmentValue ?? '')) return true;
+      return false;
+    }
+    if (form.assignedTo === 'division') {
+      // TODO: Map employee to division and enforce division-scoped forms through backend policy.
+      return true;
+    }
+    if (form.assignedTo === 'equipment') {
+      // TODO: Enforce equipment-scoped forms when equipment context is attached to clock events.
+      return true;
+    }
+    return false;
+  };
+
+  const buildMissingTriggerForms = (trigger: 'before_clock_in' | 'after_clock_out') => {
+    if (!employee) return [];
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    return forms.filter((form) => {
+      if (form.status !== 'active') return false;
+      if (!form.trigger.includes(trigger)) return false;
+      if (!isFormAssignedToEmployee(form)) return false;
+
+      const submittedToday = formSubmissions.some((submission) => (
+        submission.formId === form.id
+        && submission.employeeId === employee.id
+        && submission.status === 'submitted'
+        && submission.submittedAt.startsWith(today)
+      ));
+      return !submittedToday;
+    });
+  };
+
+  const startRequiredFormsGate = (action: 'clock_in' | 'clock_out') => {
+    const trigger = action === 'clock_in' ? 'before_clock_in' : 'after_clock_out';
+    const requiredForms = buildMissingTriggerForms(trigger);
+
+    if (requiredForms.length === 0) {
+      if (action === 'clock_in') runClockIn();
+      else runClockOut();
+      return;
+    }
+
+    setPendingAction(action);
+    setRequiredFormsQueue(requiredForms);
+    setRequiredFormsModalOpen(true);
+  };
+
+  const markRequiredFormComplete = (formId: string) => {
+    if (!employee) return;
+
+    addFormSubmission({
+      formId,
+      employeeId: employee.id,
+      jobId: activeEntry?.jobId ?? selectedJobIds[0],
+      submittedAt: new Date().toISOString(),
+      status: 'submitted',
+      submittedBy: employee.name,
+    });
+
+    setRequiredFormsQueue((current) => current.filter((form) => form.id !== formId));
+  };
+
+  const continueAfterRequiredForms = () => {
+    if (requiredFormsQueue.length > 0) return;
+    const action = pendingAction;
+    setRequiredFormsModalOpen(false);
+    setPendingAction(null);
+    if (action === 'clock_in') runClockIn();
+    if (action === 'clock_out') runClockOut();
+  };
+
+  const handleClockIn = () => startRequiredFormsGate('clock_in');
+  const handleClockOut = () => startRequiredFormsGate('clock_out');
 
   const activeEntryJobTitle = useMemo(() => {
     if (!activeEntry) return '—';
@@ -206,6 +292,38 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
           Admin access is available in the main app at <Link to="/" className="text-brand-600 hover:underline">dashboard</Link>.
         </p>
       </div>
+
+      <Modal
+        open={requiredFormsModalOpen}
+        onClose={() => setRequiredFormsModalOpen(false)}
+        title="Required Forms Before Continuing"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setRequiredFormsModalOpen(false)}>Cancel</Button>
+            <Button onClick={continueAfterRequiredForms} disabled={requiredFormsQueue.length > 0}>Continue</Button>
+          </>
+        )}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            Complete required forms before {pendingAction === 'clock_in' ? 'clocking in' : 'clocking out'}.
+          </p>
+          {/* TODO: Replace quick-complete with full form question flow and backend-enforced trigger policy before action writes. */}
+          {requiredFormsQueue.length === 0 ? (
+            <p className="text-sm text-brand-700">All required forms are complete. You can continue.</p>
+          ) : (
+            requiredFormsQueue.map((form) => (
+              <div key={form.id} className="rounded-lg border border-gray-200 p-3">
+                <p className="text-sm font-semibold text-gray-900">{form.name}</p>
+                <p className="text-xs text-gray-500 mt-1">{form.description || 'No description provided.'}</p>
+                <div className="mt-2">
+                  <Button size="sm" onClick={() => markRequiredFormComplete(form.id)}>Mark Complete</Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -36,7 +36,7 @@ const ACTION_ROUTE_MAP: Record<string, string> = {
   'placeholder-payroll': '/employees/payroll',
   'placeholder-certifications': '/employees/certifications',
   'placeholder-documents': '/data-center/documents',
-  'placeholder-forms': '/data-center/forms',
+  'placeholder-forms': '/operations/forms',
   'placeholder-photos': '/data-center/photos',
   'placeholder-settings': '/data-center/settings',
 };

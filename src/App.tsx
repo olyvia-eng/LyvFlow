@@ -27,9 +27,10 @@ import InvoicesPage from './pages/finance/InvoicesPage';
 import ExpensesPage from './pages/finance/ExpensesPage';
 import ProfitLossPage from './pages/finance/ProfitLossPage';
 import EquipmentPage from './pages/operations/EquipmentPage';
+import FormsPage from './pages/operations/FormsPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { Budget, BudgetItem, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
+import type { Budget, BudgetItem, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, FormField, FormRecord, FormResponse, FormSubmission, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
@@ -73,6 +74,10 @@ export default function App() {
 
       const payload = await readApiJson<{
         ok: boolean;
+        forms?: FormRecord[];
+        formFields?: FormField[];
+        formSubmissions?: FormSubmission[];
+        formResponses?: FormResponse[];
         budgets?: Budget[];
         customers?: Customer[];
         jobs?: Job[];
@@ -96,6 +101,10 @@ export default function App() {
 
       useStore.setState((state) => ({
         ...state,
+        forms: payload.forms ?? [],
+        formFields: payload.formFields ?? [],
+        formSubmissions: payload.formSubmissions ?? [],
+        formResponses: payload.formResponses ?? [],
         budgets: payload.budgets ?? [],
         customers: payload.customers ?? [],
         jobs: payload.jobs ?? [],
@@ -198,6 +207,10 @@ export default function App() {
     if (previousOwner === sessionUser.businessId) return;
 
     useStore.setState({
+      forms: [],
+      formFields: [],
+      formSubmissions: [],
+      formResponses: [],
       budgets: [],
       customers: [],
       estimates: [],
@@ -465,6 +478,7 @@ export default function App() {
               <Route path="finance/profit-loss" element={<ProfitLossPage />} />
               <Route path="operations/dashboard" element={<OperationsDashboardPage />} />
               <Route path="operations/equipment" element={<EquipmentPage />} />
+              <Route path="operations/forms" element={<FormsPage />} />
               <Route
                 path="operations/inventory"
                 element={
