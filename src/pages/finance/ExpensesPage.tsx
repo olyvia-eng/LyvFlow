@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FilePlus2, HandCoins, Pencil, Receipt, Wallet } from 'lucide-react';
+import { FilePlus2, HandCoins, Pencil, Receipt, Wallet, Link as LinkIcon } from 'lucide-react';
 import { Button, Card, EmptyState, Input, Modal, PageHeader, Select, StatCard } from '../../components/ui';
 import { useStore } from '../../store';
 import { formatCurrency } from '../../utils';
@@ -23,6 +23,16 @@ const categories: ExpenseCategory[] = [
   'other',
 ];
 
+const categoryLabel: Record<ExpenseCategory, string> = {
+  materials: 'Materials',
+  equipment: 'Equipment',
+  subcontractor: 'Subcontractor',
+  travel: 'Travel',
+  permits: 'Permits',
+  overhead: 'Overhead',
+  other: 'Other',
+};
+
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const emptyExpenseForm = () => ({
@@ -34,6 +44,7 @@ const emptyExpenseForm = () => ({
   amount: 0,
   status: 'pending' as ExpenseStatus,
   notes: '',
+  receiptUrl: '',
 });
 
 export default function ExpensesPage() {
@@ -68,6 +79,20 @@ export default function ExpensesPage() {
     return { total, pending, approved, monthSpend };
   }, [expenses]);
 
+  const categoryTotals = useMemo(() => {
+    const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+    return categories
+      .map((category) => {
+        const amount = expenses
+          .filter((expense) => expense.category === category)
+          .reduce((sum, expense) => sum + expense.amount, 0);
+        const ratio = total > 0 ? (amount / total) * 100 : 0;
+        return { category, amount, ratio };
+      })
+      .filter((row) => row.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+  }, [expenses]);
+
   const openNew = () => {
     setEditing(null);
     setForm(emptyExpenseForm());
@@ -85,6 +110,7 @@ export default function ExpensesPage() {
       amount: expense.amount,
       status: expense.status,
       notes: expense.notes,
+      receiptUrl: expense.receiptUrl ?? '',
     });
     setModalOpen(true);
   };
@@ -105,6 +131,7 @@ export default function ExpensesPage() {
       amount: Number(form.amount),
       status: form.status,
       notes: form.notes.trim(),
+      receiptUrl: form.receiptUrl.trim() || undefined,
     };
 
     if (editing) {
@@ -155,7 +182,7 @@ export default function ExpensesPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[1080px]">
+            <table className="w-full text-sm min-w-[1180px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                   <th className="px-4 py-3 font-medium">Date</th>
@@ -164,6 +191,7 @@ export default function ExpensesPage() {
                   <th className="px-4 py-3 font-medium">Category</th>
                   <th className="px-4 py-3 font-medium">Job</th>
                   <th className="px-4 py-3 font-medium">Customer</th>
+                  <th className="px-4 py-3 font-medium">Receipt</th>
                   <th className="px-4 py-3 font-medium text-right">Amount</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
@@ -181,6 +209,18 @@ export default function ExpensesPage() {
                       <td className="px-4 py-2 text-gray-700 capitalize">{expense.category.replace('_', ' ')}</td>
                       <td className="px-4 py-2 text-gray-700">{job?.title ?? 'General'}</td>
                       <td className="px-4 py-2 text-gray-700">{customer?.name ?? '—'}</td>
+                      <td className="px-4 py-2 text-gray-700">
+                        {expense.receiptUrl ? (
+                          <a
+                            href={expense.receiptUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-brand-700 hover:text-brand-800"
+                          >
+                            <LinkIcon size={13} /> View
+                          </a>
+                        ) : '—'}
+                      </td>
                       <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(expense.amount)}</td>
                       <td className="px-4 py-2">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusBadgeClass[expense.status]}`}>
@@ -198,6 +238,28 @@ export default function ExpensesPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+      </Card>
+
+      <Card className="mt-6 p-4">
+        <h2 className="font-semibold text-gray-900">Spend by Category</h2>
+        <p className="text-sm text-gray-500 mt-1">See where expense dollars are concentrated right now.</p>
+        {categoryTotals.length === 0 ? (
+          <p className="text-sm text-gray-500 mt-3">No expense data available yet.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {categoryTotals.map((row) => (
+              <div key={row.category}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-700">{categoryLabel[row.category]}</span>
+                  <span className="font-medium text-gray-900">{formatCurrency(row.amount)} ({row.ratio.toFixed(1)}%)</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                  <div className="h-full bg-brand-600 rounded-full" style={{ width: `${Math.min(100, row.ratio)}%` }} />
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Card>
@@ -234,6 +296,12 @@ export default function ExpensesPage() {
             <option value="">General / Overhead</option>
             {jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
           </Select>
+          <Input
+            label="Receipt URL (Optional)"
+            value={form.receiptUrl}
+            onChange={(event) => setField('receiptUrl', event.target.value)}
+            placeholder="https://..."
+          />
           <Input label="Notes" value={form.notes} onChange={(event) => setField('notes', event.target.value)} placeholder="Optional notes" />
         </div>
       </Modal>
