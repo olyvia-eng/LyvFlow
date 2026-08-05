@@ -24,7 +24,6 @@ import autoTable from 'jspdf-autotable';
 const CATEGORIES: BudgetCategory[] = ['revenue', 'labour', 'materials', 'equipment', 'subcontractors', 'overhead', 'marketing', 'insurance', 'other'];
 type BudgetTab = 'analysis' | 'revenue' | 'labour' | 'materials' | 'equipment' | 'subcontractors' | 'overhead';
 type ExportColumnMode = 'budgeted';
-type ExportKind = 'budget' | 'pnl_detailed' | 'pnl_condensed';
 type LabourTableView = 'all' | LabourCompType;
 type EquipmentTableView = 'all' | EquipmentCostType;
 
@@ -200,9 +199,6 @@ export default function BudgetPage() {
   const [form, setForm] = useState(empty());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [assumptionsModalOpen, setAssumptionsModalOpen] = useState(false);
-  const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [exportColumnMode, setExportColumnMode] = useState<ExportColumnMode>('budgeted');
-  const [exportKind, setExportKind] = useState<ExportKind>('budget');
   const [labourTableView, setLabourTableView] = useState<LabourTableView>('all');
   const [equipmentTableView, setEquipmentTableView] = useState<EquipmentTableView>('all');
   const [showLabourCalcDetails, setShowLabourCalcDetails] = useState(false);
@@ -681,22 +677,6 @@ export default function BudgetPage() {
 
   const tabLabel = categoryTabs.find((tab) => tab.key === activeTab)?.label ?? 'Analysis';
 
-  const directCostCategories: BudgetCategory[] = ['labour', 'materials', 'equipment', 'subcontractors'];
-  const operatingExpenseCategories: BudgetCategory[] = ['overhead', 'marketing', 'insurance', 'other'];
-
-  const revenueItems = items.filter((item) => item.category === 'revenue');
-  const directCostItems = items.filter((item) => directCostCategories.includes(item.category));
-  const operatingExpenseItems = items.filter((item) => operatingExpenseCategories.includes(item.category));
-
-  const budgetedDirectCosts = directCostItems.reduce((sum, item) => sum + item.budgeted, 0);
-  const budgetedOperatingExpenses = operatingExpenseItems.reduce((sum, item) => sum + item.budgeted, 0);
-
-  const budgetedGrossProfit = totalBudgetedRevenue - budgetedDirectCosts;
-  const budgetedNetProfit = budgetedGrossProfit - budgetedOperatingExpenses;
-
-  const budgetedGrossMarginPct = totalBudgetedRevenue > 0 ? (budgetedGrossProfit / totalBudgetedRevenue) * 100 : 0;
-  const budgetedNetMarginPct = totalBudgetedRevenue > 0 ? (budgetedNetProfit / totalBudgetedRevenue) * 100 : 0;
-
   const currentRevenuePlanRecord = useMemo(() => {
     return scopedRevenueSalesGoals.find((goal) => goal.scopeType === revenueScopeType && goal.scopeValue === revenueScopeValue);
   }, [scopedRevenueSalesGoals, revenueScopeType, revenueScopeValue]);
@@ -750,23 +730,6 @@ export default function BudgetPage() {
 
   const exportMetricCells = (budgeted: number) => {
     return [formatCurrency(budgeted)];
-  };
-
-  const exportMarginCells = (budgetedPct: number) => {
-    return [`${budgetedPct.toFixed(1)}%`];
-  };
-
-  const openExportModal = (kind: ExportKind) => {
-    setExportKind(kind);
-    setExportColumnMode('budgeted');
-    setExportModalOpen(true);
-  };
-
-  const runExport = () => {
-    if (exportKind === 'budget') exportToPdf(exportColumnMode);
-    else if (exportKind === 'pnl_condensed') exportProfitAndLossPdf(true, exportColumnMode);
-    else exportProfitAndLossPdf(false, exportColumnMode);
-    setExportModalOpen(false);
   };
 
   const plansByEmployeeId = useMemo(() => {
@@ -876,104 +839,6 @@ export default function BudgetPage() {
     }
 
     doc.save(`budget-${activeTab}-${scopeLabel}-${mode}.pdf`);
-  };
-
-  const exportProfitAndLossPdf = (condensed = false, mode: ExportColumnMode = 'budgeted') => {
-    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-    const scopeTypeLabel = 'Yearly';
-    const generatedAt = new Date().toLocaleString();
-
-    doc.setFontSize(16);
-    doc.text(`OliveOps Profit & Loss Statement${condensed ? ' (1-Page)' : ''}`, 40, 42);
-    doc.setFontSize(10);
-    doc.text(`Scope: ${scopeTypeLabel} (${scopeLabel})`, 40, 60);
-    doc.text(`Generated: ${generatedAt}`, 40, 74);
-
-    autoTable(doc, {
-      startY: 92,
-      head: [['P&L Summary', ...exportMetricHeaders()]],
-      body: [
-        ['Revenue', ...exportMetricCells(totalBudgetedRevenue)],
-        ['Direct Costs (Labour + Materials + Equipment + Subcontractors)', ...exportMetricCells(budgetedDirectCosts)],
-        ['Gross Profit', ...exportMetricCells(budgetedGrossProfit)],
-        ['Operating Expenses', ...exportMetricCells(budgetedOperatingExpenses)],
-        ['Net Profit', ...exportMetricCells(budgetedNetProfit)],
-      ],
-      styles: { fontSize: 9 },
-    });
-
-    autoTable(doc, {
-      startY: 232,
-      head: [['Margin Analysis', ...exportMetricHeaders()]],
-      body: [
-        ['Gross Margin %', ...exportMarginCells(budgetedGrossMarginPct)],
-        ['Net Margin %', ...exportMarginCells(budgetedNetMarginPct)],
-      ],
-      styles: { fontSize: 9 },
-    });
-
-    if (condensed) {
-      autoTable(doc, {
-        startY: 314,
-        head: [['Cost Category Snapshot', ...exportMetricHeaders()]],
-        body: [
-          ['Labour', ...exportMetricCells(grouped.labour.reduce((sum, item) => sum + item.budgeted, 0))],
-          ['Materials', ...exportMetricCells(grouped.materials.reduce((sum, item) => sum + item.budgeted, 0))],
-          ['Equipment', ...exportMetricCells(grouped.equipment.reduce((sum, item) => sum + item.budgeted, 0))],
-          ['Subcontractors', ...exportMetricCells(grouped.subcontractors.reduce((sum, item) => sum + item.budgeted, 0))],
-          ['Overhead', ...exportMetricCells(grouped.overhead.reduce((sum, item) => sum + item.budgeted, 0))],
-        ],
-        styles: { fontSize: 9 },
-      });
-
-      doc.save(`profit-loss-${scopeTypeLabel.toLowerCase()}-${scopeLabel}-1-page-${mode}.pdf`);
-      return;
-    }
-
-    autoTable(doc, {
-      startY: 314,
-      head: [['Cost Code', 'Revenue Description', ...exportMetricHeaders()]],
-      body: revenueItems.map((item) => [
-        item.costCode ?? '—',
-        item.description,
-        ...exportMetricCells(item.budgeted),
-      ]),
-      styles: { fontSize: 8 },
-    });
-
-    const cogsStartY = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY
-      ? ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 314) + 16
-      : 430;
-
-    autoTable(doc, {
-      startY: cogsStartY,
-      head: [['Cost Code', 'Direct Cost Description', 'Category', ...exportMetricHeaders()]],
-      body: directCostItems.map((item) => [
-        item.costCode ?? '—',
-        item.description,
-        item.category.replace(/_/g, ' '),
-        ...exportMetricCells(item.budgeted),
-      ]),
-      styles: { fontSize: 8 },
-    });
-
-    const opexStartY = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY
-      ? ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? cogsStartY) + 16
-      : cogsStartY + 120;
-
-    autoTable(doc, {
-      startY: opexStartY,
-      head: [['Cost Code', 'Operating Expense Description', 'Category', ...exportMetricHeaders()]],
-      body: operatingExpenseItems.map((item) => [
-        item.costCode ?? '—',
-        item.description,
-        item.category.replace(/_/g, ' '),
-        ...exportMetricCells(item.budgeted),
-      ]),
-      styles: { fontSize: 8 },
-    });
-
-    doc.save(`profit-loss-${scopeTypeLabel.toLowerCase()}-${scopeLabel}-${mode}.pdf`);
   };
 
   const updatePricingInput = (key: keyof typeof pricingInputs, value: number) => {
@@ -1371,9 +1236,7 @@ export default function BudgetPage() {
             <Button variant="danger" onClick={() => setConfirmDeleteBudgetOpen(true)}>
               <Trash2 size={16} /> Delete Budget
             </Button>
-            <Button variant="secondary" onClick={() => openExportModal('pnl_condensed')}><FileDown size={16} /> Export P&L 1-Page</Button>
-            <Button variant="secondary" onClick={() => openExportModal('pnl_detailed')}><FileDown size={16} /> Export P&L PDF</Button>
-            <Button variant="secondary" onClick={() => openExportModal('budget')}><FileDown size={16} /> Export PDF</Button>
+            <Button variant="secondary" onClick={() => exportToPdf('budgeted')}><FileDown size={16} /> Export Budget PDF</Button>
             {activeTab === 'labour' ? (
               <Button onClick={openLabourItemModal}><Plus size={16} /> Add Labour Item</Button>
             ) : (
@@ -2453,37 +2316,6 @@ export default function BudgetPage() {
         </div>
       </Modal>
 
-      <Modal
-        open={exportModalOpen}
-        onClose={() => setExportModalOpen(false)}
-        title="Export PDF Options"
-        footer={<>
-          <Button variant="secondary" onClick={() => setExportModalOpen(false)}>Cancel</Button>
-          <Button onClick={runExport}>Export</Button>
-        </>}
-      >
-        <div className="space-y-4">
-          <Input
-            label="Report"
-            value={
-              exportKind === 'budget'
-                ? 'Budget Report'
-                : exportKind === 'pnl_condensed'
-                  ? 'Profit & Loss (1-Page)'
-                  : 'Profit & Loss (Detailed)'
-            }
-            disabled
-          />
-          <Select
-            label="Columns"
-            value={exportColumnMode}
-            onChange={(e) => setExportColumnMode(e.target.value as ExportColumnMode)}
-            disabled
-          >
-            <option value="budgeted">Budgeted only</option>
-          </Select>
-        </div>
-      </Modal>
     </div>
   );
 }

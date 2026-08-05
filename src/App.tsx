@@ -25,6 +25,7 @@ import DataCenterDashboardPage from './pages/department-dashboards/DataCenterDas
 import ModulePlaceholderPage from './pages/placeholders/ModulePlaceholderPage';
 import InvoicesPage from './pages/finance/InvoicesPage';
 import ExpensesPage from './pages/finance/ExpensesPage';
+import ProfitLossPage from './pages/finance/ProfitLossPage';
 import EquipmentPage from './pages/operations/EquipmentPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
@@ -461,16 +462,7 @@ export default function App() {
               <Route path="finance/dashboard" element={<FinanceDashboardPage />} />
               <Route path="finance/invoices" element={<InvoicesPage />} />
               <Route path="finance/expenses" element={<ExpensesPage />} />
-              <Route
-                path="finance/profit-loss"
-                element={
-                  <ModulePlaceholderPage
-                    title="Profit & Loss"
-                    question="Are we profitable this period, and what is driving the result?"
-                    summary="Summarize revenue, direct costs, overhead, and margin in a contractor-friendly view for fast executive review."
-                  />
-                }
-              />
+              <Route path="finance/profit-loss" element={<ProfitLossPage />} />
               <Route path="operations/dashboard" element={<OperationsDashboardPage />} />
               <Route path="operations/equipment" element={<EquipmentPage />} />
               <Route
