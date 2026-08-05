@@ -30,7 +30,6 @@ const NAVIGATION_CONFIG: SidebarConfig = {
   pinnedPages: [
     { id: 'pin-calendar', type: 'link', to: '/calendar', label: 'Calendar', icon: icon(CalendarDays) },
     { id: 'pin-clients', type: 'link', to: '/crm', label: 'Clients', icon: icon(Users) },
-    { id: 'pin-templates', type: 'link', to: '/estimates/templates', label: 'Estimate Templates', icon: icon(FileText) },
     { id: 'pin-jobs', type: 'link', to: '/jobs', label: "Today's Jobs", icon: icon(Briefcase) },
   ],
   sections: [
@@ -42,16 +41,7 @@ const NAVIGATION_CONFIG: SidebarConfig = {
       items: [
         { id: 'revenue-dashboard', type: 'link', to: '/revenue/dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
         { id: 'revenue-clients', type: 'link', to: '/crm', label: 'Clients', icon: icon(Users) },
-        {
-          id: 'revenue-estimates',
-          type: 'group',
-          label: 'Estimates',
-          icon: icon(FileText),
-          defaultExpanded: true,
-          children: [
-            { id: 'revenue-estimates-list', type: 'link', to: '/estimates', label: 'All Estimates', icon: icon(FileText) },
-          ],
-        },
+        { id: 'revenue-estimates', type: 'link', to: '/estimates', label: 'Estimates', icon: icon(FileText) },
       ],
     },
     {
