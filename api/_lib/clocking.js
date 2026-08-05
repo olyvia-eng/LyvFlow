@@ -189,6 +189,7 @@ export function buildClockOutTransaction({
   employeeName = '',
 }) {
   const now = clockOutAt ?? nowIso();
+  const hasPhotoAttachment = typeof photoAttachmentUrl === 'string' && photoAttachmentUrl.trim().length > 0;
   const idempotencyItem = {
     PK: businessPk(businessId),
     SK: idempotencySk(idempotencyKey),
@@ -205,7 +206,7 @@ export function buildClockOutTransaction({
       clockOut: now,
       breakMinutes,
       notes,
-      photoAttachmentUrl: photoAttachmentUrl || undefined,
+      photoAttachmentUrl: hasPhotoAttachment ? photoAttachmentUrl : undefined,
       status: 'clocked_out',
     },
     createdAt: now,
@@ -231,17 +232,34 @@ export function buildClockOutTransaction({
     },
   };
 
-  const completionItem = {
-    PK: businessPk(businessId),
-    SK: `CLOCK_OUT#${timeEntryId}`,
-    entityType: 'CLOCK_OUT_STATE',
-    businessId,
-    entryId: timeEntryId,
-    employeeId,
-    status: 'completed',
-    createdAt: now,
-    updatedAt: now,
+  const updateExpressionParts = [
+    '#status = :status',
+    '#clockOut = :clockOut',
+    '#breakMinutes = :breakMinutes',
+    '#notes = :notes',
+    '#updatedAt = :updatedAt',
+  ];
+  const expressionAttributeNames = {
+    '#status': 'status',
+    '#clockOut': 'clockOut',
+    '#breakMinutes': 'breakMinutes',
+    '#notes': 'notes',
+    '#updatedAt': 'updatedAt',
   };
+  const expressionAttributeValues = {
+    ':status': 'clocked_out',
+    ':clockOut': now,
+    ':breakMinutes': breakMinutes,
+    ':notes': notes,
+    ':updatedAt': now,
+    ':clockedIn': 'clocked_in',
+  };
+
+  if (hasPhotoAttachment) {
+    updateExpressionParts.push('#photoAttachmentUrl = :photoAttachmentUrl');
+    expressionAttributeNames['#photoAttachmentUrl'] = 'photoAttachmentUrl';
+    expressionAttributeValues[':photoAttachmentUrl'] = photoAttachmentUrl;
+  }
 
   return {
     TransactItems: [
@@ -275,41 +293,16 @@ export function buildClockOutTransaction({
             PK: businessPk(businessId),
             SK: timeEntrySk(timeEntryId),
           },
-          UpdateExpression: 'SET #status = :status, #clockOut = :clockOut, #breakMinutes = :breakMinutes, #notes = :notes, #photoAttachmentUrl = :photoAttachmentUrl, #updatedAt = :updatedAt',
+          UpdateExpression: `SET ${updateExpressionParts.join(', ')}`,
           ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND #status = :clockedIn',
-          ExpressionAttributeNames: {
-            '#status': 'status',
-            '#clockOut': 'clockOut',
-            '#breakMinutes': 'breakMinutes',
-            '#notes': 'notes',
-            '#photoAttachmentUrl': 'photoAttachmentUrl',
-            '#updatedAt': 'updatedAt',
-          },
-          ExpressionAttributeValues: {
-            ':status': 'clocked_out',
-            ':clockOut': now,
-            ':breakMinutes': breakMinutes,
-            ':notes': notes,
-            ':photoAttachmentUrl': photoAttachmentUrl || undefined,
-            ':updatedAt': now,
-            ':clockedIn': 'clocked_in',
-          },
+          ExpressionAttributeNames: expressionAttributeNames,
+          ExpressionAttributeValues: expressionAttributeValues,
         },
       },
       {
         Put: {
           TableName: tableName,
           Item: auditItem,
-          ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
-        },
-      },
-      {
-        Put: {
-          TableName: tableName,
-          Item: {
-            ...idempotencyItem,
-            entityType: 'IDEMPOTENCY',
-          },
           ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
         },
       },
