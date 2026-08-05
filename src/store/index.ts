@@ -755,9 +755,9 @@ export const useStore = create<AppState>()((set, get) => ({
           },
           credentials: 'include',
           body: JSON.stringify({ data: timeEntry }),
-        })).catch(() => {
+        })).catch((error) => {
           set({ timeEntries: previous });
-          emitAppToast({ tone: 'error', message: 'Clock-in could not be saved.' });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-in could not be saved.') });
         });
       },
       clockOut: (entryId, breakMinutes = 0, notes = '') => {
@@ -778,9 +778,9 @@ export const useStore = create<AppState>()((set, get) => ({
           },
           credentials: 'include',
           body: JSON.stringify({ data: { clockOut: clockOutAt, breakMinutes, notes, status: 'clocked_out' } }),
-        })).catch(() => {
+        })).catch((error) => {
           set({ timeEntries: previous });
-          emitAppToast({ tone: 'error', message: 'Clock-out could not be saved.' });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-out could not be saved.') });
         });
       },
       addTimeEntry: (e) => {

@@ -1,37 +1,38 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
-import Dashboard from './pages/Dashboard';
-import CRMPage from './pages/crm/CRMPage';
-import EstimatesPage from './pages/estimates/EstimatesPage';
-import TemplatesPage from './pages/estimates/TemplatesPage';
-import JobsPage from './pages/jobs/JobsPage';
-import JobDetailPage from './pages/jobs/JobDetailPage';
-import BudgetPage from './pages/budget/BudgetPage';
-import BudgetsPage from './pages/budget/BudgetsPage';
-import EmployeesPage from './pages/employees/EmployeesPage';
-import DataCenterPage from './pages/datacenter/DataCenterPage';
-import TimeReportsPage from './pages/reports/TimeReportsPage';
-import EmployeePortalPage from './pages/employees/EmployeePortalPage';
-import CalendarPage from './pages/calendar/CalendarPage';
-import LoginPage from './pages/auth/LoginPage';
-import SignupPage from './pages/auth/SignupPage';
-import UserAccessPage from './pages/users/UserAccessPage';
-import RevenueDashboardPage from './pages/department-dashboards/RevenueDashboardPage';
-import FinanceDashboardPage from './pages/department-dashboards/FinanceDashboardPage';
-import OperationsDashboardPage from './pages/department-dashboards/OperationsDashboardPage';
-import EmployeesDashboardPage from './pages/department-dashboards/EmployeesDashboardPage';
-import DataCenterDashboardPage from './pages/department-dashboards/DataCenterDashboardPage';
-import ModulePlaceholderPage from './pages/placeholders/ModulePlaceholderPage';
-import InvoicesPage from './pages/finance/InvoicesPage';
-import ExpensesPage from './pages/finance/ExpensesPage';
-import ProfitLossPage from './pages/finance/ProfitLossPage';
-import EquipmentPage from './pages/operations/EquipmentPage';
-import FormsPage from './pages/operations/FormsPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
 import type { Budget, BudgetItem, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, FormField, FormRecord, FormResponse, FormSubmission, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const CRMPage = lazy(() => import('./pages/crm/CRMPage'));
+const EstimatesPage = lazy(() => import('./pages/estimates/EstimatesPage'));
+const TemplatesPage = lazy(() => import('./pages/estimates/TemplatesPage'));
+const JobsPage = lazy(() => import('./pages/jobs/JobsPage'));
+const JobDetailPage = lazy(() => import('./pages/jobs/JobDetailPage'));
+const BudgetPage = lazy(() => import('./pages/budget/BudgetPage'));
+const BudgetsPage = lazy(() => import('./pages/budget/BudgetsPage'));
+const EmployeesPage = lazy(() => import('./pages/employees/EmployeesPage'));
+const DataCenterPage = lazy(() => import('./pages/datacenter/DataCenterPage'));
+const TimeReportsPage = lazy(() => import('./pages/reports/TimeReportsPage'));
+const EmployeePortalPage = lazy(() => import('./pages/employees/EmployeePortalPage'));
+const CalendarPage = lazy(() => import('./pages/calendar/CalendarPage'));
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const SignupPage = lazy(() => import('./pages/auth/SignupPage'));
+const UserAccessPage = lazy(() => import('./pages/users/UserAccessPage'));
+const RevenueDashboardPage = lazy(() => import('./pages/department-dashboards/RevenueDashboardPage'));
+const FinanceDashboardPage = lazy(() => import('./pages/department-dashboards/FinanceDashboardPage'));
+const OperationsDashboardPage = lazy(() => import('./pages/department-dashboards/OperationsDashboardPage'));
+const EmployeesDashboardPage = lazy(() => import('./pages/department-dashboards/EmployeesDashboardPage'));
+const DataCenterDashboardPage = lazy(() => import('./pages/department-dashboards/DataCenterDashboardPage'));
+const ModulePlaceholderPage = lazy(() => import('./pages/placeholders/ModulePlaceholderPage'));
+const InvoicesPage = lazy(() => import('./pages/finance/InvoicesPage'));
+const ExpensesPage = lazy(() => import('./pages/finance/ExpensesPage'));
+const ProfitLossPage = lazy(() => import('./pages/finance/ProfitLossPage'));
+const EquipmentPage = lazy(() => import('./pages/operations/EquipmentPage'));
+const FormsPage = lazy(() => import('./pages/operations/FormsPage'));
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
 
@@ -411,6 +412,13 @@ export default function App() {
         </div>
       )}
       <BrowserRouter>
+      <Suspense
+        fallback={(
+          <div className="min-h-screen flex items-center justify-center bg-cream text-brand-400 text-sm">
+            Loading page...
+          </div>
+        )}
+      >
       <Routes>
         <Route
           path="employee-login"
@@ -624,6 +632,7 @@ export default function App() {
           </>
         )}
       </Routes>
+      </Suspense>
     </BrowserRouter>
     </>
   );

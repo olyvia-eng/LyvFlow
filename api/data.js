@@ -407,6 +407,136 @@ function isValidDateOnly(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+function isoDateOnly(value) {
+  if (typeof value !== 'string' || value.length < 10) return '';
+  return value.slice(0, 10);
+}
+
+function normalizeLower(value) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function sessionCanBypassFormGuard(session) {
+  return session.role === 'owner' || session.role === 'admin';
+}
+
+function pickEntryJobIds(entry) {
+  if (Array.isArray(entry?.jobIds) && entry.jobIds.length > 0) {
+    return entry.jobIds.filter((value) => typeof value === 'string' && value.length > 0);
+  }
+  if (typeof entry?.jobId === 'string' && entry.jobId.length > 0) {
+    return [entry.jobId];
+  }
+  return [];
+}
+
+function isFormAssignedToEmployee({ form, employee, contextJobIds }) {
+  if (form.assignedTo === 'everyone') return true;
+  if (form.assignedTo === 'role') return form.assignmentValue === employee.role;
+  if (form.assignedTo === 'employee') return form.assignmentValue === employee.id;
+  if (form.assignedTo === 'job') {
+    if (!isNonEmptyString(form.assignmentValue)) return false;
+    return contextJobIds.includes(form.assignmentValue);
+  }
+  if (form.assignedTo === 'division') {
+    // TODO: Enforce division-scoped assignments when employee-division mapping is available in backend data.
+    return true;
+  }
+  if (form.assignedTo === 'equipment') {
+    // TODO: Enforce equipment-scoped assignments when equipment context is attached to transitions.
+    return true;
+  }
+  return false;
+}
+
+function isSubmissionSatisfiedForForm({ submission, form, employeeId, dateKey, contextJobIds }) {
+  if (submission.formId !== form.id) return false;
+  if (submission.employeeId !== employeeId) return false;
+  if (submission.status !== 'submitted') return false;
+  if (isoDateOnly(submission.submittedAt) !== dateKey) return false;
+
+  if (form.assignedTo === 'job' && contextJobIds.length > 0) {
+    return contextJobIds.includes(submission.jobId ?? '');
+  }
+
+  return true;
+}
+
+async function getEmployeeByIdOrNull(businessId, employeeId) {
+  const employee = await getEmployeeForBusiness(businessId, employeeId);
+  return employee ?? null;
+}
+
+async function getSessionEmployeeOrNull(businessId, sessionEmail) {
+  const employees = await listEmployeesForBusiness(businessId);
+  const email = normalizeLower(sessionEmail);
+  return employees.find((employee) => normalizeLower(employee.email) === email && employee.active) ?? null;
+}
+
+async function getMissingRequiredFormsForTrigger({ businessId, trigger, employee, contextJobIds }) {
+  const [forms, submissions] = await Promise.all([
+    listFormsForBusiness(businessId),
+    listFormSubmissionsForBusiness(businessId),
+  ]);
+
+  const dateKey = new Date().toISOString().slice(0, 10);
+  return forms.filter((form) => {
+    if (form.status !== 'active') return false;
+    if (!Array.isArray(form.trigger) || !form.trigger.includes(trigger)) return false;
+    if (!isFormAssignedToEmployee({ form, employee, contextJobIds })) return false;
+
+    const submitted = submissions.some((submission) => isSubmissionSatisfiedForForm({
+      submission,
+      form,
+      employeeId: employee.id,
+      dateKey,
+      contextJobIds,
+    }));
+
+    return !submitted;
+  });
+}
+
+async function enforceRequiredForms({
+  session,
+  res,
+  trigger,
+  targetEmployeeId,
+  contextJobIds,
+}) {
+  if (sessionCanBypassFormGuard(session)) return { ok: true };
+
+  const sessionEmployee = await getSessionEmployeeOrNull(session.businessId, session.email);
+  if (!sessionEmployee) {
+    res.status(403).json({ ok: false, error: 'Your user is not linked to an active employee profile.' });
+    return { ok: false };
+  }
+
+  if (sessionEmployee.id !== targetEmployeeId) {
+    res.status(403).json({ ok: false, error: 'You can only perform this action for your own employee profile.' });
+    return { ok: false };
+  }
+
+  const missing = await getMissingRequiredFormsForTrigger({
+    businessId: session.businessId,
+    trigger,
+    employee: sessionEmployee,
+    contextJobIds,
+  });
+
+  if (missing.length > 0) {
+    const names = missing.slice(0, 3).map((form) => form.name).join(', ');
+    const suffix = missing.length > 3 ? ` and ${missing.length - 3} more` : '';
+    res.status(409).json({
+      ok: false,
+      error: `Required forms are incomplete before continuing: ${names}${suffix}.`,
+    });
+    return { ok: false };
+  }
+
+  return { ok: true };
+}
+
 function validateInvoiceRecord(record) {
   if (!isNonEmptyString(record.id)) return 'Invoice id is required.';
   if (!isNonEmptyString(record.jobId)) return 'Invoice job is required.';
@@ -666,6 +796,22 @@ export default async function handler(req, res) {
       }
     }
 
+    if (entity === 'time-entries' && record.status === 'clocked_in') {
+      const targetEmployee = await getEmployeeByIdOrNull(session.businessId, record.employeeId);
+      if (!targetEmployee) {
+        return res.status(400).json({ ok: false, error: 'Time entry employee is invalid.' });
+      }
+
+      const guard = await enforceRequiredForms({
+        session,
+        res,
+        trigger: 'before_clock_in',
+        targetEmployeeId: targetEmployee.id,
+        contextJobIds: pickEntryJobIds(record),
+      });
+      if (!guard.ok) return;
+    }
+
     try {
       await config.create({ businessId: session.businessId, [config.createArgKey]: record });
       return res.status(200).json({ ok: true });
@@ -767,6 +913,62 @@ export default async function handler(req, res) {
         const validationError = validateFormResponseRecord(next);
         if (validationError) {
           return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
+      if (
+        entity === 'time-entries'
+        && existing.status !== 'clocked_out'
+        && (next.status === 'clocked_out' || isNonEmptyString(next.clockOut))
+      ) {
+        const targetEmployee = await getEmployeeByIdOrNull(session.businessId, existing.employeeId);
+        if (!targetEmployee) {
+          return res.status(400).json({ ok: false, error: 'Time entry employee is invalid.' });
+        }
+
+        const guard = await enforceRequiredForms({
+          session,
+          res,
+          trigger: 'after_clock_out',
+          targetEmployeeId: targetEmployee.id,
+          contextJobIds: pickEntryJobIds(existing),
+        });
+        if (!guard.ok) return;
+      }
+
+      if (
+        entity === 'jobs'
+        && existing.status !== 'in_progress'
+        && next.status === 'in_progress'
+      ) {
+        const sessionEmployee = await getSessionEmployeeOrNull(session.businessId, session.email);
+        if (sessionEmployee) {
+          const guard = await enforceRequiredForms({
+            session,
+            res,
+            trigger: 'before_starting_job',
+            targetEmployeeId: sessionEmployee.id,
+            contextJobIds: [existing.id],
+          });
+          if (!guard.ok) return;
+        }
+      }
+
+      if (
+        entity === 'jobs'
+        && existing.status !== 'completed'
+        && next.status === 'completed'
+      ) {
+        const sessionEmployee = await getSessionEmployeeOrNull(session.businessId, session.email);
+        if (sessionEmployee) {
+          const guard = await enforceRequiredForms({
+            session,
+            res,
+            trigger: 'after_completing_job',
+            targetEmployeeId: sessionEmployee.id,
+            contextJobIds: [existing.id],
+          });
+          if (!guard.ok) return;
         }
       }
 
