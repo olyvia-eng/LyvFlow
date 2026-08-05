@@ -111,3 +111,33 @@ Examples of stored items:
   - `SK = USER`
 
 This model enforces unique email and supports listing users by business.
+
+## Budget Multi-Budget Migration
+
+When upgrading from single-budget data to multi-budget data, legacy budget-related records may not have a `budgetId` yet. Use the migration endpoint below to backfill those records safely.
+
+Endpoint: `/api/budget-migration`
+
+- `GET /api/budget-migration`: dry-run (no writes)
+- `POST /api/budget-migration`: execute migration
+- Optional `targetBudgetId` can be provided on query or body to force a target budget.
+
+Examples (authenticated owner/admin session required):
+
+```bash
+# Dry-run preview
+curl -X GET "http://localhost:5173/api/budget-migration" -b "<your-session-cookie>"
+
+# Execute migration using latest budget (or auto-create a legacy budget if none exists)
+curl -X POST "http://localhost:5173/api/budget-migration" -b "<your-session-cookie>"
+
+# Execute migration into a specific budget
+curl -X POST "http://localhost:5173/api/budget-migration?targetBudgetId=<budget-id>" -b "<your-session-cookie>"
+```
+
+The migration backfills `budgetId` on:
+
+- Budget items
+- Labour budget plans
+- Labour hours sales goals
+- Revenue sales goals
