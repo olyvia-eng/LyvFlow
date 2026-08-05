@@ -970,6 +970,34 @@ export default function BudgetPage() {
     });
   }, [labourPlannerRows]);
 
+  const categoryAnalysisRows = useMemo(() => {
+    const rows = [...categoryRows];
+    const labourIndex = rows.findIndex((row) => row.category === 'labour');
+    const plannerLabourBudgeted = labourPlannerTotalsAll.annualLabourCost;
+    const plannerLabourCount = labourPlannerRows.length;
+
+    if (labourIndex >= 0) {
+      rows[labourIndex] = {
+        ...rows[labourIndex],
+        budgeted: plannerLabourBudgeted,
+        count: Math.max(rows[labourIndex].count, plannerLabourCount),
+      };
+      return rows;
+    }
+
+    if (plannerLabourBudgeted > 0 || plannerLabourCount > 0) {
+      rows.push({
+        category: 'labour',
+        budgeted: plannerLabourBudgeted,
+        actual: 0,
+        variance: plannerLabourBudgeted,
+        count: plannerLabourCount,
+      });
+    }
+
+    return rows;
+  }, [categoryRows, labourPlannerRows.length, labourPlannerTotalsAll.annualLabourCost]);
+
   const renderLabourPlannerRow = (row: typeof labourPlannerRows[number]) => (
     <tr key={row.employee.id} className="hover:bg-gray-50">
       <td className="px-4 py-3">
@@ -1616,7 +1644,7 @@ export default function BudgetPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {categoryRows.map((row) => (
+                {categoryAnalysisRows.map((row) => (
                   <tr key={row.category} className="hover:bg-gray-50">
                     <td className="px-4 py-2 capitalize">{row.category}</td>
                     <td className="px-4 py-2 text-right">{formatCurrency(row.budgeted)}</td>
