@@ -26,8 +26,8 @@ const RevenueDashboardPage = lazy(() => import('./pages/department-dashboards/Re
 const FinanceDashboardPage = lazy(() => import('./pages/department-dashboards/FinanceDashboardPage'));
 const OperationsDashboardPage = lazy(() => import('./pages/department-dashboards/OperationsDashboardPage'));
 const EmployeesDashboardPage = lazy(() => import('./pages/department-dashboards/EmployeesDashboardPage'));
-const DataCenterDashboardPage = lazy(() => import('./pages/department-dashboards/DataCenterDashboardPage'));
 const ModulePlaceholderPage = lazy(() => import('./pages/placeholders/ModulePlaceholderPage'));
+const DocumentsPage = lazy(() => import('./pages/data-center/DocumentsPage'));
 const InvoicesPage = lazy(() => import('./pages/finance/InvoicesPage'));
 const ExpensesPage = lazy(() => import('./pages/finance/ExpensesPage'));
 const ProfitLossPage = lazy(() => import('./pages/finance/ProfitLossPage'));
@@ -538,27 +538,7 @@ export default function App() {
                   />
                 }
               />
-              <Route path="data-center/dashboard" element={<DataCenterDashboardPage />} />
-              <Route
-                path="data-center/documents"
-                element={
-                  <ModulePlaceholderPage
-                    title="Documents"
-                    question="Where are the latest project documents and who can access them?"
-                    summary="Centralize important files by department and job context to reduce searching and keep teams aligned on current information."
-                  />
-                }
-              />
-              <Route
-                path="data-center/forms"
-                element={
-                  <ModulePlaceholderPage
-                    title="Forms"
-                    question="Which operational forms are required and are they being completed consistently?"
-                    summary="Standardize field and office form workflows to improve accountability and reduce missed compliance steps."
-                  />
-                }
-              />
+              <Route path="data-center/documents" element={<DocumentsPage />} />
               <Route
                 path="data-center/photos"
                 element={

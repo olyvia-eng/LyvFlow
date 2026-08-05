@@ -13,7 +13,7 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function generateId() {
+export function generateId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
@@ -58,6 +58,10 @@ function equipmentSk(equipmentId) {
 
 function receiptSk(receiptId) {
   return `RECEIPT#${receiptId}`;
+}
+
+function fileSk(fileId) {
+  return `FILE#${fileId}`;
 }
 
 function formSk(formId) {
@@ -1307,6 +1311,86 @@ export async function getReceiptForBusiness(businessId, receiptId) {
     sizeBytes: result.Item.sizeBytes,
     uploadedAt: result.Item.uploadedAt,
   };
+}
+
+export async function createFileForBusiness({ businessId, file }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: fileSk(file.id),
+        entityType: 'FILE',
+        businessId,
+        fileId: file.id,
+        ...file,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listFilesForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'FILE#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.fileId,
+    fileName: item.fileName,
+    mimeType: item.mimeType,
+    sizeBytes: item.sizeBytes,
+    key: item.key,
+    uploadedAt: item.uploadedAt,
+    uploadedByUserId: item.uploadedByUserId,
+  }));
+}
+
+export async function getFileForBusiness(businessId, fileId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: fileSk(fileId),
+      },
+    })
+  );
+
+  if (!result.Item) return null;
+
+  return {
+    id: result.Item.fileId,
+    fileName: result.Item.fileName,
+    mimeType: result.Item.mimeType,
+    sizeBytes: result.Item.sizeBytes,
+    key: result.Item.key,
+    uploadedAt: result.Item.uploadedAt,
+    uploadedByUserId: result.Item.uploadedByUserId,
+  };
+}
+
+export async function deleteFileForBusiness(businessId, fileId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: fileSk(fileId),
+      },
+    })
+  );
+
+  return { ok: true };
 }
 
 export async function listFormsForBusiness(businessId) {

@@ -13,11 +13,13 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --test tests/access-control.test.mjs"
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1095.0",
+    "@aws-sdk/client-s3": "^3.1103.0",
     "@aws-sdk/lib-dynamodb": "^3.1095.0",
+    "@aws-sdk/s3-request-presigner": "^3.1103.0",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",
     "jsonwebtoken": "^9.0.3",
