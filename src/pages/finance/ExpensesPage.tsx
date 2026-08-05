@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FilePlus2, HandCoins, Pencil, Receipt, Wallet, Link as LinkIcon } from 'lucide-react';
 import { Button, Card, EmptyState, Input, Modal, PageHeader, Select, StatCard } from '../../components/ui';
 import { useStore } from '../../store';
@@ -55,6 +55,11 @@ export default function ExpensesPage() {
   const [form, setForm] = useState(emptyExpenseForm());
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [receiptUploadError, setReceiptUploadError] = useState('');
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState('');
+  const [receiptPreviewKind, setReceiptPreviewKind] = useState<'image' | 'pdf' | 'other' | null>(null);
+  const [receiptPreviewIsObjectUrl, setReceiptPreviewIsObjectUrl] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const jobLookup = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
   const customerLookup = useMemo(() => new Map(customers.map((customer) => [customer.id, customer])), [customers]);
@@ -99,6 +104,9 @@ export default function ExpensesPage() {
     setEditing(null);
     setForm(emptyExpenseForm());
     setReceiptUploadError('');
+    setReceiptPreviewUrl('');
+    setReceiptPreviewKind(null);
+    setReceiptPreviewIsObjectUrl(false);
     setModalOpen(true);
   };
 
@@ -116,7 +124,36 @@ export default function ExpensesPage() {
       receiptUrl: expense.receiptUrl ?? '',
     });
     setReceiptUploadError('');
+    setReceiptPreviewUrl(expense.receiptUrl ?? '');
+    setReceiptPreviewKind(expense.receiptUrl ? 'other' : null);
+    setReceiptPreviewIsObjectUrl(false);
     setModalOpen(true);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (receiptPreviewIsObjectUrl && receiptPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(receiptPreviewUrl);
+      }
+    };
+  }, [receiptPreviewIsObjectUrl, receiptPreviewUrl]);
+
+  const setPreviewFromFile = (file: File) => {
+    if (receiptPreviewIsObjectUrl && receiptPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(receiptPreviewUrl);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const mime = file.type.toLowerCase();
+    const kind = mime.startsWith('image/') ? 'image' : mime === 'application/pdf' ? 'pdf' : 'other';
+    setReceiptPreviewUrl(objectUrl);
+    setReceiptPreviewKind(kind);
+    setReceiptPreviewIsObjectUrl(true);
+  };
+
+  const handleReceiptFile = async (file: File) => {
+    setPreviewFromFile(file);
+    await uploadReceiptFile(file);
   };
 
   const setField = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
@@ -351,17 +388,50 @@ export default function ExpensesPage() {
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Receipt File (Optional)</label>
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/*,.pdf"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
-                void uploadReceiptFile(file);
+                void handleReceiptFile(file);
                 event.currentTarget.value = '';
               }}
-              className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700"
+              className="hidden"
               disabled={receiptUploading}
             />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDropActive(true);
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault();
+                setDropActive(false);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDropActive(false);
+                const file = event.dataTransfer.files?.[0];
+                if (!file) return;
+                void handleReceiptFile(file);
+              }}
+              className={`rounded-lg border-2 border-dashed px-4 py-5 text-sm transition-colors ${
+                dropActive ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-300 bg-white text-gray-600 hover:border-brand-400'
+              }`}
+            >
+              <p className="font-medium">Drag and drop receipt here</p>
+              <p className="mt-1 text-xs">or click to browse (image or PDF, max 2 MB)</p>
+            </div>
             {receiptUploading && <p className="text-xs text-gray-500">Uploading receipt...</p>}
             {receiptUploadError && <p className="text-xs text-accent-700">{receiptUploadError}</p>}
             {form.receiptUrl ? (
@@ -369,6 +439,12 @@ export default function ExpensesPage() {
                 <LinkIcon size={13} /> View uploaded receipt
               </a>
             ) : null}
+            {receiptPreviewUrl && receiptPreviewKind === 'image' && (
+              <img src={receiptPreviewUrl} alt="Receipt preview" className="mt-2 max-h-48 rounded-md border border-gray-200 object-contain" />
+            )}
+            {receiptPreviewUrl && receiptPreviewKind === 'pdf' && (
+              <iframe title="Receipt preview" src={receiptPreviewUrl} className="mt-2 h-52 w-full rounded-md border border-gray-200" />
+            )}
           </div>
           <Input
             label="Receipt URL (Optional)"
