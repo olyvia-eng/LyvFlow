@@ -359,7 +359,6 @@ const EXPENSE_CATEGORIES = new Set(['materials', 'equipment', 'subcontractor', '
 const EQUIPMENT_STATUSES = new Set(['available', 'in_use', 'maintenance', 'inactive']);
 const EQUIPMENT_COST_TYPES = new Set(['financed', 'leased', 'owned']);
 const BUDGET_TYPES = new Set(['operating', 'capital', 'project', 'forecast', 'custom']);
-const BUDGET_DIVISIONS = new Set(['company_wide', 'earthworks', 'septic', 'landscaping', 'other']);
 const BUDGET_STATUSES = new Set(['draft', 'active', 'archived']);
 const FORM_CATEGORIES = new Set(['safety', 'vehicle', 'equipment', 'job_site', 'hr', 'operations', 'maintenance', 'custom']);
 const FORM_STATUSES = new Set(['active', 'draft', 'archived']);
@@ -598,7 +597,7 @@ function validateBudgetRecord(record) {
   if (!isNonEmptyString(record.id)) return 'Budget id is required.';
   if (!isNonEmptyString(record.name)) return 'Budget name is required.';
   if (!BUDGET_TYPES.has(record.budgetType)) return 'Budget type is invalid.';
-  if (!BUDGET_DIVISIONS.has(record.division)) return 'Budget division is invalid.';
+  if (!isNonEmptyString(record.division)) return 'Budget division is required.';
   if (typeof record.fiscalYear !== 'string' || !YEAR_REGEX.test(record.fiscalYear)) {
     return 'Fiscal year must use YYYY format.';
   }

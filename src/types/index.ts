@@ -339,7 +339,7 @@ export type BudgetCategory =
   | 'other';
 
 export type BudgetType = 'operating' | 'capital' | 'project' | 'forecast' | 'custom';
-export type BudgetDivision = 'company_wide' | 'earthworks' | 'septic' | 'landscaping' | 'other';
+export type BudgetDivision = string;
 export type BudgetStatus = 'draft' | 'active' | 'archived';
 
 export interface Budget {

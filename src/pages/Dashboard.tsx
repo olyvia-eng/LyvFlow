@@ -9,7 +9,6 @@ import {
   TrendingUp,
   FileText,
   Briefcase,
-  Wallet,
 } from 'lucide-react';
 
 type ActivityEvent = {
@@ -44,12 +43,6 @@ export default function Dashboard() {
     0
   );
   const grossProfit = totalRevenue - completedActualCost;
-
-  const allActualCost = jobs.reduce(
-    (sum, job) => sum + job.actualCosts.reduce((entrySum, entry) => entrySum + entry.total, 0),
-    0
-  );
-  const cashPosition = totalRevenue - allActualCost;
 
   const openEstimateValue = openEstimates.reduce((sum, estimate) => {
     const lineTotal = estimate.lineItems.reduce((lineSum, item) => lineSum + item.total, 0);
@@ -114,7 +107,7 @@ export default function Dashboard() {
         subtitle="Executive overview of business performance."
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <StatCard
           label="Revenue"
           value={formatCurrency(totalRevenue)}
@@ -141,13 +134,6 @@ export default function Dashboard() {
           sub={`${scheduledJobs} scheduled next`}
           icon={<Briefcase size={32} />}
           color="text-brand-600"
-        />
-        <StatCard
-          label="Cash Position"
-          value={formatCurrency(cashPosition)}
-          sub="Revenue less actual job costs"
-          icon={<Wallet size={32} />}
-          color={cashPosition >= 0 ? 'text-brand-700' : 'text-accent-700'}
         />
       </div>
 

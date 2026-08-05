@@ -3,23 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Card, EmptyState, Input, Modal, PageHeader, Select } from '../../components/ui';
 import { Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
-import type { BudgetDivision, BudgetStatus, BudgetType } from '../../types';
-
-const budgetTypes: Array<{ value: BudgetType; label: string }> = [
-  { value: 'operating', label: 'Operating Budget' },
-  { value: 'capital', label: 'Capital Budget' },
-  { value: 'project', label: 'Project Budget' },
-  { value: 'forecast', label: 'Forecast / What-If' },
-  { value: 'custom', label: 'Custom' },
-];
-
-const divisions: Array<{ value: BudgetDivision; label: string }> = [
-  { value: 'company_wide', label: 'Company Wide' },
-  { value: 'earthworks', label: 'Earthworks' },
-  { value: 'septic', label: 'Septic' },
-  { value: 'landscaping', label: 'Landscaping' },
-  { value: 'other', label: 'Other' },
-];
+import type { BudgetStatus } from '../../types';
 
 const statuses: Array<{ value: BudgetStatus; label: string }> = [
   { value: 'draft', label: 'Draft' },
@@ -40,8 +24,7 @@ const toFriendlyLabel = (value: string) => value
 
 const emptyBudgetForm = () => ({
   name: '',
-  budgetType: 'operating' as BudgetType,
-  division: 'company_wide' as BudgetDivision,
+  division: 'company_wide',
   fiscalYear: String(new Date().getFullYear()),
   status: 'draft' as BudgetStatus,
 });
@@ -103,8 +86,8 @@ export default function BudgetsPage() {
 
     const created = addBudget({
       name: form.name.trim(),
-      budgetType: form.budgetType,
-      division: form.division,
+      budgetType: 'operating',
+      division: form.division.trim(),
       fiscalYear: form.fiscalYear,
       status: form.status,
     });
@@ -134,7 +117,6 @@ export default function BudgetsPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                   <th className="px-4 py-3 font-medium">Budget Name</th>
-                  <th className="px-4 py-3 font-medium">Budget Type</th>
                   <th className="px-4 py-3 font-medium">Division</th>
                   <th className="px-4 py-3 font-medium">Fiscal Year</th>
                   <th className="px-4 py-3 font-medium">Status</th>
@@ -151,8 +133,7 @@ export default function BudgetsPage() {
                     onClick={() => navigate(`/budgets/${budget.id}`)}
                   >
                     <td className="px-4 py-3 font-medium text-gray-900">{budget.name}</td>
-                    <td className="px-4 py-3 text-gray-700">{budgetTypes.find((value) => value.value === budget.budgetType)?.label ?? toFriendlyLabel(budget.budgetType)}</td>
-                    <td className="px-4 py-3 text-gray-700">{divisions.find((value) => value.value === budget.division)?.label ?? toFriendlyLabel(budget.division)}</td>
+                    <td className="px-4 py-3 text-gray-700">{budget.division}</td>
                     <td className="px-4 py-3 text-gray-700">{budget.fiscalYear}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusClass[budget.status]}`}>
@@ -203,26 +184,13 @@ export default function BudgetsPage() {
             onChange={(event) => setField('name', event.target.value)}
             placeholder="e.g. 2027 Company Operating Budget"
           />
-          <Select
-            label="Budget Type"
-            required
-            value={form.budgetType}
-            onChange={(event) => setField('budgetType', event.target.value as BudgetType)}
-          >
-            {budgetTypes.map((type) => (
-              <option key={type.value} value={type.value}>{type.label}</option>
-            ))}
-          </Select>
-          <Select
+          <Input
             label="Division"
             required
             value={form.division}
-            onChange={(event) => setField('division', event.target.value as BudgetDivision)}
-          >
-            {divisions.map((division) => (
-              <option key={division.value} value={division.value}>{division.label}</option>
-            ))}
-          </Select>
+            onChange={(event) => setField('division', event.target.value)}
+            placeholder="e.g. Earthworks"
+          />
           <Input
             label="Fiscal Year"
             required

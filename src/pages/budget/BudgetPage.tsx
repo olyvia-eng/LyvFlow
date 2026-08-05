@@ -8,7 +8,6 @@ import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/n
 import type {
   BudgetItem,
   Budget,
-  BudgetType,
   BudgetCategory,
   LabourBudgetPlan,
   LabourCompType,
@@ -28,14 +27,6 @@ type LabourTableView = 'all' | LabourCompType;
 type EquipmentTableView = 'all' | EquipmentCostType;
 
 const EQUIPMENT_COST_TYPES: EquipmentCostType[] = ['financed', 'leased', 'owned'];
-
-const BUDGET_TYPE_OPTIONS: Array<{ value: BudgetType; label: string }> = [
-  { value: 'operating', label: 'Operating Budget' },
-  { value: 'capital', label: 'Capital Budget' },
-  { value: 'project', label: 'Project Budget' },
-  { value: 'forecast', label: 'Forecast / What-If' },
-  { value: 'custom', label: 'Custom' },
-];
 
 const normalizeEquipmentCostType = (value: string | undefined): EquipmentCostType => {
   if (value === 'financed' || value === 'leased' || value === 'owned') return value;
@@ -205,7 +196,7 @@ export default function BudgetPage() {
   const [showEquipmentCalcDetails, setShowEquipmentCalcDetails] = useState(false);
   const [isEditingBudgetMeta, setIsEditingBudgetMeta] = useState(false);
   const [budgetNameDraft, setBudgetNameDraft] = useState('');
-  const [budgetTypeDraft, setBudgetTypeDraft] = useState<BudgetType>('operating');
+  const [budgetDivisionDraft, setBudgetDivisionDraft] = useState('');
   const [budgetMetaError, setBudgetMetaError] = useState('');
   const [confirmDeleteBudgetOpen, setConfirmDeleteBudgetOpen] = useState(false);
   const [averageFuelPriceInput, setAverageFuelPriceInput] = useState('0');
@@ -240,13 +231,13 @@ export default function BudgetPage() {
     if (!activeBudget) return;
     if (isEditingBudgetMeta) return;
     setBudgetNameDraft(activeBudget.name);
-    setBudgetTypeDraft(activeBudget.budgetType);
+    setBudgetDivisionDraft(activeBudget.division);
   }, [activeBudget, isEditingBudgetMeta]);
 
   const startEditingBudgetMeta = () => {
     if (!activeBudget) return;
     setBudgetNameDraft(activeBudget.name);
-    setBudgetTypeDraft(activeBudget.budgetType);
+    setBudgetDivisionDraft(activeBudget.division);
     setBudgetMetaError('');
     setIsEditingBudgetMeta(true);
   };
@@ -259,14 +250,19 @@ export default function BudgetPage() {
   const saveBudgetMeta = () => {
     if (!activeBudget) return;
     const trimmedName = budgetNameDraft.trim();
+    const trimmedDivision = budgetDivisionDraft.trim();
     if (!trimmedName) {
       setBudgetMetaError('Budget name is required.');
+      return;
+    }
+    if (!trimmedDivision) {
+      setBudgetMetaError('Division is required.');
       return;
     }
 
     updateBudget(activeBudget.id, {
       name: trimmedName,
-      budgetType: budgetTypeDraft,
+      division: trimmedDivision,
     });
     setBudgetMetaError('');
     setIsEditingBudgetMeta(false);
@@ -1258,17 +1254,13 @@ export default function BudgetPage() {
                 onChange={(e) => setBudgetNameDraft(e.target.value)}
                 className="min-w-[260px]"
               />
-              <Select
-                label="Budget Type"
+              <Input
+                label="Division"
                 required
-                value={budgetTypeDraft}
-                onChange={(e) => setBudgetTypeDraft(e.target.value as BudgetType)}
+                value={budgetDivisionDraft}
+                onChange={(e) => setBudgetDivisionDraft(e.target.value)}
                 className="min-w-[220px]"
-              >
-                {BUDGET_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </Select>
+              />
               <Button size="sm" onClick={saveBudgetMeta}>Save</Button>
               <Button size="sm" variant="secondary" onClick={cancelEditingBudgetMeta}>Cancel</Button>
               {budgetMetaError && <span className="text-xs text-accent-700">{budgetMetaError}</span>}
@@ -1277,9 +1269,6 @@ export default function BudgetPage() {
             <>
               <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
                 Budget: {activeBudget.name}
-              </span>
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                {toOptionLabel(activeBudget.budgetType)}
               </span>
               <Button size="sm" variant="secondary" onClick={startEditingBudgetMeta}>
                 <Pencil size={14} /> Edit Budget
