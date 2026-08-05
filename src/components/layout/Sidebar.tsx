@@ -6,6 +6,7 @@ import {
   Pin,
   Moon,
   Sun,
+  ChevronsLeft,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -41,9 +42,18 @@ interface SidebarProps {
   businessName: string;
   userRole: BusinessUserRole;
   onLogout: () => void | Promise<void>;
+  isDesktopCollapsed: boolean;
+  onToggleDesktopCollapsed: () => void;
 }
 
-export default function Sidebar({ userName, businessName, userRole, onLogout }: SidebarProps) {
+export default function Sidebar({
+  userName,
+  businessName,
+  userRole,
+  onLogout,
+  isDesktopCollapsed,
+  onToggleDesktopCollapsed,
+}: SidebarProps) {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -295,10 +305,25 @@ export default function Sidebar({ userName, businessName, userRole, onLogout }: 
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-72 min-h-screen bg-white dark:bg-brand-800 border-r border-brand-100 dark:border-brand-600 p-4 fixed top-0 left-0 bottom-0">
-        <div className="flex items-center gap-2 font-semibold text-brand-800 dark:text-brand-100 text-[28px] mb-4 px-1">
-          <Leaf size={24} />
-          <span className="text-2xl">OliveOps</span>
+      <aside
+        className={`hidden lg:flex flex-col w-72 min-h-screen bg-white dark:bg-brand-800 border-r border-brand-100 dark:border-brand-600 p-4 fixed top-0 left-0 bottom-0 transition-transform duration-200 ${
+          isDesktopCollapsed ? '-translate-x-full' : 'translate-x-0'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2 font-semibold text-brand-800 dark:text-brand-100 text-[28px] mb-4 px-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <Leaf size={24} />
+            <span className="text-2xl truncate">OliveOps</span>
+          </div>
+          <button
+            type="button"
+            onClick={onToggleDesktopCollapsed}
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-brand-600 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
+          >
+            <ChevronsLeft size={16} />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto pr-1">

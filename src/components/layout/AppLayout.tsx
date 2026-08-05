@@ -1,9 +1,12 @@
 import { Outlet } from 'react-router-dom';
-import { Pin } from 'lucide-react';
+import { Menu, Pin } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
 import type { BusinessUserRole } from '../../auth/types';
 import { PinnedPagesProvider, usePinnedPages } from '../../navigation/PinnedPagesContext';
 import { Button } from '../ui';
+
+const DESKTOP_SIDEBAR_COLLAPSED_KEY = 'oliveops.sidebar.desktop-collapsed.v1';
 
 interface AppLayoutProps {
   userName: string;
@@ -31,15 +34,52 @@ function PinPageButton() {
 }
 
 export default function AppLayout({ userName, businessName, userRole, onLogout }: AppLayoutProps) {
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(DESKTOP_SIDEBAR_COLLAPSED_KEY) === 'true';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(DESKTOP_SIDEBAR_COLLAPSED_KEY, String(isDesktopSidebarCollapsed));
+  }, [isDesktopSidebarCollapsed]);
+
+  const toggleDesktopSidebarCollapsed = () => {
+    setIsDesktopSidebarCollapsed((current) => !current);
+  };
+
   return (
     <PinnedPagesProvider userRole={userRole}>
       <div className="min-h-screen bg-cream dark:bg-brand-900">
-        <Sidebar userName={userName} businessName={businessName} userRole={userRole} onLogout={onLogout} />
+        <Sidebar
+          userName={userName}
+          businessName={businessName}
+          userRole={userRole}
+          onLogout={onLogout}
+          isDesktopCollapsed={isDesktopSidebarCollapsed}
+          onToggleDesktopCollapsed={toggleDesktopSidebarCollapsed}
+        />
         {/* Content area shifts right on desktop, down on mobile */}
-        <main className="lg:ml-72 pt-14 lg:pt-0 min-h-screen">
+        <main className={`pt-14 lg:pt-0 min-h-screen transition-[margin] duration-200 ${isDesktopSidebarCollapsed ? 'lg:ml-0' : 'lg:ml-72'}`}>
           <div className="border-b border-brand-100 dark:border-brand-600 bg-white dark:bg-brand-800">
             <div className="p-3 sm:px-6 sm:py-3 max-w-7xl mx-auto">
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between gap-3">
+                <div className="hidden lg:block">
+                  {isDesktopSidebarCollapsed ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={toggleDesktopSidebarCollapsed}
+                      className="text-brand-700 dark:text-brand-100"
+                      title="Expand sidebar"
+                      aria-label="Expand sidebar"
+                    >
+                      <Menu size={14} />
+                      Menu
+                    </Button>
+                  ) : <span />}
+                </div>
                 <PinPageButton />
               </div>
             </div>

@@ -1622,7 +1622,7 @@ export default function BudgetPage() {
         </div>
       )}
 
-      {items.length === 0 ? (
+      {activeTab !== 'labour' && (items.length === 0 ? (
         <EmptyState title={`No budget items for ${scopeLabel}`} action={<Button onClick={openNew}><Plus size={16} /> Add Budget Item</Button>} />
       ) : activeTab === 'analysis' ? (
         <div className="space-y-6">
@@ -1696,7 +1696,7 @@ export default function BudgetPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {activeTab !== 'labour' && activeTab !== 'revenue' && (
+          {activeTab !== 'revenue' && (
             <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
               <Card className="p-4">
                 <p className="text-xs text-gray-500">Budgeted {activeTab}</p>
@@ -1748,7 +1748,7 @@ export default function BudgetPage() {
             </Card>
           )}
         </div>
-      )}
+      ))}
 
       {/* Form modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Budget Item' : 'New Budget Item'}
