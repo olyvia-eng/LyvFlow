@@ -44,6 +44,10 @@ function estimateSk(estimateId) {
   return `ESTIMATE#${estimateId}`;
 }
 
+function invoiceSk(invoiceId) {
+  return `INVOICE#${invoiceId}`;
+}
+
 function templateSk(templateId) {
   return `TEMPLATE#${templateId}`;
 }
@@ -998,6 +1002,113 @@ export async function deleteEstimateForBusiness(businessId, estimateId) {
       Key: {
         PK: businessPk(businessId),
         SK: estimateSk(estimateId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listInvoicesForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'INVOICE#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.invoiceId,
+    jobId: item.jobId,
+    customerId: item.customerId,
+    number: item.number,
+    issueDate: item.issueDate,
+    dueDate: item.dueDate,
+    status: item.status,
+    amount: item.amount,
+    notes: item.notes,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+}
+
+export async function createInvoiceForBusiness({ businessId, invoice }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: invoiceSk(invoice.id),
+        entityType: 'INVOICE',
+        businessId,
+        invoiceId: invoice.id,
+        ...invoice,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getInvoiceForBusiness(businessId, invoiceId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: invoiceSk(invoiceId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.invoiceId,
+        jobId: result.Item.jobId,
+        customerId: result.Item.customerId,
+        number: result.Item.number,
+        issueDate: result.Item.issueDate,
+        dueDate: result.Item.dueDate,
+        status: result.Item.status,
+        amount: result.Item.amount,
+        notes: result.Item.notes,
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateInvoiceForBusiness({ businessId, invoice }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: invoiceSk(invoice.id),
+        entityType: 'INVOICE',
+        businessId,
+        invoiceId: invoice.id,
+        ...invoice,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteInvoiceForBusiness(businessId, invoiceId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: invoiceSk(invoiceId),
       },
     })
   );

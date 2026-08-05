@@ -74,6 +74,24 @@ export interface EstimateTemplate {
   createdAt: string;
 }
 
+// ─── Invoices ───────────────────────────────────────────────────────────────
+
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
+
+export interface Invoice {
+  id: ID;
+  jobId: ID;
+  customerId: ID;
+  number: string;
+  issueDate: string;
+  dueDate: string;
+  status: InvoiceStatus;
+  amount: number;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Jobs ────────────────────────────────────────────────────────────────────
 
 export type JobStatus = 'scheduled' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
