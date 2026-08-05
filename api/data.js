@@ -97,6 +97,7 @@ import {
   updateTimeEntryForBusiness,
 } from './_lib/authRepo.js';
 import { requireSession } from './_lib/session.js';
+import { filterRecordsForSession, authorizeRecordAccess } from './_lib/authorization.js';
 
 const ENTITY_CONFIG = {
   budgets: {
@@ -700,19 +701,20 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const session = requireSession(req, res, config.readRoles ?? undefined);
+    const session = requireSession(req, res, config.readRoles ?? undefined, entity);
     if (!session) return;
 
     try {
       const items = await config.list(session.businessId);
-      return res.status(200).json({ ok: true, items });
+      const scopedItems = filterRecordsForSession(session, entity, items);
+      return res.status(200).json({ ok: true, items: scopedItems });
     } catch {
       return res.status(500).json({ ok: false, error: `Could not load ${entity}` });
     }
   }
 
   if (req.method === 'POST') {
-    const session = requireSession(req, res, config.writeRoles ?? undefined);
+    const session = requireSession(req, res, config.writeRoles ?? undefined, entity);
     if (!session) return;
 
     const record = req.body?.data;
@@ -821,7 +823,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const session = requireSession(req, res, config.writeRoles ?? undefined);
+    const session = requireSession(req, res, config.writeRoles ?? undefined, entity);
     if (!session) return;
 
     const id = req.query.id;
@@ -834,6 +836,11 @@ export default async function handler(req, res) {
       const existing = await config.get(session.businessId, id);
       if (!existing) {
         return res.status(404).json({ ok: false, error: `${entity} not found` });
+      }
+
+      const isAllowed = authorizeRecordAccess(session, entity, existing);
+      if (!isAllowed) {
+        return res.status(403).json({ ok: false, error: 'Forbidden' });
       }
 
       const next = { ...existing, ...data };
@@ -980,7 +987,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    const session = requireSession(req, res, config.writeRoles ?? undefined);
+    const session = requireSession(req, res, config.writeRoles ?? undefined, entity);
     if (!session) return;
 
     const id = req.query.id;
@@ -989,8 +996,18 @@ export default async function handler(req, res) {
     }
 
     try {
+      const existing = await config.get(session.businessId, id);
+      if (!existing) {
+        return res.status(404).json({ ok: false, error: `${entity} not found` });
+      }
+
+      const isAllowed = authorizeRecordAccess(session, entity, existing);
+      if (!isAllowed) {
+        return res.status(403).json({ ok: false, error: 'Forbidden' });
+      }
+
       if (entity === 'employees') {
-        const existing = await getEmployeeForBusiness(session.businessId, id);
+        const employee = await getEmployeeForBusiness(session.businessId, id);
         if (existing?.email) {
           const authDelete = await deleteAuthUserForBusinessByEmail(session.businessId, existing.email);
           if (!authDelete.ok) {

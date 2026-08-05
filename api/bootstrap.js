@@ -19,6 +19,7 @@ import {
   listTimeEntriesForBusiness,
 } from './_lib/authRepo.js';
 import { requireSession } from './_lib/session.js';
+import { filterRecordsForSession } from './_lib/authorization.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -53,24 +54,24 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      forms,
-      formFields,
-      formSubmissions,
-      formResponses,
-      budgets,
-      customers,
-      jobs,
-      estimates,
-      invoices,
-      expenses,
-      equipmentAssets,
-      templates,
-      budgetItems,
-      labourBudgetPlans,
-      labourHoursSalesGoals,
-      revenueSalesGoals,
-      employees,
-      timeEntries,
+      forms: filterRecordsForSession(session, 'forms', forms),
+      formFields: filterRecordsForSession(session, 'form-fields', formFields),
+      formSubmissions: filterRecordsForSession(session, 'form-submissions', formSubmissions),
+      formResponses: filterRecordsForSession(session, 'form-responses', formResponses),
+      budgets: filterRecordsForSession(session, 'budgets', budgets),
+      customers: filterRecordsForSession(session, 'customers', customers),
+      jobs: filterRecordsForSession(session, 'jobs', jobs),
+      estimates: filterRecordsForSession(session, 'estimates', estimates),
+      invoices: filterRecordsForSession(session, 'invoices', invoices),
+      expenses: filterRecordsForSession(session, 'expenses', expenses),
+      equipmentAssets: filterRecordsForSession(session, 'equipment-assets', equipmentAssets),
+      templates: filterRecordsForSession(session, 'templates', templates),
+      budgetItems: filterRecordsForSession(session, 'budget', budgetItems),
+      labourBudgetPlans: filterRecordsForSession(session, 'labour-budget-plans', labourBudgetPlans),
+      labourHoursSalesGoals: filterRecordsForSession(session, 'labour-hours-sales-goals', labourHoursSalesGoals),
+      revenueSalesGoals: filterRecordsForSession(session, 'revenue-sales-goals', revenueSalesGoals),
+      employees: filterRecordsForSession(session, 'employees', employees),
+      timeEntries: filterRecordsForSession(session, 'time-entries', timeEntries),
     });
   } catch {
     return res.status(500).json({ ok: false, error: 'Could not load business data' });

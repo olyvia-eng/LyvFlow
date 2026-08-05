@@ -125,7 +125,7 @@ function normalizeEmployeeRole(role) {
   return role;
 }
 
-function mapSessionUser(userItem, businessItem) {
+function mapSessionUser(userItem, businessItem, employeeId) {
   return {
     id: userItem.userId,
     businessId: userItem.businessId,
@@ -133,6 +133,7 @@ function mapSessionUser(userItem, businessItem) {
     email: userItem.email,
     role: normalizeBusinessRole(userItem.role),
     businessName: businessItem.name,
+    employeeId,
   };
 }
 
@@ -211,6 +212,11 @@ export async function createBusinessWithOwner({ businessName, ownerName, email, 
   }
 
   return { ok: true, user: mapSessionUser(userItem, businessItem) };
+}
+
+async function findEmployeeForEmail(businessId, email) {
+  const employees = await listEmployeesForBusiness(businessId);
+  return employees.find((employee) => normalizeEmail(employee.email) === normalizeEmail(email) && employee.active) ?? null;
 }
 
 export async function authenticateUser(email, password) {
@@ -303,9 +309,11 @@ export async function authenticateUser(email, password) {
     }
   }
 
+  const linkedEmployee = await findEmployeeForEmail(userRes.Item.businessId, normalizedEmail);
+
   return {
     ok: true,
-    user: mapSessionUser(userRes.Item, businessRes.Item),
+    user: mapSessionUser(userRes.Item, businessRes.Item, linkedEmployee?.id),
   };
 }
 
