@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { FilePlus2, Mail, Pencil, ReceiptText, Wallet } from 'lucide-react';
 import { Button, Card, EmptyState, Input, Modal, PageHeader, Select, StatCard } from '../../components/ui';
 import { useStore } from '../../store';
+import { emitAppToast } from '../../toast';
 import { formatCurrency } from '../../utils';
 import type { ID, Invoice, InvoiceStatus } from '../../types';
 
@@ -119,6 +120,15 @@ export default function InvoicesPage() {
 
   const saveInvoice = () => {
     if (!form.jobId || !form.number.trim() || form.amount <= 0) return;
+    const normalizedNumber = form.number.trim().toLowerCase();
+    const duplicate = invoices.some((invoice) => {
+      if (editing && invoice.id === editing.id) return false;
+      return invoice.number.trim().toLowerCase() === normalizedNumber;
+    });
+    if (duplicate) {
+      emitAppToast({ tone: 'error', message: 'Invoice number already exists.' });
+      return;
+    }
 
     const selectedJob = jobLookup.get(form.jobId);
     if (!selectedJob) return;

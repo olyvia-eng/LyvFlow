@@ -226,6 +226,44 @@ function getConfig(entity) {
   return entity ? ENTITY_CONFIG[entity] : undefined;
 }
 
+const INVOICE_STATUSES = new Set(['draft', 'sent', 'paid', 'overdue']);
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isValidDateOnly(value) {
+  if (typeof value !== 'string' || !DATE_ONLY_REGEX.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function validateInvoiceRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Invoice id is required.';
+  if (!isNonEmptyString(record.jobId)) return 'Invoice job is required.';
+  if (!isNonEmptyString(record.customerId)) return 'Invoice customer is required.';
+  if (!isNonEmptyString(record.number)) return 'Invoice number is required.';
+  if (!isValidDateOnly(record.issueDate)) return 'Invoice issue date must use YYYY-MM-DD format.';
+  if (!isValidDateOnly(record.dueDate)) return 'Invoice due date must use YYYY-MM-DD format.';
+  if (!INVOICE_STATUSES.has(record.status)) return 'Invoice status is invalid.';
+  if (typeof record.amount !== 'number' || Number.isNaN(record.amount) || record.amount <= 0) {
+    return 'Invoice amount must be greater than 0.';
+  }
+  return null;
+}
+
+async function findInvoiceNumberConflict({ businessId, invoiceNumber, excludeInvoiceId }) {
+  if (!isNonEmptyString(invoiceNumber)) return null;
+
+  const normalizedNumber = invoiceNumber.trim().toLowerCase();
+  const invoices = await listInvoicesForBusiness(businessId);
+  return invoices.find((invoice) => {
+    if (excludeInvoiceId && invoice.id === excludeInvoiceId) return false;
+    return typeof invoice.number === 'string' && invoice.number.trim().toLowerCase() === normalizedNumber;
+  }) ?? null;
+}
+
 export default async function handler(req, res) {
   const entity = req.query.entity;
   const config = getConfig(entity);
@@ -254,6 +292,22 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Invalid payload' });
     }
 
+    if (entity === 'invoices') {
+      const validationError = validateInvoiceRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+
+      const conflict = await findInvoiceNumberConflict({
+        businessId: session.businessId,
+        invoiceNumber: record.number,
+      });
+
+      if (conflict) {
+        return res.status(409).json({ ok: false, error: 'Invoice number already exists.' });
+      }
+    }
+
     try {
       await config.create({ businessId: session.businessId, [config.createArgKey]: record });
       return res.status(200).json({ ok: true });
@@ -279,6 +333,24 @@ export default async function handler(req, res) {
       }
 
       const next = { ...existing, ...data };
+
+      if (entity === 'invoices') {
+        const validationError = validateInvoiceRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+
+        const conflict = await findInvoiceNumberConflict({
+          businessId: session.businessId,
+          invoiceNumber: next.number,
+          excludeInvoiceId: id,
+        });
+
+        if (conflict) {
+          return res.status(409).json({ ok: false, error: 'Invoice number already exists.' });
+        }
+      }
+
       await config.update({ businessId: session.businessId, [config.updateArgKey]: next });
       return res.status(200).json({ ok: true });
     } catch {
