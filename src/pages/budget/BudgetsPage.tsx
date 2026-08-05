@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, EmptyState, Input, Modal, PageHeader, Select } from '../../components/ui';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../../store';
 import type { BudgetDivision, BudgetStatus, BudgetType } from '../../types';
 
@@ -48,10 +48,11 @@ const emptyBudgetForm = () => ({
 
 export default function BudgetsPage() {
   const navigate = useNavigate();
-  const { budgets, budgetItems, addBudget } = useStore();
+  const { budgets, budgetItems, addBudget, deleteBudget } = useStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyBudgetForm());
   const [formError, setFormError] = useState('');
+  const [budgetToDelete, setBudgetToDelete] = useState<string | null>(null);
 
   const budgetRows = useMemo(() => {
     const hasScopedBudgetItems = budgetItems.some((item) => Boolean(item.budgetId));
@@ -134,6 +135,7 @@ export default function BudgetsPage() {
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Last Updated</th>
                   <th className="px-4 py-3 font-medium text-right">Total Budget</th>
+                  <th className="px-4 py-3 font-medium text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -155,6 +157,19 @@ export default function BudgetsPage() {
                     <td className="px-4 py-3 text-gray-500">{new Date(budget.updatedAt).toLocaleDateString()}</td>
                     <td className="px-4 py-3 text-right text-gray-900">
                       {new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(totalBudget)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setBudgetToDelete(budget.id);
+                        }}
+                        aria-label={`Delete ${budget.name}`}
+                      >
+                        <Trash2 size={14} className="text-accent-700" />
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -224,6 +239,28 @@ export default function BudgetsPage() {
 
           {formError && <p className="text-sm text-accent-700">{formError}</p>}
         </div>
+      </Modal>
+
+      <Modal
+        open={!!budgetToDelete}
+        onClose={() => setBudgetToDelete(null)}
+        title="Delete Budget"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setBudgetToDelete(null)}>Cancel</Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (budgetToDelete) deleteBudget(budgetToDelete);
+                setBudgetToDelete(null);
+              }}
+            >
+              Delete
+            </Button>
+          </>
+        )}
+      >
+        <p className="text-gray-600">Delete this budget?</p>
       </Modal>
     </div>
   );

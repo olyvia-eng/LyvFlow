@@ -182,6 +182,7 @@ export default function BudgetPage() {
     revenueSalesGoals,
     addBudget,
     updateBudget,
+    deleteBudget,
     employees,
     addEmployee,
     updateEmployee,
@@ -209,6 +210,7 @@ export default function BudgetPage() {
   const [budgetNameDraft, setBudgetNameDraft] = useState('');
   const [budgetTypeDraft, setBudgetTypeDraft] = useState<BudgetType>('operating');
   const [budgetMetaError, setBudgetMetaError] = useState('');
+  const [confirmDeleteBudgetOpen, setConfirmDeleteBudgetOpen] = useState(false);
   const [averageFuelPriceInput, setAverageFuelPriceInput] = useState('0');
   const [averageFuelBurnPerHourInput, setAverageFuelBurnPerHourInput] = useState('0');
   const [billablePctDrafts, setBillablePctDrafts] = useState<Record<string, string>>({});
@@ -271,6 +273,21 @@ export default function BudgetPage() {
     });
     setBudgetMetaError('');
     setIsEditingBudgetMeta(false);
+  };
+
+  const handleDeleteBudget = () => {
+    if (!activeBudgetId) return;
+
+    const nextBudget = sortedBudgets.find((budget) => budget.id !== activeBudgetId) ?? null;
+    deleteBudget(activeBudgetId);
+    setConfirmDeleteBudgetOpen(false);
+
+    if (nextBudget) {
+      navigate(`/budgets/${nextBudget.id}`, { replace: true });
+      return;
+    }
+
+    navigate('/budgets', { replace: true });
   };
 
   useEffect(() => {
@@ -1330,6 +1347,9 @@ export default function BudgetPage() {
           : 'Track your company budget with category breakdowns for pricing and planning.'}
         action={
           <div className="flex gap-2">
+            <Button variant="danger" onClick={() => setConfirmDeleteBudgetOpen(true)}>
+              <Trash2 size={16} /> Delete Budget
+            </Button>
             <Button variant="secondary" onClick={() => openExportModal('pnl_condensed')}><FileDown size={16} /> Export P&L 1-Page</Button>
             <Button variant="secondary" onClick={() => openExportModal('pnl_detailed')}><FileDown size={16} /> Export P&L PDF</Button>
             <Button variant="secondary" onClick={() => openExportModal('budget')}><FileDown size={16} /> Export PDF</Button>
@@ -2341,6 +2361,20 @@ export default function BudgetPage() {
         </>}
       >
         <p className="text-gray-600">Delete this budget item?</p>
+      </Modal>
+
+      <Modal
+        open={confirmDeleteBudgetOpen}
+        onClose={() => setConfirmDeleteBudgetOpen(false)}
+        title="Delete Budget"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDeleteBudgetOpen(false)}>Cancel</Button>
+            <Button variant="danger" onClick={handleDeleteBudget}>Delete Budget</Button>
+          </>
+        )}
+      >
+        <p className="text-gray-600">Delete this budget and return to another budget (or Budgets list if none remain)?</p>
       </Modal>
 
       <Modal
