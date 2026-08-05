@@ -14,6 +14,7 @@ const STATUSES: EstimateStatus[] = ['draft', 'sent', 'accepted', 'declined', 'co
 
 const emptyEstimate = (): Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'> => ({
   customerId: '',
+  proposalNumber: '',
   title: '',
   description: '',
   workAreas: [],
@@ -23,6 +24,27 @@ const emptyEstimate = (): Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'> => ({
   notes: '',
   validUntil: '',
 });
+
+const nextProposalNumber = (estimates: Estimate[]): string => {
+  const year = new Date().getFullYear();
+  const prefix = `PROP-${year}-`;
+
+  const used = new Set(
+    estimates
+      .map((estimate) => estimate.proposalNumber?.trim().toUpperCase() ?? '')
+      .filter((proposalNumber) => proposalNumber.startsWith(prefix))
+      .map((proposalNumber) => {
+        const sequence = Number(proposalNumber.slice(prefix.length));
+        return Number.isFinite(sequence) ? sequence : NaN;
+      })
+      .filter((value) => Number.isInteger(value) && value > 0)
+  );
+
+  let next = 1;
+  while (used.has(next)) next += 1;
+
+  return `${prefix}${String(next).padStart(4, '0')}`;
+};
 
 const sanitizeFileNamePart = (value: string): string => {
   return value
@@ -42,10 +64,18 @@ const createProposalDocument = (estimate: Estimate, customerName: string, custom
   doc.setFontSize(18);
   doc.text('Project Proposal', 40, 44);
   doc.setFontSize(10);
-  doc.text(`Estimate: ${estimate.title}`, 40, 64);
-  doc.text(`Customer: ${customerName}${customerCompany ? ` (${customerCompany})` : ''}`, 40, 78);
-  doc.text(`Generated: ${generatedAt}`, 40, 92);
-  doc.text(`Valid Until: ${estimate.validUntil ? formatDate(estimate.validUntil) : 'Not specified'}`, 40, 106);
+  const hasProposalNumber = Boolean(estimate.proposalNumber?.trim());
+  if (hasProposalNumber) {
+    doc.text(`Proposal #: ${estimate.proposalNumber?.trim()}`, 40, 64);
+  }
+  const estimateY = hasProposalNumber ? 78 : 64;
+  const customerY = hasProposalNumber ? 92 : 78;
+  const generatedY = hasProposalNumber ? 106 : 92;
+  const validUntilY = hasProposalNumber ? 120 : 106;
+  doc.text(`Estimate: ${estimate.title}`, 40, estimateY);
+  doc.text(`Customer: ${customerName}${customerCompany ? ` (${customerCompany})` : ''}`, 40, customerY);
+  doc.text(`Generated: ${generatedAt}`, 40, generatedY);
+  doc.text(`Valid Until: ${estimate.validUntil ? formatDate(estimate.validUntil) : 'Not specified'}`, 40, validUntilY);
 
   if (estimate.description?.trim()) {
     doc.setFontSize(11);
@@ -123,14 +153,14 @@ export default function EstimatesPage() {
 
   const openNew = () => {
     setEditing(null);
-    setForm(emptyEstimate());
+    setForm({ ...emptyEstimate(), proposalNumber: nextProposalNumber(estimates) });
     setModalOpen(true);
   };
 
   const openEdit = (e: Estimate) => {
     setEditing(e);
     setForm({
-      customerId: e.customerId, title: e.title, description: e.description,
+      customerId: e.customerId, proposalNumber: e.proposalNumber ?? '', title: e.title, description: e.description,
       workAreas: [...(e.workAreas ?? [])],
       status: e.status, lineItems: e.lineItems.map((li) => ({ ...li })),
       taxRate: e.taxRate, notes: e.notes, validUntil: e.validUntil,
@@ -140,10 +170,12 @@ export default function EstimatesPage() {
 
   const handleSave = () => {
     if (!form.title.trim() || !form.customerId) return;
+    const proposalNumber = form.proposalNumber?.trim() || nextProposalNumber(estimates);
+    const payload = { ...form, proposalNumber };
     if (editing) {
-      updateEstimate(editing.id, form);
+      updateEstimate(editing.id, payload);
     } else {
-      addEstimate(form);
+      addEstimate(payload);
     }
     setModalOpen(false);
   };
@@ -167,7 +199,10 @@ export default function EstimatesPage() {
     const customer = customers.find((value) => value.id === estimate.customerId);
     const customerName = customer?.name?.trim() || 'Client';
     const safeTitle = sanitizeFileNamePart(estimate.title) || 'estimate';
-    const fileName = `proposal-${safeTitle}-${estimate.id.slice(0, 8)}.pdf`;
+    const safeProposalNumber = sanitizeFileNamePart(estimate.proposalNumber ?? '');
+    const fileName = safeProposalNumber
+      ? `proposal-${safeProposalNumber}-${safeTitle}.pdf`
+      : `proposal-${safeTitle}-${estimate.id.slice(0, 8)}.pdf`;
 
     const doc = createProposalDocument(estimate, customerName, customer?.company);
     doc.save(fileName);
@@ -185,12 +220,14 @@ export default function EstimatesPage() {
 
     const subtotalValue = calcEstimateSubtotal(estimate.lineItems);
     const totalValue = calcEstimateTotal(subtotalValue, calcEstimateTax(subtotalValue, estimate.taxRate));
-    const subject = encodeURIComponent(`Proposal: ${estimate.title}`);
+    const proposalRef = estimate.proposalNumber?.trim();
+    const subject = encodeURIComponent(proposalRef ? `Proposal ${proposalRef}: ${estimate.title}` : `Proposal: ${estimate.title}`);
     const body = encodeURIComponent(
       [
         `Hi ${customer.name},`,
         '',
         `Please find attached our proposal for ${estimate.title}.`,
+        proposalRef ? `Proposal reference: ${proposalRef}.` : '',
         `Total proposed amount: ${formatCurrency(totalValue)}.`,
         estimate.validUntil ? `This proposal is valid until ${formatDate(estimate.validUntil)}.` : 'This proposal does not have an expiry date listed.',
         '',
@@ -341,6 +378,14 @@ export default function EstimatesPage() {
               <option value="">— Select customer —</option>
               {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>)}
             </Select>
+            <Input
+              label="Proposal Number"
+              value={form.proposalNumber ?? ''}
+              onChange={(e) => set('proposalNumber', e.target.value)}
+              placeholder="e.g. PROP-2026-014"
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-3">
             <Input label="Title *" value={form.title} onChange={(e) => set('title', e.target.value)} />
           </div>
           <TextArea label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} />
@@ -433,6 +478,7 @@ export default function EstimatesPage() {
           <div className="space-y-3 text-sm text-gray-700">
             <p className="text-gray-600">Generate a client-ready proposal PDF for this estimate.</p>
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1">
+              <p><span className="font-medium text-gray-900">Proposal #:</span> {proposalEstimate.proposalNumber?.trim() || 'Not set'}</p>
               <p><span className="font-medium text-gray-900">Estimate:</span> {proposalEstimate.title}</p>
               <p><span className="font-medium text-gray-900">Customer:</span> {proposalCustomer?.name ?? 'Unknown Customer'}</p>
               <p><span className="font-medium text-gray-900">Valid Until:</span> {proposalEstimate.validUntil ? formatDate(proposalEstimate.validUntil) : 'Not specified'}</p>

@@ -50,6 +50,7 @@ export type EstimateStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'conve
 export interface Estimate {
   id: ID;
   customerId: ID;
+  proposalNumber?: string;
   title: string;
   description: string;
   workAreas?: string[];

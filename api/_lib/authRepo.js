@@ -913,6 +913,7 @@ export async function listEstimatesForBusiness(businessId) {
   return (result.Items ?? []).map((item) => ({
     id: item.estimateId,
     customerId: item.customerId,
+    proposalNumber: item.proposalNumber,
     title: item.title,
     description: item.description,
     status: item.status,
@@ -961,6 +962,7 @@ export async function getEstimateForBusiness(businessId, estimateId) {
     ? {
         id: result.Item.estimateId,
         customerId: result.Item.customerId,
+        proposalNumber: result.Item.proposalNumber,
         title: result.Item.title,
         description: result.Item.description,
         status: result.Item.status,
