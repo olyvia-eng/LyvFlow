@@ -309,7 +309,13 @@ export default function BudgetPage() {
     }
   }, [addBudget, budgets.length, hasLegacyBudgetData, navigate, routeBudgetId, year]);
 
-  const legacyOwnerBudgetId = sortedBudgets[0]?.id ?? null;
+  const legacyOwnerBudgetId = useMemo(() => {
+    if (budgets.length === 0) return null;
+    const oldestBudget = budgets
+      .slice()
+      .sort((a: Budget, b: Budget) => (a.createdAt ?? a.updatedAt).localeCompare(b.createdAt ?? b.updatedAt))[0];
+    return oldestBudget?.id ?? null;
+  }, [budgets]);
   const hasAnyScopedBudgetData = useMemo(() => {
     return budgetItems.some((item) => Boolean(item.budgetId))
       || labourBudgetPlans.some((plan) => Boolean(plan.budgetId))

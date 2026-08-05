@@ -56,12 +56,17 @@ export default function BudgetsPage() {
 
   const budgetRows = useMemo(() => {
     const hasScopedBudgetItems = budgetItems.some((item) => Boolean(item.budgetId));
+    const legacyOwnerBudgetId = !hasScopedBudgetItems
+      ? budgets
+          .slice()
+          .sort((a, b) => (a.createdAt ?? a.updatedAt).localeCompare(b.createdAt ?? b.updatedAt))[0]?.id ?? null
+      : null;
 
     return budgets
       .slice()
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .map((budget, index) => {
-        const includeUnscoped = !hasScopedBudgetItems && index === 0;
+      .map((budget) => {
+        const includeUnscoped = !hasScopedBudgetItems && budget.id === legacyOwnerBudgetId;
         const totalBudget = budgetItems
           .filter((item) => item.budgetId === budget.id || (includeUnscoped && !item.budgetId))
           .reduce((sum, item) => sum + item.budgeted, 0);
