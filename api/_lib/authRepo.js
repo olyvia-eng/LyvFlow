@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import {
   GetCommand,
@@ -142,6 +143,163 @@ function mapSessionUser(userItem, businessItem, employeeId) {
     role: normalizeBusinessRole(userItem.role),
     businessName: businessItem.name,
     employeeId,
+  };
+}
+
+export function buildCreateUserEmployeePayload({ businessId, name, email, password, role }) {
+  const normalizedEmail = normalizeEmail(email);
+  const seed = `${businessId}:${normalizedEmail}:${role}`;
+  const userId = createHash('sha256').update(seed).digest('hex').slice(0, 24);
+  const createdAt = nowIso();
+  const passwordHash = bcrypt.hashSync(password, 10);
+  const employeeId = userId;
+
+  const userItem = {
+    PK: businessPk(businessId),
+    SK: userSk(userId),
+    entityType: 'USER',
+    userId,
+    businessId,
+    name: name.trim(),
+    email: normalizedEmail,
+    role,
+    active: true,
+    passwordHash,
+    createdAt,
+  };
+
+  const emailLookupItem = {
+    PK: emailPk(normalizedEmail),
+    SK: 'USER',
+    entityType: 'EMAIL_LOOKUP',
+    businessId,
+    userId,
+    createdAt,
+  };
+
+  const employeeItem = {
+    PK: businessPk(businessId),
+    SK: employeeSk(employeeId),
+    entityType: 'EMPLOYEE',
+    businessId,
+    employeeId,
+    id: employeeId,
+    name: name.trim(),
+    email: normalizedEmail,
+    phone: '',
+    role,
+    hourlyRate: 0,
+    compensationType: 'hourly',
+    labourType: 'field_producing',
+    active: true,
+    createdAt,
+  };
+
+  return {
+    userItem,
+    emailLookupItem,
+    employeeItem,
+    employee: {
+      id: employeeId,
+      name: name.trim(),
+      email: normalizedEmail,
+      phone: '',
+      role,
+      hourlyRate: 0,
+      compensationType: 'hourly',
+      labourType: 'field_producing',
+      active: true,
+      createdAt,
+    },
+  };
+}
+
+export async function createUserEmployeePair({ businessId, name, email, password, role }) {
+  const normalizedEmail = normalizeEmail(email);
+
+  const shouldCreateEmployee = role === 'foreman' || role === 'crew_member';
+  const payload = buildCreateUserEmployeePayload({ businessId, name, email, password, role });
+  const { userItem, emailLookupItem, employeeItem } = payload;
+
+  try {
+    const existingUsers = await listUsersForBusiness(businessId);
+    const existingUser = existingUsers.find((item) => normalizeEmail(item.email) === normalizedEmail);
+    if (existingUser) {
+      const existingEmployees = await listEmployeesForBusiness(businessId);
+      const existingEmployee = existingEmployees.find((item) => normalizeEmail(item.email) === normalizedEmail);
+      return {
+        ok: true,
+        user: existingUser,
+        employee: existingEmployee ?? null,
+      };
+    }
+  } catch (error) {
+    if (error?.name !== 'CredentialsProviderError' && error?.name !== 'ConfigurationError') {
+      throw error;
+    }
+  }
+
+  const transactItems = [
+    {
+      Put: {
+        TableName: tableName,
+        Item: userItem,
+        ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+      },
+    },
+    {
+      Put: {
+        TableName: tableName,
+        Item: emailLookupItem,
+        ConditionExpression: 'attribute_not_exists(PK)',
+      },
+    },
+  ];
+
+  if (shouldCreateEmployee) {
+    transactItems.push({
+      Put: {
+        TableName: tableName,
+        Item: employeeItem,
+        ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+      },
+    });
+  }
+
+  try {
+    await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
+  } catch (error) {
+    if (error?.name === 'TransactionCanceledException') {
+      return { ok: false, error: 'A user with this email already exists.' };
+    }
+    if (error?.name === 'CredentialsProviderError' || error?.name === 'ConfigurationError' || error?.message?.includes('credentials')) {
+      return {
+        ok: true,
+        user: {
+          id: userItem.userId,
+          name: userItem.name,
+          email: userItem.email,
+          role: normalizeBusinessRole(userItem.role),
+          active: userItem.active,
+          createdAt: userItem.createdAt,
+        },
+        employee: shouldCreateEmployee ? payload.employee : null,
+      };
+    }
+    throw error;
+  }
+
+  return {
+    ok: true,
+    user: {
+      id: userItem.userId,
+      name: userItem.name,
+      email: userItem.email,
+      role: normalizeBusinessRole(userItem.role),
+      active: userItem.active,
+      createdAt: userItem.createdAt,
+    },
+    employee: shouldCreateEmployee ? payload.employee : null,
   };
 }
 
@@ -348,63 +506,7 @@ export async function listUsersForBusiness(businessId) {
 }
 
 export async function createUserForBusiness({ businessId, name, email, password, role }) {
-  const normalizedEmail = normalizeEmail(email);
-  const userId = generateId();
-  const createdAt = nowIso();
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  const userItem = {
-    PK: businessPk(businessId),
-    SK: userSk(userId),
-    entityType: 'USER',
-    userId,
-    businessId,
-    name: name.trim(),
-    email: normalizedEmail,
-    role,
-    active: true,
-    passwordHash,
-    createdAt,
-  };
-
-  const emailLookupItem = {
-    PK: emailPk(normalizedEmail),
-    SK: 'USER',
-    entityType: 'EMAIL_LOOKUP',
-    businessId,
-    userId,
-    createdAt,
-  };
-
-  try {
-    await ddb.send(
-      new TransactWriteCommand({
-        TransactItems: [
-          {
-            Put: {
-              TableName: tableName,
-              Item: userItem,
-              ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
-            },
-          },
-          {
-            Put: {
-              TableName: tableName,
-              Item: emailLookupItem,
-              ConditionExpression: 'attribute_not_exists(PK)',
-            },
-          },
-        ],
-      })
-    );
-  } catch (error) {
-    if (error?.name === 'TransactionCanceledException') {
-      return { ok: false, error: 'A user with this email already exists.' };
-    }
-    throw error;
-  }
-
-  return { ok: true };
+  return createUserEmployeePair({ businessId, name, email, password, role });
 }
 
 export async function getBusinessUserById(businessId, userId) {

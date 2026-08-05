@@ -13,6 +13,15 @@ const LABOUR_TYPES = ['field_producing', 'overhead'] as const;
 type CompensationType = (typeof COMPENSATION_TYPES)[number];
 type LabourType = (typeof LABOUR_TYPES)[number];
 
+interface EmployeesPageProps {
+  onCreateEmployee?: (payload: {
+    name: string;
+    email: string;
+    password: string;
+    role: EmployeeRole;
+  }) => Promise<{ ok: boolean; error?: string; user?: unknown; employee?: Employee }>;
+}
+
 type EmployeeForm = Omit<Employee, 'id' | 'createdAt' | 'name'> & {
   firstName: string;
   lastName: string;
@@ -76,8 +85,8 @@ const parseName = (name: string) => {
   };
 };
 
-export default function EmployeesPage() {
-  const { employees, timeEntries, jobs, addEmployee, updateEmployee, deleteEmployee, clockOut } = useStore();
+export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) {
+  const { employees, timeEntries, jobs, updateEmployee, deleteEmployee, clockOut } = useStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [form, setForm] = useState(empty());
@@ -155,47 +164,49 @@ export default function EmployeesPage() {
       return;
     }
 
-    let response: Response;
-    try {
-      response = await fetch('/api/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: fullName,
-          email: form.email,
-          password: newPassword,
-          role: form.role,
-        }),
-      });
-    } catch {
-      setFormError('Could not reach the API. Run npm run dev:full for local API routes.');
-      return;
-    }
-
-    let apiError = 'Could not create employee login.';
-    try {
-      const payload = await response.json();
-      if (typeof payload?.error === 'string') apiError = payload.error;
-    } catch {
-      // Ignore JSON parsing errors and use generic message.
-    }
-
-    if (!response.ok) {
-      const contentType = response.headers.get('content-type') ?? '';
-      if (
-        apiError === 'Could not create employee login.' &&
-        (response.status === 404 || !contentType.includes('application/json'))
-      ) {
-        apiError = 'API route unavailable. Run npm run dev:full for local API routes.';
+    const result = await (onCreateEmployee ? onCreateEmployee({
+      name: fullName,
+      email: form.email,
+      password: newPassword,
+      role: form.role,
+    }) : fetch('/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        name: fullName,
+        email: form.email,
+        password: newPassword,
+        role: form.role,
+      }),
+    }).then(async (response) => {
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return { ok: false, error: typeof payload?.error === 'string' ? payload.error : 'Could not create employee login.' };
       }
-      setFormError(apiError);
+      return {
+        ok: true,
+        employee: payload?.employee as Employee | undefined,
+      };
+    }));
+
+    if (!result?.ok) {
+      setFormError(result?.error ?? 'Could not create employee login.');
       return;
     }
 
-    addEmployee(employeePayload);
+    if (result.employee) {
+      useStore.setState((state) => {
+        const exists = state.employees.some((item) => item.id === result.employee!.id);
+        return {
+          employees: exists
+            ? state.employees.map((item) => (item.id === result.employee!.id ? result.employee! : item))
+            : [...state.employees, result.employee!],
+        };
+      });
+    }
     setModalOpen(false);
   };
 

@@ -21,12 +21,29 @@ test('clock-in transaction creates one lock, one time entry, one audit event and
     auditEventId: 'audit-1',
   });
 
-  assert.equal(tx.TransactItems.length, 5);
+  assert.equal(tx.TransactItems.length, 4);
   assert.equal(tx.TransactItems[0].Put.Item.entityType, 'IDEMPOTENCY');
-  assert.equal(tx.TransactItems[1].ConditionCheck.Key.SK, 'ACTIVE_SHIFT');
-  assert.equal(tx.TransactItems[2].Put.Item.entityType, 'ACTIVE_SHIFT');
-  assert.equal(tx.TransactItems[3].Put.Item.entityType, 'TIME_ENTRY');
-  assert.equal(tx.TransactItems[4].Put.Item.entityType, 'AUDIT_EVENT');
+  assert.equal(tx.TransactItems[1].Put.Item.entityType, 'ACTIVE_SHIFT');
+  assert.equal(tx.TransactItems[2].Put.Item.entityType, 'TIME_ENTRY');
+  assert.equal(tx.TransactItems[3].Put.Item.entityType, 'AUDIT_EVENT');
+});
+
+test('clock-in uses a conditional put for the active-shift lock and no condition checks', () => {
+  const tx = buildClockInTransaction({
+    businessId: 'biz-1',
+    employeeId: 'emp-1',
+    userId: 'user-1',
+    timeEntryId: 'entry-1',
+    clockInAt: '2026-08-05T10:00:00.000Z',
+    requestId: 'req-1',
+    idempotencyKey: 'key-1',
+    payloadHash: 'hash-1',
+    source: 'web',
+    auditEventId: 'audit-1',
+  });
+
+  assert.equal(tx.TransactItems.filter((item) => item.ConditionCheck).length, 0);
+  assert.equal(tx.TransactItems.filter((item) => item.Put?.Item?.entityType === 'ACTIVE_SHIFT').length, 1);
 });
 
 test('clock-out transaction updates the time entry, deletes the lock and records an audit event', () => {
@@ -46,13 +63,33 @@ test('clock-out transaction updates the time entry, deletes the lock and records
     photoAttachmentUrl: 'https://example.com/photo.jpg',
   });
 
-  assert.equal(tx.TransactItems.length, 6);
+  assert.equal(tx.TransactItems.length, 5);
   assert.equal(tx.TransactItems[0].Put.Item.entityType, 'IDEMPOTENCY');
-  assert.equal(tx.TransactItems[1].ConditionCheck.Key.SK, 'ACTIVE_SHIFT');
-  assert.equal(tx.TransactItems[2].ConditionCheck.Key.SK, 'TIME#entry-1');
-  assert.equal(tx.TransactItems[3].Update.Key.SK, 'TIME#entry-1');
-  assert.equal(tx.TransactItems[4].Delete.Key.SK, 'ACTIVE_SHIFT');
-  assert.equal(tx.TransactItems[5].Put.Item.entityType, 'AUDIT_EVENT');
+  assert.equal(tx.TransactItems[1].Delete.Key.SK, 'ACTIVE_SHIFT');
+  assert.equal(tx.TransactItems[2].Update.Key.SK, 'TIME#entry-1');
+  assert.equal(tx.TransactItems[3].Put.Item.entityType, 'AUDIT_EVENT');
+});
+
+test('clock-out uses a conditional delete for the active-shift lock and a conditional update for the time entry', () => {
+  const tx = buildClockOutTransaction({
+    businessId: 'biz-1',
+    employeeId: 'emp-1',
+    userId: 'user-1',
+    timeEntryId: 'entry-1',
+    clockOutAt: '2026-08-05T11:00:00.000Z',
+    requestId: 'req-2',
+    idempotencyKey: 'key-2',
+    payloadHash: 'hash-2',
+    source: 'web',
+    auditEventId: 'audit-2',
+    breakMinutes: 15,
+    notes: 'Wrapped up',
+    photoAttachmentUrl: 'https://example.com/photo.jpg',
+  });
+
+  assert.equal(tx.TransactItems.filter((item) => item.ConditionCheck).length, 0);
+  assert.equal(tx.TransactItems.filter((item) => item.Delete?.Key?.SK === 'ACTIVE_SHIFT').length, 1);
+  assert.equal(tx.TransactItems.filter((item) => item.Update?.Key?.SK === 'TIME#entry-1').length, 1);
 });
 
 test('clocking errors are normalized into client-safe responses', () => {

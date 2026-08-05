@@ -1,9 +1,7 @@
 import {
-  createEmployeeForBusiness,
   createUserForBusiness,
   deleteBusinessUser,
   getBusinessUserById,
-  listEmployeesForBusiness,
   listUsersForBusiness,
   updateBusinessUser,
 } from './_lib/authRepo.js';
@@ -11,49 +9,6 @@ import { requireSession } from './_lib/session.js';
 
 function normalizeEmail(email) {
   return email.trim().toLowerCase();
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function generateId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-async function ensureEmployeeProfileForUser({ businessId, name, email, role }) {
-  if (role !== 'foreman' && role !== 'crew_member') {
-    return;
-  }
-
-  const normalizedEmail = normalizeEmail(email);
-  const employees = await listEmployeesForBusiness(businessId);
-  const existing = employees.find(
-    (employee) => normalizeEmail(employee.email) === normalizedEmail
-  );
-
-  if (existing) {
-    return;
-  }
-
-  await createEmployeeForBusiness({
-    businessId,
-    employee: {
-      id: generateId(),
-      name: name.trim(),
-      email: normalizedEmail,
-      phone: '',
-      role,
-      hourlyRate: 0,
-      compensationType: 'hourly',
-      labourType: 'field_producing',
-      active: true,
-      createdAt: nowIso(),
-    },
-  });
 }
 
 function mapCreateUserError(error) {
@@ -152,33 +107,7 @@ export default async function handler(req, res) {
         return res.status(409).json({ ok: false, error: result.error });
       }
 
-      try {
-        await ensureEmployeeProfileForUser({
-          businessId: session.businessId,
-          name,
-          email,
-          role,
-        });
-      } catch (profileError) {
-        try {
-          const users = await listUsersForBusiness(session.businessId);
-          const createdUser = users.find(
-            (user) => normalizeEmail(user.email) === normalizeEmail(email)
-          );
-          if (createdUser) {
-            await deleteBusinessUser(session.businessId, createdUser.id);
-          }
-        } catch (rollbackError) {
-          console.error('POST /api/users rollback failed', {
-            name: rollbackError?.name,
-            message: rollbackError?.message,
-          });
-        }
-
-        throw profileError;
-      }
-
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, user: result.user, employee: result.employee });
     } catch (error) {
       console.error('POST /api/users failed', {
         name: error?.name,

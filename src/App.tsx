@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
@@ -52,6 +52,7 @@ export default function App() {
   const [hasLoadedBusinessData, setHasLoadedBusinessData] = useState(false);
   const [businessDataError, setBusinessDataError] = useState('');
   const [toasts, setToasts] = useState<Array<AppToastDetail & { id: number }>>([]);
+  const loadUsersRequestIdRef = useRef(0);
 
   const canManageUsers =
     sessionUser?.role === 'owner' || sessionUser?.role === 'admin';
@@ -131,24 +132,42 @@ export default function App() {
   };
 
   const loadUsers = async (user: SessionUser | null = sessionUser) => {
+    const requestId = ++loadUsersRequestIdRef.current;
     const canManage = user?.role === 'owner' || user?.role === 'admin';
     if (!user || !canManage) {
-      setUsers([]);
+      if (requestId === loadUsersRequestIdRef.current) {
+        setUsers([]);
+      }
       return;
     }
 
-    const response = await fetch('/api/users', {
-      method: 'GET',
-      credentials: 'include',
-    });
-    const payload = await readApiJson<{ ok: boolean; users?: BusinessUserSummary[] }>(response);
+    try {
+      const response = await fetch('/api/users', {
+        method: 'GET',
+        credentials: 'include',
+      });
+      const payload = await readApiJson<{ ok: boolean; users?: BusinessUserSummary[] }>(response);
 
-    if (!response.ok || !payload?.ok || !Array.isArray(payload.users)) {
-      setUsers([]);
-      return;
+      if (requestId !== loadUsersRequestIdRef.current) {
+        return;
+      }
+
+      if (!response.ok || !payload?.ok || !Array.isArray(payload.users)) {
+        if (response.status === 401 || response.status === 403) {
+          setUsers([]);
+          emitAppToast({ tone: 'error', message: 'Your session no longer has access to user management.' });
+          return;
+        }
+        emitAppToast({ tone: 'error', message: 'Could not refresh user access list.' });
+        return;
+      }
+
+      setUsers(payload.users);
+    } catch {
+      if (requestId === loadUsersRequestIdRef.current) {
+        emitAppToast({ tone: 'error', message: 'Could not refresh user access list.' });
+      }
     }
-
-    setUsers(payload.users);
   };
 
   useEffect(() => {
@@ -297,7 +316,7 @@ export default function App() {
       return { ok: false, error: 'Could not reach the API. Run npm run dev:full for local API routes.' };
     }
 
-    const body = await readApiJson<{ ok: boolean; error?: string }>(response);
+    const body = await readApiJson<{ ok: boolean; error?: string; user?: SessionUser; employee?: Employee }>(response);
 
     if (!response.ok || !body?.ok) {
       if (!body?.error && response.status === 404) {
@@ -316,8 +335,9 @@ export default function App() {
     }
 
     await loadUsers();
+    await loadBusinessData(sessionUser);
     emitAppToast({ tone: 'success', message: 'User created successfully.' });
-    return { ok: true };
+    return { ok: true, user: body?.user, employee: body?.employee };
   };
 
   const updateUser = async (userId: string, data: { role?: 'admin' | 'foreman' | 'crew_member'; active?: boolean }) => {
@@ -567,7 +587,7 @@ export default function App() {
               <Route path="budgets" element={<BudgetsPage />} />
               <Route path="budgets/:budgetId" element={<BudgetPage />} />
               <Route path="budget" element={<BudgetPage />} />
-              <Route path="employees" element={<EmployeesPage />} />
+              <Route path="employees" element={<EmployeesPage onCreateEmployee={createUser} />} />
               <Route path="data-center" element={<DataCenterPage />} />
               <Route
                 path="time-reports"

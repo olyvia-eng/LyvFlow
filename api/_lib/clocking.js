@@ -148,16 +148,6 @@ export function buildClockInTransaction({
         },
       },
       {
-        ConditionCheck: {
-          TableName: tableName,
-          Key: {
-            PK: activeShiftPk(businessId, employeeId),
-            SK: activeShiftSk(),
-          },
-          ConditionExpression: 'attribute_not_exists(PK)',
-        },
-      },
-      {
         Put: {
           TableName: tableName,
           Item: lockItem,
@@ -241,6 +231,18 @@ export function buildClockOutTransaction({
     },
   };
 
+  const completionItem = {
+    PK: businessPk(businessId),
+    SK: `CLOCK_OUT#${timeEntryId}`,
+    entityType: 'CLOCK_OUT_STATE',
+    businessId,
+    entryId: timeEntryId,
+    employeeId,
+    status: 'completed',
+    createdAt: now,
+    updatedAt: now,
+  };
+
   return {
     TransactItems: [
       {
@@ -251,23 +253,19 @@ export function buildClockOutTransaction({
         },
       },
       {
-        ConditionCheck: {
+        Delete: {
           TableName: tableName,
           Key: {
             PK: activeShiftPk(businessId, employeeId),
             SK: activeShiftSk(),
           },
-          ConditionExpression: 'attribute_exists(PK)',
-        },
-      },
-      {
-        ConditionCheck: {
-          TableName: tableName,
-          Key: {
-            PK: businessPk(businessId),
-            SK: timeEntrySk(timeEntryId),
+          ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND #activeEntryId = :timeEntryId',
+          ExpressionAttributeNames: {
+            '#activeEntryId': 'activeEntryId',
           },
-          ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+          ExpressionAttributeValues: {
+            ':timeEntryId': timeEntryId,
+          },
         },
       },
       {
@@ -278,7 +276,7 @@ export function buildClockOutTransaction({
             SK: timeEntrySk(timeEntryId),
           },
           UpdateExpression: 'SET #status = :status, #clockOut = :clockOut, #breakMinutes = :breakMinutes, #notes = :notes, #photoAttachmentUrl = :photoAttachmentUrl, #updatedAt = :updatedAt',
-          ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+          ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND #status = :clockedIn',
           ExpressionAttributeNames: {
             '#status': 'status',
             '#clockOut': 'clockOut',
@@ -294,15 +292,7 @@ export function buildClockOutTransaction({
             ':notes': notes,
             ':photoAttachmentUrl': photoAttachmentUrl || undefined,
             ':updatedAt': now,
-          },
-        },
-      },
-      {
-        Delete: {
-          TableName: tableName,
-          Key: {
-            PK: activeShiftPk(businessId, employeeId),
-            SK: activeShiftSk(),
+            ':clockedIn': 'clocked_in',
           },
         },
       },
@@ -310,6 +300,16 @@ export function buildClockOutTransaction({
         Put: {
           TableName: tableName,
           Item: auditItem,
+          ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+        },
+      },
+      {
+        Put: {
+          TableName: tableName,
+          Item: {
+            ...idempotencyItem,
+            entityType: 'IDEMPOTENCY',
+          },
           ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
         },
       },
@@ -332,6 +332,25 @@ export function getClockingErrorResponse(error) {
     return { status: 409, error: error?.error ?? 'Conflict' };
   }
   return { status: error?.statusCode ?? 400, error: error?.error ?? 'Clocking request failed' };
+}
+
+export function getClockingFailureResponse(action, error) {
+  const cancellationReasons = Array.isArray(error?.CancellationReasons) ? error.CancellationReasons : [];
+  const hasConditionalFailure = cancellationReasons.some((reason) => {
+    const code = reason?.Code ?? reason?.code ?? '';
+    return code === 'ConditionalCheckFailed' || code === 'None';
+  });
+
+  if (error?.name === 'TransactionCanceledException') {
+    if (action === 'clock-in' && hasConditionalFailure) {
+      return { status: 409, error: 'Already Clocked In', code: 'ALREADY_CLOCKED_IN' };
+    }
+    if (action === 'clock-out' && hasConditionalFailure) {
+      return { status: 409, error: 'No active shift found', code: 'NO_ACTIVE_SHIFT' };
+    }
+  }
+
+  return { status: 500, error: 'Clocking request failed' };
 }
 
 export async function getExistingClockingIdempotency({ businessId, idempotencyKey }) {

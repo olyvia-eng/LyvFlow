@@ -118,8 +118,16 @@ export default async function handler(req, res) {
       };
       return res.status(200).json({ ok: true, timeEntry });
     } catch (error) {
-      const code = error?.name === 'TransactionCanceledException' ? 'ALREADY_CLOCKED_IN' : undefined;
-      const response = getClockingErrorResponse({ statusCode: 409, code });
+      const response = getClockingFailureResponse('clock-in', error);
+      console.error('[clocking:clock-in]', {
+        name: error?.name,
+        cancellationReasons: Array.isArray(error?.CancellationReasons)
+          ? error.CancellationReasons.map((reason) => ({
+              Code: reason?.Code ?? reason?.code,
+              Message: typeof reason?.Message === 'string' ? reason.Message : undefined,
+            }))
+          : undefined,
+      });
       return res.status(response.status).json({ ok: false, error: response.error });
     }
   }
@@ -199,7 +207,16 @@ export default async function handler(req, res) {
       };
       return res.status(200).json({ ok: true, timeEntry });
     } catch (error) {
-      const response = getClockingErrorResponse({ statusCode: 409, code: error?.name === 'TransactionCanceledException' ? 'NO_ACTIVE_SHIFT' : undefined });
+      const response = getClockingFailureResponse('clock-out', error);
+      console.error('[clocking:clock-out]', {
+        name: error?.name,
+        cancellationReasons: Array.isArray(error?.CancellationReasons)
+          ? error.CancellationReasons.map((reason) => ({
+              Code: reason?.Code ?? reason?.code,
+              Message: typeof reason?.Message === 'string' ? reason.Message : undefined,
+            }))
+          : undefined,
+      });
       return res.status(response.status).json({ ok: false, error: response.error });
     }
   }
