@@ -495,6 +495,16 @@ export default function App() {
                 }
               />
               <Route
+                path="materials/catalog"
+                element={
+                  <ModulePlaceholderPage
+                    title="Material Catalog"
+                    question="What standard materials do we price and use most often?"
+                    summary="Maintain a shared list of material standards and pricing references so estimates stay consistent and fast."
+                  />
+                }
+              />
+              <Route
                 path="operations/purchase-orders"
                 element={
                   <ModulePlaceholderPage

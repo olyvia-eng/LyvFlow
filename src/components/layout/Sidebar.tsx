@@ -396,6 +396,18 @@ export default function Sidebar({
           {settingsExpanded && (
             <div className="mb-2 ml-3 pl-3 border-l border-brand-100 dark:border-brand-600 space-y-1">
               <button
+                onClick={() => navigateFromProfile('/materials/catalog')}
+                className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
+              >
+                Material Catalog
+              </button>
+              <button
+                onClick={() => navigateFromProfile('/estimates/templates')}
+                className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
+              >
+                Estimate Templates
+              </button>
+              <button
                 onClick={() => navigateFromProfile('/data-center/settings')}
                 className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
               >
@@ -514,6 +526,18 @@ export default function Sidebar({
           </button>
           {settingsExpanded && (
             <div className="mb-2 ml-3 pl-3 border-l border-brand-100 dark:border-brand-600 space-y-1">
+              <button
+                onClick={() => navigateFromProfile('/materials/catalog')}
+                className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
+              >
+                Material Catalog
+              </button>
+              <button
+                onClick={() => navigateFromProfile('/estimates/templates')}
+                className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
+              >
+                Estimate Templates
+              </button>
               <button
                 onClick={() => navigateFromProfile('/data-center/settings')}
                 className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"

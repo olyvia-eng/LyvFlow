@@ -2,7 +2,6 @@ import {
   BarChart3,
   Briefcase,
   CalendarDays,
-  ClipboardList,
   Clock,
   FileBox,
   FileText,
@@ -51,7 +50,6 @@ const NAVIGATION_CONFIG: SidebarConfig = {
           defaultExpanded: true,
           children: [
             { id: 'revenue-estimates-list', type: 'link', to: '/estimates', label: 'All Estimates', icon: icon(FileText) },
-            { id: 'revenue-estimate-templates', type: 'link', to: '/estimates/templates', label: 'Estimate Templates', icon: icon(ClipboardList) },
           ],
         },
       ],
