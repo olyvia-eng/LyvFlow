@@ -4,6 +4,7 @@ import {
   buildClockInTransaction,
   buildClockOutTransaction,
   getClockingErrorResponse,
+  getClockingFailureResponse,
   getExistingClockingIdempotency,
 } from './_lib/clocking.js';
 import { ddb, tableName } from './_lib/db.js';
@@ -120,7 +121,10 @@ export default async function handler(req, res) {
     } catch (error) {
       const response = getClockingFailureResponse('clock-in', error);
       console.error('[clocking:clock-in]', {
+        action: 'clock-in',
         name: error?.name,
+        message: error?.message,
+        httpStatusCode: error?.$metadata?.httpStatusCode,
         cancellationReasons: Array.isArray(error?.CancellationReasons)
           ? error.CancellationReasons.map((reason) => ({
               Code: reason?.Code ?? reason?.code,
@@ -209,7 +213,10 @@ export default async function handler(req, res) {
     } catch (error) {
       const response = getClockingFailureResponse('clock-out', error);
       console.error('[clocking:clock-out]', {
+        action: 'clock-out',
         name: error?.name,
+        message: error?.message,
+        httpStatusCode: error?.$metadata?.httpStatusCode,
         cancellationReasons: Array.isArray(error?.CancellationReasons)
           ? error.CancellationReasons.map((reason) => ({
               Code: reason?.Code ?? reason?.code,
