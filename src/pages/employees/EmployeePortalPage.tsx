@@ -131,6 +131,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                   </p>
                   <Input
                     label="Job Notes"
+                    required
                     value={jobNotes}
                     onChange={(event) => setJobNotes(event.target.value)}
                     placeholder="Required before clocking out"

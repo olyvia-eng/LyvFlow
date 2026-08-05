@@ -338,7 +338,7 @@ export default function JobDetailPage() {
             </Select>
             <Input label="Date" type="date" value={costForm.date} onChange={(e) => setC('date', e.target.value)} />
           </div>
-          <Input label="Description *" value={costForm.description} onChange={(e) => setC('description', e.target.value)} />
+          <Input label="Description *" required value={costForm.description} onChange={(e) => setC('description', e.target.value)} />
           <div className="grid grid-cols-3 gap-3">
             <Input label="Qty" type="number" min={0} value={costForm.quantity} onChange={(e) => setC('quantity', Number(e.target.value))} />
             <Input label="Unit" value={costForm.unit} onChange={(e) => setC('unit', e.target.value)} />
