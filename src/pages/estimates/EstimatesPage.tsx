@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useStore } from '../../store';
 import { PageHeader, Button, Badge, Modal, Input, Select, TextArea, EmptyState } from '../../components/ui';
-import { Plus, Pencil, Trash2, Search, Send, RefreshCw, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Send, RefreshCw, FileText, FileDown, Mail } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { emitAppToast } from '../../toast';
 import { statusColor, formatCurrency, formatDate, calcEstimateSubtotal, calcEstimateTax, calcEstimateTotal, generateId } from '../../utils';
 import type { Estimate, EstimateStatus, LineItem } from '../../types';
 import EstimateLineItemEditor from './EstimateLineItemEditor';
@@ -21,6 +24,79 @@ const emptyEstimate = (): Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'> => ({
   validUntil: '',
 });
 
+const sanitizeFileNamePart = (value: string): string => {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+const createProposalDocument = (estimate: Estimate, customerName: string, customerCompany?: string) => {
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const subtotal = calcEstimateSubtotal(estimate.lineItems);
+  const tax = calcEstimateTax(subtotal, estimate.taxRate);
+  const total = calcEstimateTotal(subtotal, tax);
+  const generatedAt = new Date().toLocaleString();
+
+  doc.setFontSize(18);
+  doc.text('Project Proposal', 40, 44);
+  doc.setFontSize(10);
+  doc.text(`Estimate: ${estimate.title}`, 40, 64);
+  doc.text(`Customer: ${customerName}${customerCompany ? ` (${customerCompany})` : ''}`, 40, 78);
+  doc.text(`Generated: ${generatedAt}`, 40, 92);
+  doc.text(`Valid Until: ${estimate.validUntil ? formatDate(estimate.validUntil) : 'Not specified'}`, 40, 106);
+
+  if (estimate.description?.trim()) {
+    doc.setFontSize(11);
+    doc.text('Scope', 40, 130);
+    doc.setFontSize(10);
+    const scopeLines = doc.splitTextToSize(estimate.description.trim(), 530);
+    doc.text(scopeLines, 40, 146);
+  }
+
+  autoTable(doc, {
+    startY: 176,
+    head: [['Category', 'Description', 'Qty', 'Unit', 'Unit Cost', 'Markup', 'Line Total']],
+    body: estimate.lineItems.map((line) => [
+      line.category,
+      line.description,
+      String(line.quantity),
+      line.unit,
+      formatCurrency(line.unitCost),
+      `${line.markup}%`,
+      formatCurrency(line.total),
+    ]),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [97, 110, 86] },
+  });
+
+  const tableBottomY = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 176;
+
+  autoTable(doc, {
+    startY: tableBottomY + 16,
+    head: [['Summary', 'Amount']],
+    body: [
+      ['Subtotal', formatCurrency(subtotal)],
+      [`Tax (${estimate.taxRate}%)`, formatCurrency(tax)],
+      ['Total', formatCurrency(total)],
+    ],
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [134, 143, 122] },
+  });
+
+  if (estimate.notes?.trim()) {
+    const notesStartY = ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? tableBottomY) + 20;
+    doc.setFontSize(11);
+    doc.text('Notes', 40, notesStartY);
+    doc.setFontSize(10);
+    const noteLines = doc.splitTextToSize(estimate.notes.trim(), 530);
+    doc.text(noteLines, 40, notesStartY + 16);
+  }
+
+  return doc;
+};
+
 export default function EstimatesPage() {
   const { estimates, customers, templates, addEstimate, updateEstimate, deleteEstimate, sendEstimate, convertEstimateToJob } = useStore();
   const [search, setSearch] = useState('');
@@ -30,7 +106,11 @@ export default function EstimatesPage() {
   const [form, setForm] = useState(emptyEstimate());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmConvert, setConfirmConvert] = useState<string | null>(null);
+  const [proposalEstimateId, setProposalEstimateId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
+
+  const proposalEstimate = proposalEstimateId ? estimates.find((estimate) => estimate.id === proposalEstimateId) ?? null : null;
+  const proposalCustomer = proposalEstimate ? customers.find((customer) => customer.id === proposalEstimate.customerId) ?? null : null;
 
   const filtered = estimates.filter((e) => {
     const customer = customers.find((c) => c.id === e.customerId);
@@ -82,6 +162,51 @@ export default function EstimatesPage() {
   const subtotal = calcEstimateSubtotal(form.lineItems);
   const tax = calcEstimateTax(subtotal, form.taxRate);
   const total = calcEstimateTotal(subtotal, tax);
+
+  const createProposalPdf = (estimate: Estimate) => {
+    const customer = customers.find((value) => value.id === estimate.customerId);
+    const customerName = customer?.name?.trim() || 'Client';
+    const safeTitle = sanitizeFileNamePart(estimate.title) || 'estimate';
+    const fileName = `proposal-${safeTitle}-${estimate.id.slice(0, 8)}.pdf`;
+
+    const doc = createProposalDocument(estimate, customerName, customer?.company);
+    doc.save(fileName);
+    emitAppToast({ tone: 'success', message: `Proposal PDF generated: ${fileName}` });
+  };
+
+  const sendProposalToClient = (estimate: Estimate) => {
+    const customer = customers.find((value) => value.id === estimate.customerId);
+    if (!customer?.email?.trim()) {
+      emitAppToast({ tone: 'error', message: 'Customer email is missing. Add an email before sending.' });
+      return;
+    }
+
+    createProposalPdf(estimate);
+
+    const subtotalValue = calcEstimateSubtotal(estimate.lineItems);
+    const totalValue = calcEstimateTotal(subtotalValue, calcEstimateTax(subtotalValue, estimate.taxRate));
+    const subject = encodeURIComponent(`Proposal: ${estimate.title}`);
+    const body = encodeURIComponent(
+      [
+        `Hi ${customer.name},`,
+        '',
+        `Please find attached our proposal for ${estimate.title}.`,
+        `Total proposed amount: ${formatCurrency(totalValue)}.`,
+        estimate.validUntil ? `This proposal is valid until ${formatDate(estimate.validUntil)}.` : 'This proposal does not have an expiry date listed.',
+        '',
+        'Thank you,',
+      ].join('\n')
+    );
+
+    if (typeof window !== 'undefined') {
+      window.location.href = `mailto:${encodeURIComponent(customer.email)}?subject=${subject}&body=${body}`;
+    }
+
+    if (estimate.status === 'draft') {
+      sendEstimate(estimate.id);
+    }
+    emitAppToast({ tone: 'success', message: 'Email draft opened. Attach the proposal PDF and send.' });
+  };
 
   return (
     <div>
@@ -153,6 +278,9 @@ export default function EstimatesPage() {
                             <Send size={13} />
                           </Button>
                         )}
+                        <Button variant="ghost" size="sm" onClick={() => setProposalEstimateId(est.id)} title="Create Proposal PDF">
+                          <FileDown size={13} />
+                        </Button>
                         {(est.status === 'accepted' || est.status === 'sent') && (
                           <Button variant="ghost" size="sm" onClick={() => setConfirmConvert(est.id)} title="Convert to Job">
                             <RefreshCw size={13} />
@@ -271,6 +399,48 @@ export default function EstimatesPage() {
           </div>
           <TextArea label="Notes" value={form.notes} onChange={(e) => set('notes', e.target.value)} />
         </div>
+      </Modal>
+
+      {/* Proposal modal */}
+      <Modal
+        open={!!proposalEstimate}
+        onClose={() => setProposalEstimateId(null)}
+        title="Create Proposal"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setProposalEstimateId(null)}>Close</Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!proposalEstimate) return;
+                createProposalPdf(proposalEstimate);
+              }}
+            >
+              <FileDown size={14} /> Download PDF
+            </Button>
+            <Button
+              onClick={() => {
+                if (!proposalEstimate) return;
+                sendProposalToClient(proposalEstimate);
+              }}
+            >
+              <Mail size={14} /> Send to Client
+            </Button>
+          </>
+        }
+      >
+        {proposalEstimate ? (
+          <div className="space-y-3 text-sm text-gray-700">
+            <p className="text-gray-600">Generate a client-ready proposal PDF for this estimate.</p>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1">
+              <p><span className="font-medium text-gray-900">Estimate:</span> {proposalEstimate.title}</p>
+              <p><span className="font-medium text-gray-900">Customer:</span> {proposalCustomer?.name ?? 'Unknown Customer'}</p>
+              <p><span className="font-medium text-gray-900">Valid Until:</span> {proposalEstimate.validUntil ? formatDate(proposalEstimate.validUntil) : 'Not specified'}</p>
+              <p><span className="font-medium text-gray-900">Total:</span> {formatCurrency(calcEstimateTotal(calcEstimateSubtotal(proposalEstimate.lineItems), calcEstimateTax(calcEstimateSubtotal(proposalEstimate.lineItems), proposalEstimate.taxRate)))}</p>
+            </div>
+            <p className="text-xs text-gray-500">Send to Client opens your email app with a draft message. Attach the downloaded PDF before sending.</p>
+          </div>
+        ) : null}
       </Modal>
 
       {/* Delete confirm */}
