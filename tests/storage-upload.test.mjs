@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateUploadPayload } from '../src/utils/fileUpload.js';
+import { parseStorageApiResponse, validateUploadPayload } from '../src/utils/fileUpload.js';
 
 test('25 MB image uploads are accepted', () => {
   const result = validateUploadPayload({
@@ -56,4 +56,17 @@ test('office documents use their own limits', () => {
   assert.equal(docx.ok, true);
   assert.equal(xlsx.ok, true);
   assert.equal(csv.ok, true);
+});
+
+test('non-JSON API response is handled cleanly by client parser', async () => {
+  const response = new Response('Service unavailable', {
+    status: 503,
+    headers: {
+      'Content-Type': 'text/plain',
+    },
+  });
+
+  const payload = await parseStorageApiResponse(response, 'Storage service is temporarily unavailable.');
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error, 'Service unavailable');
 });

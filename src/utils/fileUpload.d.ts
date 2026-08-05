@@ -40,3 +40,5 @@ export interface ResolveAttachmentUrlInput {
 }
 
 export function resolveAttachmentUrl(input: ResolveAttachmentUrlInput): Promise<string>;
+
+export function parseStorageApiResponse(response: Response, fallbackErrorMessage?: string): Promise<Record<string, unknown>>;

@@ -47,6 +47,34 @@ export function validateUploadPayload({ fileName, mimeType, sizeBytes }) {
   return { ok: true, fileName: fileName?.trim() || 'file', mimeType: normalizedMime, sizeBytes: safeSize };
 }
 
+export async function parseStorageApiResponse(response, fallbackErrorMessage) {
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  const isJson = contentType.includes('application/json');
+
+  if (isJson) {
+    try {
+      return await response.json();
+    } catch {
+      return {
+        ok: false,
+        error: fallbackErrorMessage || 'Storage service returned invalid JSON.',
+      };
+    }
+  }
+
+  let bodyText = '';
+  try {
+    bodyText = (await response.text()).trim();
+  } catch {
+    bodyText = '';
+  }
+
+  return {
+    ok: false,
+    error: bodyText || fallbackErrorMessage || 'Storage service returned a non-JSON response.',
+  };
+}
+
 export async function uploadFileToStorage({ file, entityType, entityId, category }) {
   const validation = validateUploadPayload({
     fileName: file?.name,
@@ -73,7 +101,7 @@ export async function uploadFileToStorage({ file, entityType, entityId, category
     }),
   });
 
-  const preparePayload = await prepareResponse.json();
+  const preparePayload = await parseStorageApiResponse(prepareResponse, 'Upload could not be prepared.');
   if (!prepareResponse.ok || !preparePayload?.ok || !preparePayload.uploadUrl || !preparePayload.plan) {
     throw new Error(preparePayload?.error || 'Upload could not be prepared.');
   }
@@ -105,7 +133,7 @@ export async function uploadFileToStorage({ file, entityType, entityId, category
     }),
   });
 
-  const completePayload = await completeResponse.json();
+  const completePayload = await parseStorageApiResponse(completeResponse, 'The upload could not be finalized.');
   if (!completeResponse.ok || !completePayload?.ok) {
     throw new Error(completePayload?.error || 'The upload could not be finalized.');
   }
@@ -129,7 +157,7 @@ export async function resolveAttachmentUrl({ fileId, legacyUrl }) {
       body: JSON.stringify({ action: 'prepare-download', fileId }),
     });
 
-    const payload = await response.json();
+    const payload = await parseStorageApiResponse(response, 'Download could not be prepared.');
     if (!response.ok || !payload?.ok || typeof payload.downloadUrl !== 'string') {
       return legacyUrl || '';
     }

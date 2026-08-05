@@ -2,6 +2,7 @@ import {
   validateUploadPayload as validateUploadPayloadJs,
   uploadFileToStorage as uploadFileToStorageJs,
   resolveAttachmentUrl as resolveAttachmentUrlJs,
+  parseStorageApiResponse as parseStorageApiResponseJs,
 } from './fileUpload.js';
 
 export const validateUploadPayload = validateUploadPayloadJs as (input: {
@@ -23,3 +24,8 @@ export const resolveAttachmentUrl = resolveAttachmentUrlJs as (input: {
   fileId?: string;
   legacyUrl?: string;
 }) => Promise<string>;
+
+export const parseStorageApiResponse = parseStorageApiResponseJs as (
+  response: Response,
+  fallbackErrorMessage?: string,
+) => Promise<Record<string, unknown>>;

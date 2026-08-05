@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Card, PageHeader, Button, Input } from '../../components/ui';
+import { parseStorageApiResponse } from '../../utils/fileUploadClient';
 
 interface StoredFileRecord {
   id: string;
@@ -32,7 +33,7 @@ export default function DocumentsPage() {
   const loadFiles = async () => {
     try {
       const response = await fetch('/api/storage?view=files', { credentials: 'include' });
-      const data = await response.json();
+      const data = await parseStorageApiResponse(response, 'Could not load files.') as { ok?: boolean; files?: StoredFileRecord[] };
       if (data.ok) {
         setFiles(data.files ?? []);
       }
@@ -67,7 +68,7 @@ export default function DocumentsPage() {
           sizeBytes: selectedFile.size,
         }),
       });
-      const data = await response.json();
+      const data = await parseStorageApiResponse(response, 'Upload could not be prepared.') as { ok?: boolean; error?: string; uploadUrl?: string; plan?: StoredFileRecord & { fileId?: string; key?: string; fileName?: string; mimeType?: string; sizeBytes?: number } };
       if (!data?.ok || !data.uploadUrl || !data.plan) {
         throw new Error(data?.error || 'Upload could not be prepared.');
       }
@@ -95,7 +96,7 @@ export default function DocumentsPage() {
           sizeBytes: data.plan.sizeBytes,
         }),
       });
-      const completeData = await completeResponse.json();
+      const completeData = await parseStorageApiResponse(completeResponse, 'The upload could not be finalized.') as { ok?: boolean; error?: string };
       if (!completeData?.ok) {
         throw new Error(completeData?.error || 'The upload could not be finalized.');
       }
@@ -119,7 +120,7 @@ export default function DocumentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'prepare-download', key: file.key }),
       });
-      const data = await response.json();
+      const data = await parseStorageApiResponse(response, 'Download could not be prepared.') as { ok?: boolean; error?: string; downloadUrl?: string };
       if (!data?.ok || !data.downloadUrl) {
         throw new Error(data?.error || 'Download could not be prepared.');
       }
@@ -137,7 +138,7 @@ export default function DocumentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', key: file.key }),
       });
-      const data = await response.json();
+      const data = await parseStorageApiResponse(response, 'Delete failed.') as { ok?: boolean; error?: string };
       if (!data?.ok) {
         throw new Error(data?.error || 'Delete failed.');
       }

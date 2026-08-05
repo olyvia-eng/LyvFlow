@@ -118,7 +118,7 @@ function getS3Client() {
 }
 
 function getBucketName() {
-  return requireEnv('S3_BUCKET_NAME');
+  return requireEnv('AWS_S3_BUCKET_NAME');
 }
 
 function isStorageKeyScopedToBusiness({ businessId, key }) {
