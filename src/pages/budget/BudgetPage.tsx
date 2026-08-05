@@ -8,6 +8,7 @@ import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/n
 import type {
   BudgetItem,
   Budget,
+  BudgetType,
   BudgetCategory,
   LabourBudgetPlan,
   LabourCompType,
@@ -28,6 +29,14 @@ type LabourTableView = 'all' | LabourCompType;
 type EquipmentTableView = 'all' | EquipmentCostType;
 
 const EQUIPMENT_COST_TYPES: EquipmentCostType[] = ['financed', 'leased', 'owned'];
+
+const BUDGET_TYPE_OPTIONS: Array<{ value: BudgetType; label: string }> = [
+  { value: 'operating', label: 'Operating Budget' },
+  { value: 'capital', label: 'Capital Budget' },
+  { value: 'project', label: 'Project Budget' },
+  { value: 'forecast', label: 'Forecast / What-If' },
+  { value: 'custom', label: 'Custom' },
+];
 
 const normalizeEquipmentCostType = (value: string | undefined): EquipmentCostType => {
   if (value === 'financed' || value === 'leased' || value === 'owned') return value;
@@ -172,6 +181,7 @@ export default function BudgetPage() {
     labourBudgetPlans,
     revenueSalesGoals,
     addBudget,
+    updateBudget,
     employees,
     addEmployee,
     updateEmployee,
@@ -195,6 +205,10 @@ export default function BudgetPage() {
   const [equipmentTableView, setEquipmentTableView] = useState<EquipmentTableView>('all');
   const [showLabourCalcDetails, setShowLabourCalcDetails] = useState(false);
   const [showEquipmentCalcDetails, setShowEquipmentCalcDetails] = useState(false);
+  const [isEditingBudgetMeta, setIsEditingBudgetMeta] = useState(false);
+  const [budgetNameDraft, setBudgetNameDraft] = useState('');
+  const [budgetTypeDraft, setBudgetTypeDraft] = useState<BudgetType>('operating');
+  const [budgetMetaError, setBudgetMetaError] = useState('');
   const [averageFuelPriceInput, setAverageFuelPriceInput] = useState('0');
   const [averageFuelBurnPerHourInput, setAverageFuelBurnPerHourInput] = useState('0');
   const [billablePctDrafts, setBillablePctDrafts] = useState<Record<string, string>>({});
@@ -222,6 +236,42 @@ export default function BudgetPage() {
   const activeBudgetId = routeBudgetId ?? sortedBudgets[0]?.id ?? null;
   const activeBudget = activeBudgetId ? (budgets.find((budget) => budget.id === activeBudgetId) ?? null) : null;
   const hasLegacyBudgetData = budgetItems.length > 0 || labourBudgetPlans.length > 0 || revenueSalesGoals.length > 0;
+
+  useEffect(() => {
+    if (!activeBudget) return;
+    if (isEditingBudgetMeta) return;
+    setBudgetNameDraft(activeBudget.name);
+    setBudgetTypeDraft(activeBudget.budgetType);
+  }, [activeBudget, isEditingBudgetMeta]);
+
+  const startEditingBudgetMeta = () => {
+    if (!activeBudget) return;
+    setBudgetNameDraft(activeBudget.name);
+    setBudgetTypeDraft(activeBudget.budgetType);
+    setBudgetMetaError('');
+    setIsEditingBudgetMeta(true);
+  };
+
+  const cancelEditingBudgetMeta = () => {
+    setBudgetMetaError('');
+    setIsEditingBudgetMeta(false);
+  };
+
+  const saveBudgetMeta = () => {
+    if (!activeBudget) return;
+    const trimmedName = budgetNameDraft.trim();
+    if (!trimmedName) {
+      setBudgetMetaError('Budget name is required.');
+      return;
+    }
+
+    updateBudget(activeBudget.id, {
+      name: trimmedName,
+      budgetType: budgetTypeDraft,
+    });
+    setBudgetMetaError('');
+    setIsEditingBudgetMeta(false);
+  };
 
   useEffect(() => {
     if (legacyBudgetBootstrapStarted.current) return;
@@ -1295,12 +1345,43 @@ export default function BudgetPage() {
       {/* Scope selector */}
       <div className="flex flex-col gap-3 mb-6">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-            Budget: {activeBudget.name}
-          </span>
-          <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-            {toOptionLabel(activeBudget.budgetType)}
-          </span>
+          {isEditingBudgetMeta ? (
+            <>
+              <Input
+                label="Budget Name"
+                required
+                value={budgetNameDraft}
+                onChange={(e) => setBudgetNameDraft(e.target.value)}
+                className="min-w-[260px]"
+              />
+              <Select
+                label="Budget Type"
+                required
+                value={budgetTypeDraft}
+                onChange={(e) => setBudgetTypeDraft(e.target.value as BudgetType)}
+                className="min-w-[220px]"
+              >
+                {BUDGET_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </Select>
+              <Button size="sm" onClick={saveBudgetMeta}>Save</Button>
+              <Button size="sm" variant="secondary" onClick={cancelEditingBudgetMeta}>Cancel</Button>
+              {budgetMetaError && <span className="text-xs text-accent-700">{budgetMetaError}</span>}
+            </>
+          ) : (
+            <>
+              <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                Budget: {activeBudget.name}
+              </span>
+              <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                {toOptionLabel(activeBudget.budgetType)}
+              </span>
+              <Button size="sm" variant="secondary" onClick={startEditingBudgetMeta}>
+                <Pencil size={14} /> Edit Budget
+              </Button>
+            </>
+          )}
           <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
             {toOptionLabel(activeBudget.division)}
           </span>
