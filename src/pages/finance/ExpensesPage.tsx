@@ -3,7 +3,7 @@ import { FilePlus2, HandCoins, Pencil, Receipt, Wallet, Link as LinkIcon } from 
 import { Button, Card, EmptyState, Input, Modal, PageHeader, Select, StatCard } from '../../components/ui';
 import { useStore } from '../../store';
 import { formatCurrency } from '../../utils';
-import { uploadFileToStorage } from '../../utils/fileUpload';
+import { uploadFileToStorage } from '../../utils/fileUploadClient';
 import type { Expense, ExpenseCategory, ExpenseStatus } from '../../types';
 
 type StatusFilter = 'all' | ExpenseStatus;

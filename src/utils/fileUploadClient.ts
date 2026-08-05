@@ -1,3 +1,4 @@
+// @ts-ignore -- JS helper module is intentionally imported and wrapped with explicit types below.
 import {
   validateUploadPayload as validateUploadPayloadJs,
   uploadFileToStorage as uploadFileToStorageJs,
