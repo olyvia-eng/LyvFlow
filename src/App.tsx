@@ -8,6 +8,7 @@ import TemplatesPage from './pages/estimates/TemplatesPage';
 import JobsPage from './pages/jobs/JobsPage';
 import JobDetailPage from './pages/jobs/JobDetailPage';
 import BudgetPage from './pages/budget/BudgetPage';
+import BudgetsPage from './pages/budget/BudgetsPage';
 import EmployeesPage from './pages/employees/EmployeesPage';
 import DataCenterPage from './pages/datacenter/DataCenterPage';
 import TimeReportsPage from './pages/reports/TimeReportsPage';
@@ -27,7 +28,7 @@ import ExpensesPage from './pages/finance/ExpensesPage';
 import EquipmentPage from './pages/operations/EquipmentPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { BudgetItem, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
+import type { Budget, BudgetItem, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
@@ -71,6 +72,7 @@ export default function App() {
 
       const payload = await readApiJson<{
         ok: boolean;
+        budgets?: Budget[];
         customers?: Customer[];
         jobs?: Job[];
         estimates?: Estimate[];
@@ -93,6 +95,7 @@ export default function App() {
 
       useStore.setState((state) => ({
         ...state,
+        budgets: payload.budgets ?? [],
         customers: payload.customers ?? [],
         jobs: payload.jobs ?? [],
         estimates: payload.estimates ?? [],
@@ -194,6 +197,7 @@ export default function App() {
     if (previousOwner === sessionUser.businessId) return;
 
     useStore.setState({
+      budgets: [],
       customers: [],
       estimates: [],
       expenses: [],
@@ -566,6 +570,8 @@ export default function App() {
               <Route path="jobs" element={<JobsPage />} />
               <Route path="jobs/:id" element={<JobDetailPage />} />
               <Route path="calendar" element={<CalendarPage />} />
+              <Route path="budgets" element={<BudgetsPage />} />
+              <Route path="budgets/:budgetId" element={<BudgetPage />} />
               <Route path="budget" element={<BudgetPage />} />
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="data-center" element={<DataCenterPage />} />

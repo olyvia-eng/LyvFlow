@@ -68,6 +68,10 @@ function budgetSk(budgetItemId) {
   return `BUDGET#${budgetItemId}`;
 }
 
+function budgetMetaSk(budgetId) {
+  return `BUDGET_META#${budgetId}`;
+}
+
 function labourBudgetPlanSk(labourBudgetPlanId) {
   return `LABOUR_BUDGET#${labourBudgetPlanId}`;
 }
@@ -1390,6 +1394,107 @@ export async function deleteEquipmentAssetForBusiness(businessId, equipmentId) {
   return { ok: true };
 }
 
+export async function listBudgetsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'BUDGET_META#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.budgetId,
+    name: item.name,
+    budgetType: item.budgetType,
+    division: item.division,
+    fiscalYear: item.fiscalYear,
+    status: item.status,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+}
+
+export async function createBudgetForBusiness({ businessId, budget }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: budgetMetaSk(budget.id),
+        entityType: 'BUDGET',
+        businessId,
+        budgetId: budget.id,
+        ...budget,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getBudgetForBusiness(businessId, budgetId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: budgetMetaSk(budgetId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.budgetId,
+        name: result.Item.name,
+        budgetType: result.Item.budgetType,
+        division: result.Item.division,
+        fiscalYear: result.Item.fiscalYear,
+        status: result.Item.status,
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateBudgetForBusiness({ businessId, budget }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: budgetMetaSk(budget.id),
+        entityType: 'BUDGET',
+        businessId,
+        budgetId: budget.id,
+        ...budget,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteBudgetForBusiness(businessId, budgetId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: budgetMetaSk(budgetId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
 export async function listBudgetItemsForBusiness(businessId) {
   const result = await ddb.send(
     new QueryCommand({
@@ -1404,6 +1509,7 @@ export async function listBudgetItemsForBusiness(businessId) {
 
   return (result.Items ?? []).map((item) => ({
     id: item.budgetItemId,
+    budgetId: item.budgetId,
     category: item.category,
     equipmentCostType: item.equipmentCostType === 'other' ? 'owned' : item.equipmentCostType,
     costCode: item.costCode,
@@ -1460,6 +1566,7 @@ export async function getBudgetItemForBusiness(businessId, budgetItemId) {
   return result.Item
     ? {
         id: result.Item.budgetItemId,
+        budgetId: result.Item.budgetId,
         category: result.Item.category,
       equipmentCostType: result.Item.equipmentCostType === 'other' ? 'owned' : result.Item.equipmentCostType,
         costCode: result.Item.costCode,
@@ -1531,6 +1638,7 @@ export async function listLabourBudgetPlansForBusiness(businessId) {
 
   return (result.Items ?? []).map((item) => ({
     id: item.labourBudgetPlanId,
+    budgetId: item.budgetId,
     employeeId: item.employeeId,
     year: item.year,
     compType: item.compType,
@@ -1584,6 +1692,7 @@ export async function getLabourBudgetPlanForBusiness(businessId, labourBudgetPla
   return result.Item
     ? {
         id: result.Item.labourBudgetPlanId,
+        budgetId: result.Item.budgetId,
         employeeId: result.Item.employeeId,
         year: result.Item.year,
         compType: result.Item.compType,
@@ -1652,6 +1761,7 @@ export async function listLabourHoursSalesGoalsForBusiness(businessId) {
 
   return (result.Items ?? []).map((item) => ({
     id: item.labourHoursSalesGoalId,
+    budgetId: item.budgetId,
     year: item.year,
     hoursGoal: item.hoursGoal,
   }));
@@ -1690,6 +1800,7 @@ export async function getLabourHoursSalesGoalForBusiness(businessId, labourHours
   return result.Item
     ? {
         id: result.Item.labourHoursSalesGoalId,
+        budgetId: result.Item.budgetId,
         year: result.Item.year,
         hoursGoal: result.Item.hoursGoal,
       }
@@ -1743,6 +1854,7 @@ export async function listRevenueSalesGoalsForBusiness(businessId) {
 
   return (result.Items ?? []).map((item) => ({
     id: item.revenueSalesGoalId,
+    budgetId: item.budgetId,
     scopeType: item.scopeType,
     scopeValue: item.scopeValue,
     goalRevenue: item.goalRevenue,
@@ -1783,6 +1895,7 @@ export async function getRevenueSalesGoalForBusiness(businessId, revenueSalesGoa
   return result.Item
     ? {
         id: result.Item.revenueSalesGoalId,
+        budgetId: result.Item.budgetId,
         scopeType: result.Item.scopeType,
         scopeValue: result.Item.scopeValue,
         goalRevenue: result.Item.goalRevenue,

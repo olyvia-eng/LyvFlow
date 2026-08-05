@@ -235,10 +235,26 @@ export type BudgetCategory =
   | 'insurance'
   | 'other';
 
+export type BudgetType = 'operating' | 'capital' | 'project' | 'forecast' | 'custom';
+export type BudgetDivision = 'company_wide' | 'earthworks' | 'septic' | 'landscaping' | 'other';
+export type BudgetStatus = 'draft' | 'active' | 'archived';
+
+export interface Budget {
+  id: ID;
+  name: string;
+  budgetType: BudgetType;
+  division: BudgetDivision;
+  fiscalYear: string;
+  status: BudgetStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type EquipmentCostType = 'financed' | 'leased' | 'owned';
 
 export interface BudgetItem {
   id: ID;
+  budgetId?: ID;
   category: BudgetCategory;
   equipmentCostType?: EquipmentCostType;
   costCode?: string;
@@ -265,6 +281,7 @@ export type LabourCompType = 'hourly' | 'salaried';
 
 export interface LabourBudgetPlan {
   id: ID;
+  budgetId?: ID;
   employeeId: ID;
   year: string; // YYYY
   compType: LabourCompType;
@@ -286,12 +303,14 @@ export interface LabourBudgetPlan {
 
 export interface LabourHoursSalesGoal {
   id: ID;
+  budgetId?: ID;
   year: string; // YYYY
   hoursGoal: number;
 }
 
 export interface RevenueSalesGoal {
   id: ID;
+  budgetId?: ID;
   scopeType: 'year';
   scopeValue: string; // YYYY
   goalRevenue: number;

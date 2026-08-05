@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PageHeader, Button, Card, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, FileDown, Info, Users } from 'lucide-react';
@@ -7,6 +7,7 @@ import { formatCurrency } from '../../utils';
 import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
 import type {
   BudgetItem,
+  Budget,
   BudgetCategory,
   LabourBudgetPlan,
   LabourCompType,
@@ -60,7 +61,8 @@ const compareBudgetItemsByCostCode = (a: BudgetItem, b: BudgetItem) => {
   return a.description.localeCompare(b.description, undefined, { sensitivity: 'base' });
 };
 
-const empty = (): Omit<BudgetItem, 'id'> => ({
+const empty = (budgetId?: string): Omit<BudgetItem, 'id'> => ({
+  budgetId,
   category: 'labour',
   equipmentCostType: undefined,
   costCode: '',
@@ -98,12 +100,13 @@ const equipmentInfoDefaults = () => ({
 });
 
 const yearlyHoursBase = 2080;
-const buildLabourPlanId = (employeeId: string, year: string) => `${employeeId}-${year}`;
-const buildRevenueSalesGoalId = (scopeType: 'year', scopeValue: string) => `revenue-goal-${scopeType}-${scopeValue}`;
+const buildLabourPlanId = (budgetId: string, employeeId: string, year: string) => `${budgetId}-${employeeId}-${year}`;
+const buildRevenueSalesGoalId = (budgetId: string, scopeType: 'year', scopeValue: string) => `revenue-goal-${budgetId}-${scopeType}-${scopeValue}`;
 const DEFAULT_WORKING_DAYS_YEAR = 260;
 
-const defaultLabourPlan = (employeeId: string, year: string, hourlyRate: number, role: EmployeeRole): LabourBudgetPlan => ({
-  id: buildLabourPlanId(employeeId, year),
+const defaultLabourPlan = (budgetId: string, employeeId: string, year: string, hourlyRate: number, role: EmployeeRole): LabourBudgetPlan => ({
+  id: buildLabourPlanId(budgetId, employeeId, year),
+  budgetId,
   employeeId,
   year,
   compType: 'hourly',
@@ -161,10 +164,14 @@ const toOptionLabel = (value: string) => value
   .join(' ');
 
 export default function BudgetPage() {
+  const navigate = useNavigate();
+  const { budgetId: routeBudgetId } = useParams<{ budgetId: string }>();
   const {
+    budgets,
     budgetItems,
     labourBudgetPlans,
     revenueSalesGoals,
+    addBudget,
     employees,
     addEmployee,
     updateEmployee,
@@ -196,6 +203,7 @@ export default function BudgetPage() {
   const [createAsEmployee, setCreateAsEmployee] = useState(false);
   const [labourItemPassword, setLabourItemPassword] = useState('');
   const [labourItemError, setLabourItemError] = useState('');
+  const legacyBudgetBootstrapStarted = useRef(false);
   const [pricingInputs, setPricingInputs] = useState({
     payrollBurdenPct: 18,
     overheadRecoveryPct: 15,
@@ -205,13 +213,66 @@ export default function BudgetPage() {
     subcontractorRiskPct: 10,
   });
 
-  const allYears = [...new Set(budgetItems.map((b) => b.period.slice(0, 4)))].sort().reverse();
+  const sortedBudgets = useMemo(() => {
+    return budgets
+      .slice()
+      .sort((a: Budget, b: Budget) => b.updatedAt.localeCompare(a.updatedAt));
+  }, [budgets]);
+
+  const activeBudgetId = routeBudgetId ?? sortedBudgets[0]?.id ?? null;
+  const activeBudget = activeBudgetId ? (budgets.find((budget) => budget.id === activeBudgetId) ?? null) : null;
+  const hasLegacyBudgetData = budgetItems.length > 0 || labourBudgetPlans.length > 0 || revenueSalesGoals.length > 0;
+
+  useEffect(() => {
+    if (legacyBudgetBootstrapStarted.current) return;
+    if (budgets.length > 0) return;
+    if (!hasLegacyBudgetData) return;
+
+    legacyBudgetBootstrapStarted.current = true;
+    const created = addBudget({
+      name: `Company Budget ${year}`,
+      budgetType: 'operating',
+      division: 'company_wide',
+      fiscalYear: year,
+      status: 'active',
+    });
+
+    if (!routeBudgetId) {
+      navigate(`/budgets/${created.id}`, { replace: true });
+    }
+  }, [addBudget, budgets.length, hasLegacyBudgetData, navigate, routeBudgetId, year]);
+
+  const legacyOwnerBudgetId = sortedBudgets[0]?.id ?? null;
+  const hasAnyScopedBudgetData = useMemo(() => {
+    return budgetItems.some((item) => Boolean(item.budgetId))
+      || labourBudgetPlans.some((plan) => Boolean(plan.budgetId))
+      || revenueSalesGoals.some((goal) => Boolean(goal.budgetId));
+  }, [budgetItems, labourBudgetPlans, revenueSalesGoals]);
+  // TODO: Remove legacy unscoped fallback once all historical budget records are migrated with budgetId.
+  const includeLegacyUnscopedData = Boolean(activeBudgetId) && !hasAnyScopedBudgetData && activeBudgetId === legacyOwnerBudgetId;
+
+  const scopedBudgetItems = useMemo(() => {
+    if (!activeBudgetId) return [];
+    return budgetItems.filter((item) => item.budgetId === activeBudgetId || (includeLegacyUnscopedData && !item.budgetId));
+  }, [activeBudgetId, budgetItems, includeLegacyUnscopedData]);
+
+  const scopedLabourBudgetPlans = useMemo(() => {
+    if (!activeBudgetId) return [];
+    return labourBudgetPlans.filter((plan) => plan.budgetId === activeBudgetId || (includeLegacyUnscopedData && !plan.budgetId));
+  }, [activeBudgetId, labourBudgetPlans, includeLegacyUnscopedData]);
+
+  const scopedRevenueSalesGoals = useMemo(() => {
+    if (!activeBudgetId) return [];
+    return revenueSalesGoals.filter((goal) => goal.budgetId === activeBudgetId || (includeLegacyUnscopedData && !goal.budgetId));
+  }, [activeBudgetId, includeLegacyUnscopedData, revenueSalesGoals]);
+
+  const allYears = [...new Set(scopedBudgetItems.map((b) => b.period.slice(0, 4)))].sort().reverse();
 
   const items = useMemo(() => {
-    return budgetItems
+    return scopedBudgetItems
       .filter((b) => b.period.startsWith(`${year}-`))
       .sort(compareBudgetItemsByCostCode);
-  }, [budgetItems, year]);
+  }, [scopedBudgetItems, year]);
   const scopeLabel = year;
   const revenueScopeType: 'year' = 'year';
   const revenueScopeValue = scopeLabel;
@@ -223,7 +284,7 @@ export default function BudgetPage() {
     const defaultEquipmentInfo = defaultCategory === 'equipment' ? equipmentInfoDefaults() : null;
     setEditing(null);
     setForm({
-      ...empty(),
+      ...empty(activeBudgetId ?? undefined),
       category: defaultCategory,
       equipmentCostType: defaultCategory === 'equipment' ? 'financed' : undefined,
       ...(defaultEquipmentInfo ?? {}),
@@ -245,6 +306,7 @@ export default function BudgetPage() {
     const averageFuelBurnPerHour = b.averageFuelBurnPerHour ?? 1;
     setEditing(b);
     setForm({
+      budgetId: b.budgetId ?? activeBudgetId ?? undefined,
       category: b.category,
       equipmentCostType: normalizeEquipmentCostType(b.equipmentCostType),
       costCode: b.costCode ?? '',
@@ -321,6 +383,7 @@ export default function BudgetPage() {
         };
     const yearlyForm = {
       ...form,
+      budgetId: activeBudgetId ?? undefined,
       budgeted: form.category === 'equipment' ? normalizedTotalEquipmentCostPerYear : normalizeNumber(form.budgeted),
       costCode: normalizedCostCode ? normalizedCostCode.toUpperCase() : undefined,
       ...equipmentFields,
@@ -343,7 +406,7 @@ export default function BudgetPage() {
     const defaultEquipmentInfo = category === 'equipment' ? equipmentInfoDefaults() : null;
     setEditing(null);
     setForm({
-      ...empty(),
+      ...empty(activeBudgetId ?? undefined),
       category,
       equipmentCostType: category === 'equipment' ? 'financed' : undefined,
       ...(defaultEquipmentInfo ?? {}),
@@ -561,11 +624,12 @@ export default function BudgetPage() {
   const budgetedNetMarginPct = totalBudgetedRevenue > 0 ? (budgetedNetProfit / totalBudgetedRevenue) * 100 : 0;
 
   const currentRevenuePlanRecord = useMemo(() => {
-    return revenueSalesGoals.find((goal) => goal.scopeType === revenueScopeType && goal.scopeValue === revenueScopeValue);
-  }, [revenueSalesGoals, revenueScopeType, revenueScopeValue]);
+    return scopedRevenueSalesGoals.find((goal) => goal.scopeType === revenueScopeType && goal.scopeValue === revenueScopeValue);
+  }, [scopedRevenueSalesGoals, revenueScopeType, revenueScopeValue]);
 
   const currentRevenuePlan = currentRevenuePlanRecord ?? {
-    id: buildRevenueSalesGoalId(revenueScopeType, revenueScopeValue),
+    id: buildRevenueSalesGoalId(activeBudgetId ?? 'budget', revenueScopeType, revenueScopeValue),
+    budgetId: activeBudgetId ?? undefined,
     scopeType: revenueScopeType,
     scopeValue: revenueScopeValue,
     goalRevenue: totalBudgetedRevenue > 0 ? totalBudgetedRevenue : totalActualRevenue,
@@ -577,9 +641,11 @@ export default function BudgetPage() {
     : 0;
 
   useEffect(() => {
+    if (!activeBudgetId) return;
     if (currentRevenuePlanRecord) return;
     upsertRevenueSalesGoal({
-      id: buildRevenueSalesGoalId(revenueScopeType, revenueScopeValue),
+      id: buildRevenueSalesGoalId(activeBudgetId, revenueScopeType, revenueScopeValue),
+      budgetId: activeBudgetId,
       scopeType: revenueScopeType,
       scopeValue: revenueScopeValue,
       goalRevenue: totalBudgetedRevenue > 0 ? totalBudgetedRevenue : totalActualRevenue,
@@ -587,6 +653,7 @@ export default function BudgetPage() {
     });
   }, [
     currentRevenuePlanRecord,
+    activeBudgetId,
     revenueScopeType,
     revenueScopeValue,
     totalBudgetedRevenue,
@@ -630,20 +697,21 @@ export default function BudgetPage() {
 
   const plansByEmployeeId = useMemo(() => {
     const byEmployeeId: Record<string, LabourBudgetPlan> = {};
-    for (const plan of labourBudgetPlans) {
+    for (const plan of scopedLabourBudgetPlans) {
       if (plan.year === plannerYear) {
         byEmployeeId[plan.employeeId] = plan;
       }
     }
     return byEmployeeId;
-  }, [labourBudgetPlans, plannerYear]);
+  }, [scopedLabourBudgetPlans, plannerYear]);
 
   useEffect(() => {
+    if (!activeBudgetId) return;
     for (const employee of employees.filter((value) => value.active)) {
       if (plansByEmployeeId[employee.id]) continue;
-      upsertLabourBudgetPlan(defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate, employee.role));
+      upsertLabourBudgetPlan(defaultLabourPlan(activeBudgetId, employee.id, plannerYear, employee.hourlyRate, employee.role));
     }
-  }, [employees, plannerYear, plansByEmployeeId, upsertLabourBudgetPlan]);
+  }, [activeBudgetId, employees, plannerYear, plansByEmployeeId, upsertLabourBudgetPlan]);
 
   const exportToPdf = (mode: ExportColumnMode = 'budgeted') => {
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
@@ -884,8 +952,9 @@ export default function BudgetPage() {
   const updateLabourPlan = (employeeId: string, key: keyof LabourBudgetPlan, value: LabourBudgetPlan[keyof LabourBudgetPlan]) => {
     const employee = activeEmployees.find((value) => value.id === employeeId);
     if (!employee) return;
+    if (!activeBudgetId) return;
 
-    const existing = plansByEmployeeId[employeeId] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate, employee.role);
+    const existing = plansByEmployeeId[employeeId] ?? defaultLabourPlan(activeBudgetId, employee.id, plannerYear, employee.hourlyRate, employee.role);
     const next = { ...existing, [key]: value };
     upsertLabourBudgetPlan(next);
   };
@@ -896,7 +965,7 @@ export default function BudgetPage() {
 
   const labourPlannerRows = useMemo(() => {
     return activeEmployees.map((employee) => {
-      const plan = plansByEmployeeId[employee.id] ?? defaultLabourPlan(employee.id, plannerYear, employee.hourlyRate, employee.role);
+      const plan = plansByEmployeeId[employee.id] ?? defaultLabourPlan(activeBudgetId ?? 'budget', employee.id, plannerYear, employee.hourlyRate, employee.role);
 
       const hoursPerYear = Math.max(
         0,
@@ -953,7 +1022,7 @@ export default function BudgetPage() {
         grossProfitGenerated,
       };
     });
-  }, [activeEmployees, marginDivisor, plannerYear, plansByEmployeeId, pricingInputs.overheadRecoveryPct]);
+  }, [activeBudgetId, activeEmployees, marginDivisor, plannerYear, plansByEmployeeId, pricingInputs.overheadRecoveryPct]);
 
   const visibleLabourPlannerRows = useMemo(() => {
     if (labourTableView === 'all') return labourPlannerRows;
@@ -1183,6 +1252,25 @@ export default function BudgetPage() {
     </details>
   );
 
+  if (!activeBudgetId || !activeBudget) {
+    return (
+      <div>
+        <PageHeader
+          title="Budget Detail"
+          subtitle="Select a budget first to open the full budgeting workspace."
+          action={<Button onClick={() => navigate('/budgets')}>View Budgets</Button>}
+        />
+        <EmptyState
+          title={budgets.length === 0 ? 'No budgets yet' : 'Budget not found'}
+          description={budgets.length === 0
+            ? 'Create your first budget from the Budgets page.'
+            : 'The selected budget could not be found. Return to Budgets and choose another one.'}
+          action={<Button onClick={() => navigate('/budgets')}>Go to Budgets</Button>}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -1207,6 +1295,15 @@ export default function BudgetPage() {
       {/* Scope selector */}
       <div className="flex flex-col gap-3 mb-6">
         <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+            Budget: {activeBudget.name}
+          </span>
+          <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+            {toOptionLabel(activeBudget.budgetType)}
+          </span>
+          <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+            {toOptionLabel(activeBudget.division)}
+          </span>
           <span className="inline-flex items-center rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Yearly</span>
           <span className="text-xs text-gray-500">Current scope: {scopeLabel}</span>
         </div>

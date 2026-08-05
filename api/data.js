@@ -1,4 +1,5 @@
 import {
+  createBudgetForBusiness,
   createBudgetItemForBusiness,
   createAuditEventForBusiness,
   createCustomerForBusiness,
@@ -14,6 +15,7 @@ import {
   createTemplateForBusiness,
   createTimeEntryForBusiness,
   deleteAuthUserForBusinessByEmail,
+  deleteBudgetForBusiness,
   deleteBudgetItemForBusiness,
   deleteAuditEventForBusiness,
   deleteCustomerForBusiness,
@@ -28,6 +30,7 @@ import {
   deleteLabourBudgetPlanForBusiness,
   deleteTemplateForBusiness,
   deleteTimeEntryForBusiness,
+  getBudgetForBusiness,
   getBudgetItemForBusiness,
   getAuditEventForBusiness,
   getCustomerForBusiness,
@@ -42,6 +45,7 @@ import {
   getLabourBudgetPlanForBusiness,
   getTemplateForBusiness,
   getTimeEntryForBusiness,
+  listBudgetsForBusiness,
   listBudgetItemsForBusiness,
   listAuditEventsForBusiness,
   listCustomersForBusiness,
@@ -56,6 +60,7 @@ import {
   listLabourBudgetPlansForBusiness,
   listTemplatesForBusiness,
   listTimeEntriesForBusiness,
+  updateBudgetForBusiness,
   updateBudgetItemForBusiness,
   updateAuditEventForBusiness,
   updateCustomerForBusiness,
@@ -74,6 +79,19 @@ import {
 import { requireSession } from './_lib/session.js';
 
 const ENTITY_CONFIG = {
+  budgets: {
+    readRoles: null,
+    writeRoles: ['owner', 'admin'],
+    list: listBudgetsForBusiness,
+    get: getBudgetForBusiness,
+    create: createBudgetForBusiness,
+    update: updateBudgetForBusiness,
+    remove: deleteBudgetForBusiness,
+    payloadKey: 'budget',
+    idParam: 'budgetId',
+    createArgKey: 'budget',
+    updateArgKey: 'budget',
+  },
   customers: {
     readRoles: null,
     writeRoles: ['owner', 'admin'],
@@ -267,7 +285,11 @@ const EXPENSE_STATUSES = new Set(['pending', 'approved', 'paid']);
 const EXPENSE_CATEGORIES = new Set(['materials', 'equipment', 'subcontractor', 'travel', 'permits', 'overhead', 'other']);
 const EQUIPMENT_STATUSES = new Set(['available', 'in_use', 'maintenance', 'inactive']);
 const EQUIPMENT_COST_TYPES = new Set(['financed', 'leased', 'owned']);
+const BUDGET_TYPES = new Set(['operating', 'capital', 'project', 'forecast', 'custom']);
+const BUDGET_DIVISIONS = new Set(['company_wide', 'earthworks', 'septic', 'landscaping', 'other']);
+const BUDGET_STATUSES = new Set(['draft', 'active', 'archived']);
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const YEAR_REGEX = /^\d{4}$/;
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -332,6 +354,18 @@ function validateEquipmentAssetRecord(record) {
     return 'Equipment job assignment is invalid.';
   }
   if (typeof record.notes !== 'string') return 'Equipment notes must be a string.';
+  return null;
+}
+
+function validateBudgetRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Budget id is required.';
+  if (!isNonEmptyString(record.name)) return 'Budget name is required.';
+  if (!BUDGET_TYPES.has(record.budgetType)) return 'Budget type is invalid.';
+  if (!BUDGET_DIVISIONS.has(record.division)) return 'Budget division is invalid.';
+  if (typeof record.fiscalYear !== 'string' || !YEAR_REGEX.test(record.fiscalYear)) {
+    return 'Fiscal year must use YYYY format.';
+  }
+  if (!BUDGET_STATUSES.has(record.status)) return 'Budget status is invalid.';
   return null;
 }
 
@@ -426,6 +460,13 @@ export default async function handler(req, res) {
       }
     }
 
+    if (entity === 'budgets') {
+      const validationError = validateBudgetRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
     try {
       await config.create({ businessId: session.businessId, [config.createArgKey]: record });
       return res.status(200).json({ ok: true });
@@ -490,6 +531,13 @@ export default async function handler(req, res) {
 
       if (entity === 'equipment-assets') {
         const validationError = validateEquipmentAssetRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
+      if (entity === 'budgets') {
+        const validationError = validateBudgetRecord(next);
         if (validationError) {
           return res.status(400).json({ ok: false, error: validationError });
         }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  Budget,
   Customer,
   Estimate,
   EstimateTemplate,
@@ -61,6 +62,7 @@ function dataUrl(entity: string, id?: string) {
 // ─── Store definition ─────────────────────────────────────────────────────────
 
 interface AppState {
+  budgets: Budget[];
   customers: Customer[];
   estimates: Estimate[];
   templates: EstimateTemplate[];
@@ -126,6 +128,9 @@ interface AppState {
   deleteTimeEntry: (id: ID) => void;
 
   // Budget
+  addBudget: (budget: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'>) => Budget;
+  updateBudget: (id: ID, data: Partial<Budget>) => void;
+  deleteBudget: (id: ID) => void;
   addBudgetItem: (item: Omit<BudgetItem, 'id'>) => void;
   updateBudgetItem: (id: ID, data: Partial<BudgetItem>) => void;
   deleteBudgetItem: (id: ID) => void;
@@ -138,6 +143,7 @@ interface AppState {
 }
 
 export const useStore = create<AppState>()((set, get) => ({
+  budgets: [],
       customers: [],
       estimates: [],
       templates: [],
@@ -803,6 +809,62 @@ export const useStore = create<AppState>()((set, get) => ({
       },
 
       // ── Budget ────────────────────────────────────────────────────────────
+      addBudget: (budgetInput) => {
+        const previous = get().budgets;
+        const budget = {
+          ...budgetInput,
+          id: generateId(),
+          createdAt: nowISO(),
+          updatedAt: nowISO(),
+        };
+        set((s) => ({ budgets: [...s.budgets, budget] }));
+
+        void ensureOk(fetch(dataUrl('budgets'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: budget }),
+        })).catch((error: unknown) => {
+          set({ budgets: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Budget could not be saved.') });
+        });
+
+        return budget;
+      },
+      updateBudget: (id, data) => {
+        const previous = get().budgets;
+        const updatedAt = nowISO();
+        set((s) => ({
+          budgets: s.budgets.map((budget) => (budget.id === id ? { ...budget, ...data, updatedAt } : budget)),
+        }));
+
+        void ensureOk(fetch(dataUrl('budgets', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch((error: unknown) => {
+          set({ budgets: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Budget changes could not be saved.') });
+        });
+      },
+      deleteBudget: (id) => {
+        const previous = get().budgets;
+        // TODO: Cascade-delete budget-scoped records (budgetItems/labour plans/revenue goals) when budget deletion UX is added.
+        set((s) => ({ budgets: s.budgets.filter((budget) => budget.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('budgets', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch((error: unknown) => {
+          set({ budgets: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Budget could not be deleted.') });
+        });
+      },
       addBudgetItem: (item) => {
         const previous = get().budgetItems;
         const budgetItem = { ...item, id: generateId() };

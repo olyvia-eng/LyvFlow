@@ -1,4 +1,5 @@
 import {
+  listBudgetsForBusiness,
   listRevenueSalesGoalsForBusiness,
   listLabourHoursSalesGoalsForBusiness,
   listLabourBudgetPlansForBusiness,
@@ -25,7 +26,8 @@ export default async function handler(req, res) {
   if (!session) return;
 
   try {
-    const [customers, jobs, estimates, invoices, expenses, equipmentAssets, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
+    const [budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
+      listBudgetsForBusiness(session.businessId),
       listCustomersForBusiness(session.businessId),
       listJobsForBusiness(session.businessId),
       listEstimatesForBusiness(session.businessId),
@@ -43,6 +45,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
+      budgets,
       customers,
       jobs,
       estimates,

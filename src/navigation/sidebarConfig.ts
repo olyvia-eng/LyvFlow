@@ -51,7 +51,7 @@ const NAVIGATION_CONFIG: SidebarConfig = {
       defaultExpanded: false,
       items: [
         { id: 'finance-dashboard', type: 'link', to: '/finance/dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
-        { id: 'finance-company-budget', type: 'link', to: '/budget', label: 'Company Budget', icon: icon(Wallet) },
+        { id: 'finance-company-budget', type: 'link', to: '/budgets', label: 'Budgets', icon: icon(Wallet) },
         { id: 'finance-invoices', type: 'link', to: '/finance/invoices', label: 'Invoices', icon: icon(Receipt) },
         { id: 'finance-expenses', type: 'link', to: '/finance/expenses', label: 'Expenses', icon: icon(HandCoins) },
         { id: 'finance-profit-loss', type: 'link', to: '/finance/profit-loss', label: 'Profit & Loss', icon: icon(FileText) },
