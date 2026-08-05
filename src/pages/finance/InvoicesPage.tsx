@@ -99,7 +99,7 @@ export default function InvoicesPage() {
     setModalOpen(true);
   };
 
-  const openEdit = (invoice: InvoiceRecord) => {
+  const openEdit = (invoice: Invoice) => {
     setEditing(invoice);
     setForm({
       jobId: invoice.jobId,
