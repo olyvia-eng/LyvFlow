@@ -264,6 +264,17 @@ async function findInvoiceNumberConflict({ businessId, invoiceNumber, excludeInv
   }) ?? null;
 }
 
+async function findProposalNumberConflict({ businessId, proposalNumber, excludeEstimateId }) {
+  if (!isNonEmptyString(proposalNumber)) return null;
+
+  const normalizedNumber = proposalNumber.trim().toLowerCase();
+  const estimates = await listEstimatesForBusiness(businessId);
+  return estimates.find((estimate) => {
+    if (excludeEstimateId && estimate.id === excludeEstimateId) return false;
+    return typeof estimate.proposalNumber === 'string' && estimate.proposalNumber.trim().toLowerCase() === normalizedNumber;
+  }) ?? null;
+}
+
 export default async function handler(req, res) {
   const entity = req.query.entity;
   const config = getConfig(entity);
@@ -308,6 +319,17 @@ export default async function handler(req, res) {
       }
     }
 
+    if (entity === 'estimates') {
+      const conflict = await findProposalNumberConflict({
+        businessId: session.businessId,
+        proposalNumber: record.proposalNumber,
+      });
+
+      if (conflict) {
+        return res.status(409).json({ ok: false, error: 'Proposal number already exists.' });
+      }
+    }
+
     try {
       await config.create({ businessId: session.businessId, [config.createArgKey]: record });
       return res.status(200).json({ ok: true });
@@ -348,6 +370,18 @@ export default async function handler(req, res) {
 
         if (conflict) {
           return res.status(409).json({ ok: false, error: 'Invoice number already exists.' });
+        }
+      }
+
+      if (entity === 'estimates') {
+        const conflict = await findProposalNumberConflict({
+          businessId: session.businessId,
+          proposalNumber: next.proposalNumber,
+          excludeEstimateId: id,
+        });
+
+        if (conflict) {
+          return res.status(409).json({ ok: false, error: 'Proposal number already exists.' });
         }
       }
 

@@ -203,9 +203,9 @@ export const useStore = create<AppState>()((set, get) => ({
           },
           credentials: 'include',
           body: JSON.stringify({ data: estimate }),
-        })).catch(() => {
+        })).catch((error: unknown) => {
           set({ estimates: previous });
-          emitAppToast({ tone: 'error', message: 'Estimate could not be saved.' });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Estimate could not be saved.') });
         });
       },
       updateEstimate: (id, data) => {
@@ -224,9 +224,9 @@ export const useStore = create<AppState>()((set, get) => ({
           },
           credentials: 'include',
           body: JSON.stringify({ data: { ...data, updatedAt } }),
-        })).catch(() => {
+        })).catch((error: unknown) => {
           set({ estimates: previous });
-          emitAppToast({ tone: 'error', message: 'Estimate changes could not be saved.' });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Estimate changes could not be saved.') });
         });
       },
       deleteEstimate: (id) => {
