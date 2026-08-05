@@ -3,9 +3,11 @@ import { createHash } from 'node:crypto';
 import {
   buildClockInTransaction,
   buildClockOutTransaction,
+  getActiveShiftForEmployee,
   getClockingErrorResponse,
   getClockingFailureResponse,
   getExistingClockingIdempotency,
+  resolveClockOutActiveShift,
 } from './_lib/clocking.js';
 import { ddb, tableName } from './_lib/db.js';
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
@@ -36,6 +38,20 @@ function getTimeEntryIdFromRequest(body) {
   if (typeof body?.entryId === 'string' && body.entryId.trim()) return body.entryId.trim();
   if (typeof body?.id === 'string' && body.id.trim()) return body.id.trim();
   return null;
+}
+
+function summarizeTransaction(tx) {
+  return (tx?.TransactItems ?? []).map((item, index) => {
+    const operationType = item.Put ? 'Put' : item.Delete ? 'Delete' : item.Update ? 'Update' : item.ConditionCheck ? 'ConditionCheck' : 'Unknown';
+    return {
+      index,
+      operationType,
+      PK: item.Put?.Item?.PK ?? item.Delete?.Key?.PK ?? item.Update?.Key?.PK ?? item.ConditionCheck?.Key?.PK ?? null,
+      SK: item.Put?.Item?.SK ?? item.Delete?.Key?.SK ?? item.Update?.Key?.SK ?? item.ConditionCheck?.Key?.SK ?? null,
+      ConditionExpression: item.Put?.ConditionExpression ?? item.Delete?.ConditionExpression ?? item.Update?.ConditionExpression ?? item.ConditionCheck?.ConditionExpression ?? null,
+      UpdateExpression: item.Update?.UpdateExpression ?? null,
+    };
+  });
 }
 
 export default async function handler(req, res) {
@@ -175,6 +191,49 @@ export default async function handler(req, res) {
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
+    const activeShift = await getActiveShiftForEmployee({
+      businessId: session.businessId,
+      employeeId: activeEntry.employeeId,
+    });
+    const activeShiftState = resolveClockOutActiveShift({
+      activeShift,
+      requestedEntryId: entryId,
+    });
+
+    if (!activeShiftState.ok) {
+      if (activeShiftState.reason === 'missing-active-entry-id') {
+        console.error('[clocking:clock-out:integrity]', {
+          businessId: session.businessId,
+          employeeId: activeEntry.employeeId,
+          requestedEntryId: entryId,
+          activeShiftActiveEntryId: activeShift?.activeEntryId ?? null,
+          timeEntryFound: Boolean(activeEntry),
+          timeEntryStatus: activeEntry?.status ?? null,
+          reason: activeShiftState.reason,
+        });
+      } else if (activeShiftState.reason === 'entry-mismatch') {
+        console.error('[clocking:clock-out:integrity]', {
+          businessId: session.businessId,
+          employeeId: activeEntry.employeeId,
+          requestedEntryId: entryId,
+          activeShiftActiveEntryId: activeShift?.activeEntryId ?? null,
+          timeEntryFound: Boolean(activeEntry),
+          timeEntryStatus: activeEntry?.status ?? null,
+          reason: activeShiftState.reason,
+        });
+      }
+      return res.status(activeShiftState.status).json({ ok: false, error: activeShiftState.error });
+    }
+
+    console.info('[clocking:clock-out:pre-transaction]', {
+      businessId: session.businessId,
+      employeeId: activeEntry.employeeId,
+      requestedEntryId: entryId,
+      activeShiftActiveEntryId: activeShift?.activeEntryId ?? null,
+      timeEntryFound: Boolean(activeEntry),
+      timeEntryStatus: activeEntry?.status ?? null,
+    });
+
     const employee = await getEmployeeForBusiness(session.businessId, activeEntry.employeeId);
     const clockOutAt = nowIso();
     const tx = buildClockOutTransaction({
@@ -216,6 +275,8 @@ export default async function handler(req, res) {
         action: 'clock-out',
         name: error?.name,
         message: error?.message,
+        code: error?.code,
+        Code: error?.Code,
         httpStatusCode: error?.$metadata?.httpStatusCode,
         cancellationReasons: Array.isArray(error?.CancellationReasons)
           ? error.CancellationReasons.map((reason) => ({
@@ -223,6 +284,14 @@ export default async function handler(req, res) {
               Message: typeof reason?.Message === 'string' ? reason.Message : undefined,
             }))
           : undefined,
+        cancellationReasons: Array.isArray(error?.cancellationReasons)
+          ? error.cancellationReasons.map((reason) => ({
+              Code: reason?.Code ?? reason?.code,
+              Message: typeof reason?.Message === 'string' ? reason.Message : undefined,
+            }))
+          : undefined,
+        stack: error?.stack,
+        transactionSummary: summarizeTransaction(tx),
       });
       return res.status(response.status).json({ ok: false, error: response.error });
     }

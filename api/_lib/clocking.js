@@ -310,6 +310,47 @@ export function buildClockOutTransaction({
   };
 }
 
+export async function getActiveShiftForEmployee({ businessId, employeeId }) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: activeShiftPk(businessId, employeeId),
+        SK: activeShiftSk(),
+      },
+    })
+  );
+
+  if (!result.Item) {
+    return null;
+  }
+
+  return {
+    businessId,
+    employeeId,
+    activeEntryId: result.Item.activeEntryId,
+    status: result.Item.status,
+    createdAt: result.Item.createdAt,
+    updatedAt: result.Item.updatedAt,
+  };
+}
+
+export function resolveClockOutActiveShift({ activeShift, requestedEntryId }) {
+  if (!activeShift) {
+    return { ok: false, status: 409, error: 'No active shift found', reason: 'missing-active-shift' };
+  }
+
+  if (typeof activeShift.activeEntryId !== 'string' || activeShift.activeEntryId.trim().length === 0) {
+    return { ok: false, status: 409, error: 'No active shift found', reason: 'missing-active-entry-id' };
+  }
+
+  if (activeShift.activeEntryId !== requestedEntryId) {
+    return { ok: false, status: 409, error: 'No active shift found', reason: 'entry-mismatch' };
+  }
+
+  return { ok: true, reason: 'match' };
+}
+
 export function getClockingErrorResponse(error) {
   const code = error?.code;
   if (code === 'ALREADY_CLOCKED_IN') {
@@ -331,7 +372,7 @@ export function getClockingFailureResponse(action, error) {
   const cancellationReasons = Array.isArray(error?.CancellationReasons) ? error.CancellationReasons : [];
   const hasConditionalFailure = cancellationReasons.some((reason) => {
     const code = reason?.Code ?? reason?.code ?? '';
-    return code === 'ConditionalCheckFailed' || code === 'None';
+    return code === 'ConditionalCheckFailed';
   });
 
   if (error?.name === 'TransactionCanceledException') {

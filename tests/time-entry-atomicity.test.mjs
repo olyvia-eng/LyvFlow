@@ -5,6 +5,8 @@ import {
   buildClockInTransaction,
   buildClockOutTransaction,
   getClockingErrorResponse,
+  getClockingFailureResponse,
+  resolveClockOutActiveShift,
 } from '../api/_lib/clocking.js';
 
 test('clock-in transaction creates one lock, one time entry, one audit event and an idempotency record', () => {
@@ -170,4 +172,77 @@ test('clocking errors are normalized into client-safe responses', () => {
   const response = getClockingErrorResponse({ statusCode: 409, code: 'ALREADY_CLOCKED_IN' });
   assert.equal(response.status, 409);
   assert.equal(response.error, 'Already Clocked In');
+});
+
+test('active shift exists and matches the requested entry id', () => {
+  const result = resolveClockOutActiveShift({
+    activeShift: { activeEntryId: 'entry-1' },
+    requestedEntryId: 'entry-1',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.reason, 'match');
+});
+
+test('active shift is missing', () => {
+  const result = resolveClockOutActiveShift({
+    activeShift: null,
+    requestedEntryId: 'entry-1',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'missing-active-shift');
+  assert.equal(result.status, 409);
+});
+
+test('active shift with no activeEntryId is rejected', () => {
+  const result = resolveClockOutActiveShift({
+    activeShift: { activeEntryId: '' },
+    requestedEntryId: 'entry-1',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'missing-active-entry-id');
+  assert.equal(result.status, 409);
+});
+
+test('active shift pointing to another entry is rejected', () => {
+  const result = resolveClockOutActiveShift({
+    activeShift: { activeEntryId: 'entry-2' },
+    requestedEntryId: 'entry-1',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'entry-mismatch');
+  assert.equal(result.status, 409);
+});
+
+test('None cancellation reasons are ignored', () => {
+  const response = getClockingFailureResponse('clock-out', {
+    name: 'TransactionCanceledException',
+    CancellationReasons: [{ Code: 'None' }],
+  });
+
+  assert.equal(response.status, 500);
+  assert.equal(response.error, 'Clocking request failed');
+});
+
+test('ConditionalCheckFailed is recognized', () => {
+  const response = getClockingFailureResponse('clock-out', {
+    name: 'TransactionCanceledException',
+    CancellationReasons: [{ Code: 'ConditionalCheckFailed' }],
+  });
+
+  assert.equal(response.status, 409);
+  assert.equal(response.error, 'No active shift found');
+});
+
+test('unexpected ValidationException returns 500', () => {
+  const response = getClockingFailureResponse('clock-out', {
+    name: 'ValidationException',
+    message: 'bad request',
+  });
+
+  assert.equal(response.status, 500);
+  assert.equal(response.error, 'Clocking request failed');
 });
