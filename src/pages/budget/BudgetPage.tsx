@@ -112,6 +112,7 @@ const yearlyHoursBase = 2080;
 const buildLabourPlanId = (budgetId: string, employeeId: string, year: string) => `${budgetId}-${employeeId}-${year}`;
 const buildRevenueSalesGoalId = (budgetId: string, scopeType: 'year', scopeValue: string) => `revenue-goal-${budgetId}-${scopeType}-${scopeValue}`;
 const DEFAULT_WORKING_DAYS_YEAR = 260;
+const isSalariedCompType = (value: string | undefined) => value === 'salaried' || value === 'salary';
 
 const defaultLabourPlan = (budgetId: string, employeeId: string, year: string, hourlyRate: number, role: EmployeeRole): LabourBudgetPlan => ({
   id: buildLabourPlanId(budgetId, employeeId, year),
@@ -782,7 +783,13 @@ export default function BudgetPage() {
     if (!activeBudgetId) return;
     for (const employee of employees.filter((value) => value.active)) {
       if (plansByEmployeeId[employee.id]) continue;
-      upsertLabourBudgetPlan(defaultLabourPlan(activeBudgetId, employee.id, plannerYear, employee.hourlyRate, employee.role));
+      const seededPlan = defaultLabourPlan(activeBudgetId, employee.id, plannerYear, employee.hourlyRate, employee.role);
+      const isSalariedEmployee = employee.compensationType === 'salary';
+      upsertLabourBudgetPlan({
+        ...seededPlan,
+        compType: isSalariedEmployee ? 'salaried' : 'hourly',
+        annualSalary: isSalariedEmployee ? employee.hourlyRate : seededPlan.annualSalary,
+      });
     }
   }, [activeBudgetId, employees, plannerYear, plansByEmployeeId, upsertLabourBudgetPlan]);
 
@@ -1039,6 +1046,7 @@ export default function BudgetPage() {
   const labourPlannerRows = useMemo(() => {
     return activeEmployees.map((employee) => {
       const plan = plansByEmployeeId[employee.id] ?? defaultLabourPlan(activeBudgetId ?? 'budget', employee.id, plannerYear, employee.hourlyRate, employee.role);
+      const isSalariedEmployee = isSalariedCompType(plan.compType) || employee.compensationType === 'salary';
 
       const hoursPerYear = Math.max(
         0,
@@ -1053,15 +1061,21 @@ export default function BudgetPage() {
       );
       const annualBillableHours = hoursPerYear * (billablePct / 100);
 
-      const wageValue = plan.compType === 'hourly'
-        ? Math.max(0, Number.isFinite(plan.hourlyRate) ? plan.hourlyRate : 0)
-        : Math.max(0, Number.isFinite(plan.annualSalary) ? plan.annualSalary : 0);
-      const annualBasePay = plan.compType === 'hourly'
-        ? wageValue * hoursPerYear
-        : wageValue;
+      const hourlyWage = Math.max(0, Number.isFinite(plan.hourlyRate) ? plan.hourlyRate : 0);
+      const annualSalary = Math.max(
+        0,
+        Number.isFinite(plan.annualSalary)
+          ? plan.annualSalary
+          : (employee.compensationType === 'salary' ? employee.hourlyRate : 0)
+      );
+      const annualBasePay = isSalariedEmployee
+        ? annualSalary
+        : hourlyWage * hoursPerYear;
 
       const overtimeFactorPct = Math.max(0, Number.isFinite(plan.overtimeFactorPct ?? 0) ? (plan.overtimeFactorPct ?? 0) : 0);
-      const overtimeCost = annualBasePay * (overtimeFactorPct / 100);
+      const overtimeCost = isSalariedEmployee
+        ? 0
+        : annualBasePay * (overtimeFactorPct / 100);
       const payrollBurdenPct = Math.max(0, Number.isFinite(plan.payrollBurdenPct ?? plan.labourBurdenPct ?? 0) ? (plan.payrollBurdenPct ?? plan.labourBurdenPct ?? 0) : 0);
       const benefitsExtraCost = Math.max(0, Number.isFinite(plan.benefitsExtraCost ?? 0) ? (plan.benefitsExtraCost ?? 0) : 0);
       const bonus = Math.max(0, Number.isFinite(plan.bonus ?? 0) ? (plan.bonus ?? 0) : 0);
@@ -1099,6 +1113,7 @@ export default function BudgetPage() {
 
   const visibleLabourPlannerRows = useMemo(() => {
     if (labourTableView === 'all') return labourPlannerRows;
+    if (labourTableView === 'salaried') return labourPlannerRows.filter((row) => isSalariedCompType(row.plan.compType));
     return labourPlannerRows.filter((row) => row.plan.compType === labourTableView);
   }, [labourPlannerRows, labourTableView]);
 
@@ -1189,14 +1204,14 @@ export default function BudgetPage() {
           <button
             type="button"
             onClick={() => updateLabourPlan(row.employee.id, 'compType', 'salaried')}
-            className={`px-2 py-0.5 text-xs rounded ${row.plan.compType === 'salaried' ? 'bg-accent-100 text-accent-700' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`px-2 py-0.5 text-xs rounded ${isSalariedCompType(row.plan.compType) ? 'bg-accent-100 text-accent-700' : 'text-gray-500 hover:bg-gray-100'}`}
           >
             Salary
           </button>
         </div>
       </td>
       <td className="px-4 py-3 text-right">
-        {row.plan.compType === 'hourly' ? (
+        {(!isSalariedCompType(row.plan.compType) && row.employee.compensationType !== 'salary') ? (
           <input
             type="text"
             inputMode="decimal"
@@ -1644,7 +1659,7 @@ export default function BudgetPage() {
                     onClick={() => setLabourTableView('salaried')}
                     className={`px-3 py-1 text-xs rounded ${labourTableView === 'salaried' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
-                    Salaried ({labourPlannerRows.filter((row) => row.plan.compType === 'salaried').length})
+                    Salaried ({labourPlannerRows.filter((row) => isSalariedCompType(row.plan.compType)).length})
                   </button>
                 </div>
               </div>
@@ -1681,7 +1696,7 @@ export default function BudgetPage() {
                         <tr className="bg-gray-50">
                           <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={13}>Salaried Employees</td>
                         </tr>
-                        {labourPlannerRows.filter((row) => row.plan.compType === 'salaried').map((row) => renderLabourPlannerRow(row))}
+                        {labourPlannerRows.filter((row) => isSalariedCompType(row.plan.compType)).map((row) => renderLabourPlannerRow(row))}
                       </>
                     ) : (
                       visibleLabourPlannerRows.map((row) => renderLabourPlannerRow(row))
