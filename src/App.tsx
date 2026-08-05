@@ -25,7 +25,7 @@ import ModulePlaceholderPage from './pages/placeholders/ModulePlaceholderPage';
 import InvoicesPage from './pages/finance/InvoicesPage';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
+import type { BudgetItem, Customer, Employee, Estimate, EstimateTemplate, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
@@ -72,6 +72,7 @@ export default function App() {
         customers?: Customer[];
         jobs?: Job[];
         estimates?: Estimate[];
+        invoices?: Invoice[];
         templates?: EstimateTemplate[];
         budgetItems?: BudgetItem[];
         labourBudgetPlans?: LabourBudgetPlan[];
@@ -91,6 +92,7 @@ export default function App() {
         customers: payload.customers ?? [],
         jobs: payload.jobs ?? [],
         estimates: payload.estimates ?? [],
+        invoices: payload.invoices ?? [],
         templates: payload.templates ?? [],
         budgetItems: payload.budgetItems ?? [],
         labourBudgetPlans: payload.labourBudgetPlans ?? [],
@@ -188,6 +190,7 @@ export default function App() {
     useStore.setState({
       customers: [],
       estimates: [],
+      invoices: [],
       templates: [],
       jobs: [],
       employees: [],

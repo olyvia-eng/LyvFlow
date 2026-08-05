@@ -1,30 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FilePlus2, Mail, Pencil, ReceiptText, Wallet } from 'lucide-react';
 import { Button, Card, EmptyState, Input, Modal, PageHeader, Select, StatCard } from '../../components/ui';
 import { useStore } from '../../store';
-import { formatCurrency, generateId } from '../../utils';
-import type { ID } from '../../types';
-
-type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
-
-type InvoiceRecord = {
-  id: ID;
-  jobId: ID;
-  customerId: ID;
-  number: string;
-  issueDate: string;
-  dueDate: string;
-  status: InvoiceStatus;
-  amount: number;
-  notes: string;
-  createdAt: string;
-  updatedAt: string;
-};
+import { formatCurrency } from '../../utils';
+import type { ID, Invoice, InvoiceStatus } from '../../types';
 
 type StatusFilter = 'all' | InvoiceStatus;
-
-const INVOICE_STORAGE_KEY = 'oliveops.invoices.v1';
-const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
 
 const statusBadgeClass: Record<InvoiceStatus, string> = {
   draft: 'bg-brand-100 text-brand-700',
@@ -51,7 +32,7 @@ const emptyInvoiceForm = () => ({
   notes: '',
 });
 
-function normalizeStatus(invoice: InvoiceRecord): InvoiceStatus {
+function normalizeStatus(invoice: Invoice): InvoiceStatus {
   if (invoice.status === 'paid') return 'paid';
   if (invoice.status === 'draft') return 'draft';
 
@@ -62,36 +43,11 @@ function normalizeStatus(invoice: InvoiceRecord): InvoiceStatus {
 }
 
 export default function InvoicesPage() {
-  const { jobs, customers } = useStore();
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const { jobs, customers, invoices, addInvoice, updateInvoice, deleteInvoice } = useStore();
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<InvoiceRecord | null>(null);
+  const [editing, setEditing] = useState<Invoice | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [form, setForm] = useState(emptyInvoiceForm());
-
-  const storageKey = useMemo(() => {
-    if (typeof window === 'undefined') return INVOICE_STORAGE_KEY;
-    const ownerId = window.localStorage.getItem(STORE_OWNER_KEY) ?? 'default';
-    return `${INVOICE_STORAGE_KEY}.${ownerId}`;
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as InvoiceRecord[];
-      if (!Array.isArray(parsed)) return;
-      setInvoices(parsed);
-    } catch {
-      setInvoices([]);
-    }
-  }, [storageKey]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(storageKey, JSON.stringify(invoices));
-  }, [invoices, storageKey]);
 
   const jobLookup = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
   const customerLookup = useMemo(() => new Map(customers.map((customer) => [customer.id, customer])), [customers]);
@@ -161,10 +117,6 @@ export default function InvoicesPage() {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const removeInvoice = (id: ID) => {
-    setInvoices((current) => current.filter((invoice) => invoice.id !== id));
-  };
-
   const saveInvoice = () => {
     if (!form.jobId || !form.number.trim() || form.amount <= 0) return;
 
@@ -172,26 +124,7 @@ export default function InvoicesPage() {
     if (!selectedJob) return;
 
     if (editing) {
-      setInvoices((current) => current.map((invoice) => (
-        invoice.id === editing.id
-          ? {
-              ...invoice,
-              jobId: form.jobId,
-              customerId: selectedJob.customerId,
-              number: form.number.trim(),
-              issueDate: form.issueDate,
-              dueDate: form.dueDate,
-              status: form.status,
-              amount: Number(form.amount),
-              notes: form.notes.trim(),
-              updatedAt: new Date().toISOString(),
-            }
-          : invoice
-      )));
-    } else {
-      const now = new Date().toISOString();
-      const invoice: InvoiceRecord = {
-        id: generateId(),
+      updateInvoice(editing.id, {
         jobId: form.jobId,
         customerId: selectedJob.customerId,
         number: form.number.trim(),
@@ -200,10 +133,18 @@ export default function InvoicesPage() {
         status: form.status,
         amount: Number(form.amount),
         notes: form.notes.trim(),
-        createdAt: now,
-        updatedAt: now,
-      };
-      setInvoices((current) => [invoice, ...current]);
+      });
+    } else {
+      addInvoice({
+        jobId: form.jobId,
+        customerId: selectedJob.customerId,
+        number: form.number.trim(),
+        issueDate: form.issueDate,
+        dueDate: form.dueDate,
+        status: form.status,
+        amount: Number(form.amount),
+        notes: form.notes.trim(),
+      });
     }
 
     setModalOpen(false);
@@ -282,7 +223,7 @@ export default function InvoicesPage() {
                       <td className="px-4 py-2">
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" onClick={() => openEdit(invoice)}><Pencil size={13} /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => removeInvoice(invoice.id)}>Delete</Button>
+                          <Button variant="ghost" size="sm" onClick={() => deleteInvoice(invoice.id as ID)}>Delete</Button>
                         </div>
                       </td>
                     </tr>
