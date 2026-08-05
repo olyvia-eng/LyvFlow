@@ -13,7 +13,7 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function generateId() {
+export function generateId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
