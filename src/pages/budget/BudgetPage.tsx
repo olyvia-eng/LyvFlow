@@ -110,6 +110,7 @@ const defaultLabourPlan = (employeeId: string, year: string, hourlyRate: number,
   roleTitle: toOptionLabel(role),
   hoursPerYear: 1900,
   billablePct: 84,
+  overtimeFactorPct: 0,
   payrollBurdenPct: 18,
   benefitsExtraCost: 0,
   bonus: 0,
@@ -917,11 +918,13 @@ export default function BudgetPage() {
         ? wageValue * hoursPerYear
         : wageValue;
 
+      const overtimeFactorPct = Math.max(0, Number.isFinite(plan.overtimeFactorPct ?? 0) ? (plan.overtimeFactorPct ?? 0) : 0);
+      const overtimeCost = annualBasePay * (overtimeFactorPct / 100);
       const payrollBurdenPct = Math.max(0, Number.isFinite(plan.payrollBurdenPct ?? plan.labourBurdenPct ?? 0) ? (plan.payrollBurdenPct ?? plan.labourBurdenPct ?? 0) : 0);
       const benefitsExtraCost = Math.max(0, Number.isFinite(plan.benefitsExtraCost ?? 0) ? (plan.benefitsExtraCost ?? 0) : 0);
       const bonus = Math.max(0, Number.isFinite(plan.bonus ?? 0) ? (plan.bonus ?? 0) : 0);
-      const payrollBurdenAmount = annualBasePay * (payrollBurdenPct / 100);
-      const totalEmployeeCostPerYear = annualBasePay + payrollBurdenAmount + benefitsExtraCost + bonus;
+      const payrollBurdenAmount = (annualBasePay + overtimeCost) * (payrollBurdenPct / 100);
+      const totalEmployeeCostPerYear = annualBasePay + overtimeCost + payrollBurdenAmount + benefitsExtraCost + bonus;
       const hourlyRate = hoursPerYear > 0
         ? totalEmployeeCostPerYear / hoursPerYear
         : 0;
@@ -938,6 +941,7 @@ export default function BudgetPage() {
         hoursPerYear,
         billablePct,
         annualBillableHours,
+        overtimeFactorPct,
         payrollBurdenPct,
         benefitsExtraCost,
         bonus,
@@ -1114,6 +1118,18 @@ export default function BudgetPage() {
           inputMode="decimal"
           min={0}
           step={0.1}
+          value={formatNumericDisplayValue(row.overtimeFactorPct)}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeFactorPct', parseNumericInputValue(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
+      <td className="px-4 py-3 text-right">
+        <input
+          type="text"
+          inputMode="decimal"
+          min={0}
+          step={0.1}
           value={formatNumericDisplayValue(row.payrollBurdenPct)}
           onChange={(e) => updateLabourPlan(row.employee.id, 'payrollBurdenPct', parseNumericInputValue(e.target.value))}
           onFocus={(e) => e.currentTarget.select()}
@@ -1156,7 +1172,8 @@ export default function BudgetPage() {
     <details className="rounded-lg border border-gray-200 bg-white mt-4">
       <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-gray-700">Show Calculation Details</summary>
       <div className="px-4 pb-4 text-sm text-gray-600 space-y-2">
-        <p>Total Cost per Employee per Year = Annual Wage + Payroll Burden + Benefits/Extra Cost + Bonus</p>
+        <p>Overtime Cost = Annual Wage x Overtime Factor (%)</p>
+        <p>Total Cost per Employee per Year = Annual Wage + Overtime Cost + Payroll Burden + Benefits/Extra Cost + Bonus</p>
         <p>Hourly Rate = Total Cost per Employee per Year / Hours per Year</p>
         <p>Suggested Charge-Out Rate = Hourly Rate x (1 + Overhead Recovery %) / (1 - Target Margin %)</p>
         <p>Annual Revenue Generated = Annual Billable Hours x Suggested Charge-Out Rate</p>
@@ -1432,7 +1449,7 @@ export default function BudgetPage() {
               <p className="text-sm text-gray-400 p-4">No active labour items yet. Add a labour item to start your planner.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[1750px]">
+                <table className="w-full text-sm min-w-[1880px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                       <th className="px-4 py-3 font-medium">Employee</th>
@@ -1441,6 +1458,7 @@ export default function BudgetPage() {
                       <th className="px-4 py-3 font-medium text-right">Wage</th>
                       <th className="px-4 py-3 font-medium text-right">Hours per Year</th>
                       <th className="px-4 py-3 font-medium text-center">Billable %</th>
+                      <th className="px-4 py-3 font-medium text-right">Overtime Factor (%)</th>
                       <th className="px-4 py-3 font-medium text-right">Payroll Burden (%)</th>
                       <th className="px-4 py-3 font-medium text-right">Benefits / Extra Cost</th>
                       <th className="px-4 py-3 font-medium text-right">Bonus</th>
@@ -1453,11 +1471,11 @@ export default function BudgetPage() {
                     {labourTableView === 'all' ? (
                       <>
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={12}>Hourly Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={13}>Hourly Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'hourly').map((row) => renderLabourPlannerRow(row))}
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={12}>Salaried Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={13}>Salaried Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'salaried').map((row) => renderLabourPlannerRow(row))}
                       </>
@@ -1466,7 +1484,7 @@ export default function BudgetPage() {
                     )}
                     {visibleLabourPlannerRows.length === 0 && (
                       <tr>
-                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={12}>No employees in this compensation type view yet.</td>
+                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={13}>No employees in this compensation type view yet.</td>
                       </tr>
                     )}
                   </tbody>

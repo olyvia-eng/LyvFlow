@@ -271,6 +271,7 @@ export interface LabourBudgetPlan {
   roleTitle?: string;
   hoursPerYear?: number;
   billablePct?: number;
+  overtimeFactorPct?: number;
   payrollBurdenPct?: number;
   benefitsExtraCost?: number;
   bonus?: number;
