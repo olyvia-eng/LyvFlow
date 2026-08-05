@@ -130,7 +130,7 @@ interface AppState {
 
   // Time Entries
   clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[] }) => void;
-  clockOut: (entryId: ID, breakMinutes?: number, notes?: string) => void;
+  clockOut: (entryId: ID, breakMinutes?: number, notes?: string, photoAttachmentUrl?: string) => void;
   addTimeEntry: (e: Omit<TimeEntry, 'id'>) => void;
   updateTimeEntry: (id: ID, data: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: ID) => void;
@@ -760,13 +760,21 @@ export const useStore = create<AppState>()((set, get) => ({
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-in could not be saved.') });
         });
       },
-      clockOut: (entryId, breakMinutes = 0, notes = '') => {
+      clockOut: (entryId, breakMinutes = 0, notes = '', photoAttachmentUrl = '') => {
         const previous = get().timeEntries;
         const clockOutAt = nowISO();
+        const nextPhotoAttachmentUrl = photoAttachmentUrl || undefined;
         set((s) => ({
           timeEntries: s.timeEntries.map((te) =>
             te.id === entryId
-              ? { ...te, clockOut: clockOutAt, breakMinutes, notes, status: 'clocked_out' }
+              ? {
+                  ...te,
+                  clockOut: clockOutAt,
+                  breakMinutes,
+                  notes,
+                  photoAttachmentUrl: nextPhotoAttachmentUrl,
+                  status: 'clocked_out',
+                }
               : te
           ),
         }));
@@ -777,7 +785,7 @@ export const useStore = create<AppState>()((set, get) => ({
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({ data: { clockOut: clockOutAt, breakMinutes, notes, status: 'clocked_out' } }),
+          body: JSON.stringify({ data: { clockOut: clockOutAt, breakMinutes, notes, photoAttachmentUrl: nextPhotoAttachmentUrl, status: 'clocked_out' } }),
         })).catch((error) => {
           set({ timeEntries: previous });
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-out could not be saved.') });

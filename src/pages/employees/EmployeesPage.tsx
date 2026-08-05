@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { useStore } from '../../store';
 import { PageHeader, Button, Card, Badge, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Clock, LogOut } from 'lucide-react';
@@ -87,6 +87,10 @@ export default function EmployeesPage() {
   const [clockInOpen, setClockInOpen] = useState(false);
   const [clockOutEntry, setClockOutEntry] = useState<string | null>(null);
   const [jobNotes, setJobNotes] = useState('');
+  const [photoAttachmentUrl, setPhotoAttachmentUrl] = useState('');
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('');
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState('');
 
   const openNew = () => {
     setEditing(null);
@@ -223,9 +227,75 @@ export default function EmployeesPage() {
   const handleClockOut = () => {
     if (!clockOutEntry) return;
     if (!jobNotes.trim()) return;
-    clockOut(clockOutEntry, 0, jobNotes.trim());
+    const nextPhotoAttachmentUrl = photoAttachmentUrl.trim() || undefined;
+    clockOut(clockOutEntry, 0, jobNotes.trim(), nextPhotoAttachmentUrl);
     setClockOutEntry(null);
     setJobNotes('');
+    setPhotoAttachmentUrl('');
+    setPhotoPreviewUrl('');
+    setPhotoUploading(false);
+    setPhotoUploadError('');
+  };
+
+  const uploadPhotoAttachment = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      setPhotoUploadError('Photo must be 2 MB or smaller.');
+      return;
+    }
+
+    setPhotoUploadError('');
+    setPhotoUploading(true);
+
+    try {
+      const dataBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = typeof reader.result === 'string' ? reader.result : '';
+          const comma = result.indexOf(',');
+          resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = () => reject(new Error('Could not read photo.'));
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch('/api/receipts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          dataBase64,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok?: boolean; error?: string; receiptUrl?: string };
+      if (!response.ok || !payload?.ok || typeof payload.receiptUrl !== 'string') {
+        setPhotoUploadError(payload?.error ?? 'Could not upload photo.');
+        setPhotoAttachmentUrl('');
+        setPhotoPreviewUrl('');
+        return;
+      }
+
+      setPhotoAttachmentUrl(payload.receiptUrl);
+      setPhotoPreviewUrl(payload.receiptUrl);
+    } catch {
+      setPhotoUploadError('Could not upload photo.');
+      setPhotoAttachmentUrl('');
+      setPhotoPreviewUrl('');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    void uploadPhotoAttachment(file);
+    event.target.value = '';
   };
 
   return (
@@ -376,15 +446,56 @@ export default function EmployeesPage() {
       </Modal>
 
       {/* Clock Out confirm */}
-      <Modal open={!!clockOutEntry} onClose={() => setClockOutEntry(null)} title="Clock Out"
+      <Modal open={!!clockOutEntry} onClose={() => {
+        setClockOutEntry(null);
+        setPhotoAttachmentUrl('');
+        setPhotoPreviewUrl('');
+        setPhotoUploading(false);
+        setPhotoUploadError('');
+      }} title="Clock Out"
         footer={<>
-          <Button variant="secondary" onClick={() => setClockOutEntry(null)}>Cancel</Button>
+          <Button variant="secondary" onClick={() => {
+            setClockOutEntry(null);
+            setPhotoAttachmentUrl('');
+            setPhotoPreviewUrl('');
+            setPhotoUploading(false);
+            setPhotoUploadError('');
+          }}>Cancel</Button>
           <Button variant="danger" onClick={handleClockOut}>Clock Out</Button>
         </>}
       >
         <div className="space-y-4">
           <p className="text-gray-600">Add job notes before clocking out.</p>
           <Input label="Job Notes" required value={jobNotes} onChange={(e) => setJobNotes(e.target.value)} placeholder="Required before clocking out" />
+          <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <label className="text-sm font-medium text-gray-700">Attach Photo (optional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoSelection}
+              disabled={photoUploading}
+              className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand-700 hover:file:bg-brand-200 disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            {photoUploading && <p className="text-xs text-gray-500">Uploading photo...</p>}
+            {photoUploadError && <p className="text-xs text-accent-700">{photoUploadError}</p>}
+            {photoPreviewUrl && (
+              <div className="space-y-2">
+                <img src={photoPreviewUrl} alt="Clock-out attachment" className="h-24 w-full rounded-md object-cover" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoAttachmentUrl('');
+                    setPhotoPreviewUrl('');
+                    setPhotoUploadError('');
+                  }}
+                  className="text-xs font-medium text-accent-700 hover:text-accent-800"
+                >
+                  Remove photo
+                </button>
+              </div>
+            )}
+          </div>
           {!jobNotes.trim() && <p className="text-xs text-accent-700">Job notes are required before clocking out.</p>}
         </div>
       </Modal>

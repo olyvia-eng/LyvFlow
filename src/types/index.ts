@@ -208,6 +208,7 @@ export interface TimeEntry {
   clockOut?: string;
   breakMinutes: number;
   notes: string;
+  photoAttachmentUrl?: string;
   status: ClockStatus;
 }
 

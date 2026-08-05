@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { useStore } from '../../store';
 import { Button, Modal } from '../../components/ui';
 import { Clock, LogOut, UserRound } from 'lucide-react';
@@ -19,6 +19,10 @@ export default function ClockInModal({ open, onClose }: Props) {
   const [clockType, setClockType] = useState<TimeEntryWorkType>('job');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [jobNotes, setJobNotes] = useState('');
+  const [photoAttachmentUrl, setPhotoAttachmentUrl] = useState('');
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('');
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState('');
 
   const reset = () => {
     setStep('select_employee');
@@ -26,6 +30,10 @@ export default function ClockInModal({ open, onClose }: Props) {
     setClockType('job');
     setSelectedJobIds([]);
     setJobNotes('');
+    setPhotoAttachmentUrl('');
+    setPhotoPreviewUrl('');
+    setPhotoUploading(false);
+    setPhotoUploadError('');
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -48,9 +56,71 @@ export default function ClockInModal({ open, onClose }: Props) {
   const handleClockOut = () => {
     if (!activeEntry) return;
     if (!jobNotes.trim()) return;
-    clockOut(activeEntry.id, 0, jobNotes.trim());
+    const nextPhotoAttachmentUrl = photoAttachmentUrl.trim() || undefined;
+    clockOut(activeEntry.id, 0, jobNotes.trim(), nextPhotoAttachmentUrl);
     reset();
     onClose();
+  };
+
+  const uploadPhotoAttachment = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      setPhotoUploadError('Photo must be 2 MB or smaller.');
+      return;
+    }
+
+    setPhotoUploadError('');
+    setPhotoUploading(true);
+
+    try {
+      const dataBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = typeof reader.result === 'string' ? reader.result : '';
+          const comma = result.indexOf(',');
+          resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = () => reject(new Error('Could not read photo.'));
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch('/api/receipts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          dataBase64,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok?: boolean; error?: string; receiptUrl?: string };
+      if (!response.ok || !payload?.ok || typeof payload.receiptUrl !== 'string') {
+        setPhotoUploadError(payload?.error ?? 'Could not upload photo.');
+        setPhotoAttachmentUrl('');
+        setPhotoPreviewUrl('');
+        return;
+      }
+
+      setPhotoAttachmentUrl(payload.receiptUrl);
+      setPhotoPreviewUrl(payload.receiptUrl);
+    } catch {
+      setPhotoUploadError('Could not upload photo.');
+      setPhotoAttachmentUrl('');
+      setPhotoPreviewUrl('');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    void uploadPhotoAttachment(file);
+    event.target.value = '';
   };
 
   const activeJobs = jobs.filter((j) => j.status === 'in_progress' || j.status === 'scheduled');
@@ -134,6 +204,35 @@ export default function ClockInModal({ open, onClose }: Props) {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
             <p className="text-xs text-gray-500">Required before clocking out.</p>
+            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <label className="text-sm font-medium text-gray-700">Attach Photo (optional)</label>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoSelection}
+                disabled={photoUploading}
+                className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand-700 hover:file:bg-brand-200 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              {photoUploading && <p className="text-xs text-gray-500">Uploading photo...</p>}
+              {photoUploadError && <p className="text-xs text-accent-700">{photoUploadError}</p>}
+              {photoPreviewUrl && (
+                <div className="space-y-2">
+                  <img src={photoPreviewUrl} alt="Clock-out attachment" className="h-24 w-full rounded-md object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoAttachmentUrl('');
+                      setPhotoPreviewUrl('');
+                      setPhotoUploadError('');
+                    }}
+                    className="text-xs font-medium text-accent-700 hover:text-accent-800"
+                  >
+                    Remove photo
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <Button variant="danger" className="w-full justify-center py-3 text-base" onClick={handleClockOut} disabled={!jobNotes.trim()}>
             <LogOut size={18} /> Clock Out

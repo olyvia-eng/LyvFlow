@@ -2485,6 +2485,7 @@ export async function listTimeEntriesForBusiness(businessId) {
     clockIn: item.clockIn,
     breakMinutes: item.breakMinutes ?? 0,
     notes: item.notes ?? '',
+    photoAttachmentUrl: item.photoAttachmentUrl ?? undefined,
     status: item.status,
   }));
 }
@@ -2532,6 +2533,7 @@ export async function getTimeEntryForBusiness(businessId, entryId) {
         clockOut: result.Item.clockOut,
         breakMinutes: result.Item.breakMinutes ?? 0,
         notes: result.Item.notes ?? '',
+        photoAttachmentUrl: result.Item.photoAttachmentUrl ?? undefined,
         status: result.Item.status,
       }
     : null;
