@@ -3,8 +3,17 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { requireEnv } from './env.js';
 import { generateId } from './authRepo.js';
 
-const DEFAULT_ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
-const DEFAULT_MAX_SIZE_BYTES = 10 * 1024 * 1024;
+const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const DOCUMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv',
+]);
+const IMAGE_LIMIT_BYTES = 25 * 1024 * 1024;
+const PDF_LIMIT_BYTES = 25 * 1024 * 1024;
+const OFFICE_LIMIT_BYTES = 15 * 1024 * 1024;
+const CSV_LIMIT_BYTES = 5 * 1024 * 1024;
 const DEFAULT_EXPIRES_IN_MS = 10 * 60 * 1000;
 
 function nowIso() {
@@ -62,9 +71,20 @@ function normalizeMimeType(mimeType) {
   return trimmed || 'application/octet-stream';
 }
 
+function getMaxSizeForMimeType(mimeType) {
+  const normalizedMime = normalizeMimeType(mimeType);
+  if (IMAGE_MIME_TYPES.has(normalizedMime)) return IMAGE_LIMIT_BYTES;
+  if (normalizedMime === 'application/pdf') return PDF_LIMIT_BYTES;
+  if (normalizedMime === 'text/csv') return CSV_LIMIT_BYTES;
+  if (DOCUMENT_MIME_TYPES.has(normalizedMime)) return OFFICE_LIMIT_BYTES;
+  return IMAGE_LIMIT_BYTES;
+}
+
 export function validateUploadPayload({ fileName, mimeType, sizeBytes }) {
   const normalizedMime = normalizeMimeType(mimeType);
-  if (!DEFAULT_ALLOWED_MIME_TYPES.has(normalizedMime)) {
+  const allowedMimes = new Set([...IMAGE_MIME_TYPES, ...DOCUMENT_MIME_TYPES]);
+  allowedMimes.add('application/pdf');
+  if (!allowedMimes.has(normalizedMime)) {
     return { ok: false, error: 'Unsupported file type.' };
   }
 
@@ -73,8 +93,10 @@ export function validateUploadPayload({ fileName, mimeType, sizeBytes }) {
     return { ok: false, error: 'Invalid file size.' };
   }
 
-  if (safeSize > DEFAULT_MAX_SIZE_BYTES) {
-    return { ok: false, error: 'File exceeds 10 MB limit.' };
+  const maxSize = getMaxSizeForMimeType(normalizedMime);
+  if (safeSize > maxSize) {
+    const limitLabel = maxSize >= 1024 * 1024 ? `${maxSize / (1024 * 1024)} MB` : `${maxSize} bytes`;
+    return { ok: false, error: `File exceeds ${limitLabel} limit.` };
   }
 
   return { ok: true, fileName: sanitizeFilename(fileName), mimeType: normalizedMime, sizeBytes: safeSize };

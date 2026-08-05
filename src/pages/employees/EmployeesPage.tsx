@@ -3,6 +3,7 @@ import { useStore } from '../../store';
 import { PageHeader, Button, Card, Badge, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Clock, LogOut } from 'lucide-react';
 import { formatCurrency, formatDateTime, durationHours } from '../../utils';
+import { uploadFileToStorage } from '../../utils/fileUpload';
 import type { Employee, EmployeeRole } from '../../types';
 import ClockInModal from './ClockInModal';
 
@@ -249,51 +250,21 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
   };
 
   const uploadPhotoAttachment = async (file: File) => {
-    if (file.size > 2 * 1024 * 1024) {
-      setPhotoUploadError('Photo must be 2 MB or smaller.');
-      return;
-    }
-
     setPhotoUploadError('');
     setPhotoUploading(true);
 
     try {
-      const dataBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = typeof reader.result === 'string' ? reader.result : '';
-          const comma = result.indexOf(',');
-          resolve(comma >= 0 ? result.slice(comma + 1) : result);
-        };
-        reader.onerror = () => reject(new Error('Could not read photo.'));
-        reader.readAsDataURL(file);
+      const upload = await uploadFileToStorage({
+        file,
+        entityType: 'time-entry',
+        entityId: clockOutEntry ?? '',
+        category: 'clock-out-photo',
       });
 
-      const response = await fetch('/api/receipts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          fileName: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          dataBase64,
-        }),
-      });
-
-      const payload = (await response.json()) as { ok?: boolean; error?: string; receiptUrl?: string };
-      if (!response.ok || !payload?.ok || typeof payload.receiptUrl !== 'string') {
-        setPhotoUploadError(payload?.error ?? 'Could not upload photo.');
-        setPhotoAttachmentUrl('');
-        setPhotoPreviewUrl('');
-        return;
-      }
-
-      setPhotoAttachmentUrl(payload.receiptUrl);
-      setPhotoPreviewUrl(payload.receiptUrl);
-    } catch {
-      setPhotoUploadError('Could not upload photo.');
+      setPhotoAttachmentUrl(upload.fileId);
+      setPhotoPreviewUrl('');
+    } catch (error) {
+      setPhotoUploadError(error instanceof Error ? error.message : 'Could not upload photo.');
       setPhotoAttachmentUrl('');
       setPhotoPreviewUrl('');
     } finally {

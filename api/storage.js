@@ -9,8 +9,14 @@ import {
   createAuditEventForBusiness,
   createFileForBusiness,
   deleteFileForBusiness,
+  getExpenseForBusiness,
+  getFileForBusiness,
+  getTimeEntryForBusiness,
   listFilesForBusiness,
+  updateExpenseForBusiness,
+  updateTimeEntryForBusiness,
 } from './_lib/authRepo.js';
+import { canReadEntity, canWriteEntity } from './_lib/authorization.js';
 
 function parseJsonBody(req) {
   if (typeof req.body === 'string') {
@@ -23,6 +29,43 @@ function parseJsonBody(req) {
   return req.body ?? {};
 }
 
+function getAttachmentFieldForCategory({ entityType, category }) {
+  if (entityType === 'expense') {
+    return category === 'receipt' ? 'receiptFileId' : undefined;
+  }
+
+  if (entityType === 'time-entry') {
+    if (category === 'clock-in-photo') return 'clockInPhotoFileId';
+    if (category === 'clock-out-photo') return 'clockOutPhotoFileId';
+    return 'photoAttachmentFileId';
+  }
+
+  return undefined;
+}
+
+async function resolveAttachmentEntity({ session, entityType, entityId }) {
+  if (entityType === 'expense') {
+    const expense = await getExpenseForBusiness(session.businessId, entityId);
+    if (!expense) return null;
+    return { entity: expense, allowed: canWriteEntity('expenses', session.role) || canReadEntity('expenses', session.role) };
+  }
+
+  if (entityType === 'time-entry') {
+    const timeEntry = await getTimeEntryForBusiness(session.businessId, entityId);
+    if (!timeEntry) return null;
+    const role = session.role;
+    if (role === 'crew_member') {
+      return {
+        entity: timeEntry,
+        allowed: typeof session.employeeId === 'string' && timeEntry.employeeId === session.employeeId,
+      };
+    }
+    return { entity: timeEntry, allowed: canWriteEntity('time-entries', role) || canReadEntity('time-entries', role) };
+  }
+
+  return null;
+}
+
 export default async function handler(req, res) {
   const session = requireSession(req, res);
   if (!session) return;
@@ -32,6 +75,16 @@ export default async function handler(req, res) {
     const { action, fileName, mimeType, sizeBytes, key, fileId } = body ?? {};
 
     if (action === 'prepare-upload') {
+      const { entityType, entityId, category } = body ?? {};
+      if (typeof entityType !== 'string' || typeof entityId !== 'string' || typeof category !== 'string') {
+        return res.status(400).json({ ok: false, error: 'Attachment context is required.' });
+      }
+
+      const resolvedEntity = await resolveAttachmentEntity({ session, entityType, entityId });
+      if (!resolvedEntity?.entity || !resolvedEntity.allowed) {
+        return res.status(403).json({ ok: false, error: 'Forbidden' });
+      }
+
       const result = await createPresignedUploadUrl({
         businessId: session.businessId,
         fileName,
@@ -60,6 +113,23 @@ export default async function handler(req, res) {
     }
 
     if (action === 'prepare-download') {
+      const fileIdValue = typeof body?.fileId === 'string' ? body.fileId : undefined;
+      if (fileIdValue) {
+        const file = await getFileForBusiness(session.businessId, fileIdValue);
+        if (!file) {
+          return res.status(404).json({ ok: false, error: 'File not found.' });
+        }
+        const entityResolution = await resolveAttachmentEntity({ session, entityType: file.entityType, entityId: file.entityId });
+        if (!entityResolution?.allowed) {
+          return res.status(403).json({ ok: false, error: 'Forbidden' });
+        }
+        const result = await createPresignedDownloadUrl({ businessId: session.businessId, key: file.key });
+        if (!result.ok) {
+          return res.status(400).json({ ok: false, error: result.error });
+        }
+        return res.status(200).json({ ok: true, downloadUrl: result.downloadUrl, key: file.key, fileId: file.id });
+      }
+
       if (typeof key !== 'string' || !key) {
         return res.status(400).json({ ok: false, error: 'Invalid storage key.' });
       }
@@ -92,9 +162,22 @@ export default async function handler(req, res) {
     }
 
     if (action === 'complete-upload') {
-      const { fileId: incomingFileId, key: incomingKey, fileName: incomingFileName, mimeType: incomingMimeType, sizeBytes: incomingSizeBytes } = body ?? {};
+      const { fileId: incomingFileId, key: incomingKey, fileName: incomingFileName, mimeType: incomingMimeType, sizeBytes: incomingSizeBytes, entityType, entityId, category } = body ?? {};
       if (typeof incomingFileId !== 'string' || !incomingFileId || typeof incomingKey !== 'string' || !incomingKey) {
         return res.status(400).json({ ok: false, error: 'Invalid upload completion payload.' });
+      }
+      if (typeof entityType !== 'string' || typeof entityId !== 'string' || typeof category !== 'string') {
+        return res.status(400).json({ ok: false, error: 'Attachment context is required.' });
+      }
+
+      const resolvedEntity = await resolveAttachmentEntity({ session, entityType, entityId });
+      if (!resolvedEntity?.entity || !resolvedEntity.allowed) {
+        return res.status(403).json({ ok: false, error: 'Forbidden' });
+      }
+
+      const attachmentField = getAttachmentFieldForCategory({ entityType, category });
+      if (!attachmentField) {
+        return res.status(400).json({ ok: false, error: 'Unsupported attachment category.' });
       }
 
       await createFileForBusiness({
@@ -102,6 +185,9 @@ export default async function handler(req, res) {
         file: {
           id: incomingFileId,
           key: incomingKey,
+          entityType,
+          entityId,
+          category,
           fileName: typeof incomingFileName === 'string' && incomingFileName ? incomingFileName : 'uploaded-file',
           mimeType: typeof incomingMimeType === 'string' && incomingMimeType ? incomingMimeType : 'application/octet-stream',
           sizeBytes: Number.isFinite(Number(incomingSizeBytes)) ? Number(incomingSizeBytes) : 0,
@@ -109,6 +195,33 @@ export default async function handler(req, res) {
           uploadedByUserId: session.id,
         },
       });
+
+      if (entityType === 'expense') {
+        const expense = await getExpenseForBusiness(session.businessId, entityId);
+        if (expense) {
+          await updateExpenseForBusiness({
+            businessId: session.businessId,
+            expense: {
+              ...expense,
+              id: expense.id,
+              receiptFileId: incomingFileId,
+              receiptUrl: undefined,
+            },
+          });
+        }
+      } else if (entityType === 'time-entry') {
+        const timeEntry = await getTimeEntryForBusiness(session.businessId, entityId);
+        if (timeEntry) {
+          await updateTimeEntryForBusiness({
+            businessId: session.businessId,
+            timeEntry: {
+              ...timeEntry,
+              id: timeEntry.id,
+              [attachmentField]: incomingFileId,
+            },
+          });
+        }
+      }
 
       await createAuditEventForBusiness({
         businessId: session.businessId,

@@ -117,6 +117,7 @@ export interface Expense {
   status: ExpenseStatus;
   notes: string;
   receiptUrl?: string;
+  receiptFileId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -209,6 +210,9 @@ export interface TimeEntry {
   breakMinutes: number;
   notes: string;
   photoAttachmentUrl?: string;
+  photoAttachmentFileId?: string;
+  clockInPhotoFileId?: string;
+  clockOutPhotoFileId?: string;
   status: ClockStatus;
 }
 

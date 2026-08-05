@@ -3,6 +3,7 @@ import { FilePlus2, HandCoins, Pencil, Receipt, Wallet, Link as LinkIcon } from 
 import { Button, Card, EmptyState, Input, Modal, PageHeader, Select, StatCard } from '../../components/ui';
 import { useStore } from '../../store';
 import { formatCurrency } from '../../utils';
+import { uploadFileToStorage } from '../../utils/fileUpload';
 import type { Expense, ExpenseCategory, ExpenseStatus } from '../../types';
 
 type StatusFilter = 'all' | ExpenseStatus;
@@ -161,48 +162,20 @@ export default function ExpensesPage() {
   };
 
   const uploadReceiptFile = async (file: File) => {
-    if (file.size > 2 * 1024 * 1024) {
-      setReceiptUploadError('Receipt file must be 2 MB or smaller.');
-      return;
-    }
-
     setReceiptUploadError('');
     setReceiptUploading(true);
 
     try {
-      const dataBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = typeof reader.result === 'string' ? reader.result : '';
-          const comma = result.indexOf(',');
-          resolve(comma >= 0 ? result.slice(comma + 1) : result);
-        };
-        reader.onerror = () => reject(new Error('Could not read receipt file.'));
-        reader.readAsDataURL(file);
+      const upload = await uploadFileToStorage({
+        file,
+        entityType: 'expense',
+        entityId: editing?.id ?? '',
+        category: 'receipt',
       });
 
-      const response = await fetch('/api/receipts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          fileName: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          dataBase64,
-        }),
-      });
-
-      const payload = (await response.json()) as { ok?: boolean; error?: string; receiptUrl?: string };
-      if (!response.ok || !payload?.ok || typeof payload.receiptUrl !== 'string') {
-        setReceiptUploadError(payload?.error ?? 'Could not upload receipt.');
-        return;
-      }
-
-      setField('receiptUrl', payload.receiptUrl);
-    } catch {
-      setReceiptUploadError('Could not upload receipt.');
+      setField('receiptUrl', upload.fileId);
+    } catch (error) {
+      setReceiptUploadError(error instanceof Error ? error.message : 'Could not upload receipt.');
     } finally {
       setReceiptUploading(false);
     }

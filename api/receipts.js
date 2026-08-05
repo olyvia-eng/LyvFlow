@@ -23,45 +23,7 @@ export default async function handler(req, res) {
   if (!session) return;
 
   if (req.method === 'POST') {
-    const { fileName, mimeType, dataBase64 } = req.body ?? {};
-
-    if (typeof fileName !== 'string' || typeof mimeType !== 'string' || typeof dataBase64 !== 'string') {
-      return res.status(400).json({ ok: false, error: 'Invalid upload payload.' });
-    }
-
-    const trimmedData = dataBase64.trim();
-    if (!trimmedData) {
-      return res.status(400).json({ ok: false, error: 'Receipt file is empty.' });
-    }
-
-    const sizeBytes = Buffer.from(trimmedData, 'base64').byteLength;
-    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
-      return res.status(400).json({ ok: false, error: 'Receipt file is invalid.' });
-    }
-
-    if (sizeBytes > MAX_RECEIPT_SIZE_BYTES) {
-      return res.status(413).json({ ok: false, error: 'Receipt exceeds 2 MB limit.' });
-    }
-
-    const receiptId = generateId();
-
-    try {
-      await createReceiptForBusiness({
-        businessId: session.businessId,
-        receipt: {
-          id: receiptId,
-          fileName: fileName.trim() || 'receipt',
-          mimeType: sanitizeContentType(mimeType),
-          dataBase64: trimmedData,
-          sizeBytes,
-          uploadedAt: new Date().toISOString(),
-        },
-      });
-
-      return res.status(200).json({ ok: true, receiptUrl: `/api/receipts?id=${receiptId}` });
-    } catch {
-      return res.status(500).json({ ok: false, error: 'Could not upload receipt.' });
-    }
+    return res.status(410).json({ ok: false, error: 'Legacy receipt uploads are deprecated. Use the S3-backed storage upload flow instead.' });
   }
 
   if (req.method === 'GET') {
