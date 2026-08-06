@@ -1,7 +1,6 @@
-import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { requireEnv } from './env.js';
-import { generateId } from './authRepo.js';
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const DOCUMENT_MIME_TYPES = new Set([
@@ -15,6 +14,15 @@ const PDF_LIMIT_BYTES = 25 * 1024 * 1024;
 const OFFICE_LIMIT_BYTES = 15 * 1024 * 1024;
 const CSV_LIMIT_BYTES = 5 * 1024 * 1024;
 const DEFAULT_EXPIRES_IN_MS = 10 * 60 * 1000;
+const ALLOWED_EXTENSIONS_BY_MIME = new Map([
+  ['image/jpeg', new Set(['.jpg', '.jpeg'])],
+  ['image/png', new Set(['.png'])],
+  ['image/webp', new Set(['.webp'])],
+  ['application/pdf', new Set(['.pdf'])],
+  ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', new Set(['.docx'])],
+  ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', new Set(['.xlsx'])],
+  ['text/csv', new Set(['.csv'])],
+]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -53,6 +61,7 @@ export function createPendingUploadPlan({ businessId, fileName, mimeType, sizeBy
   return {
     fileId,
     key,
+    objectKey: key,
     fileName: sanitizedName,
     mimeType: normalizeMimeType(mimeType),
     sizeBytes,
@@ -71,6 +80,14 @@ function normalizeMimeType(mimeType) {
   return trimmed || 'application/octet-stream';
 }
 
+function getFileExtension(fileName) {
+  if (typeof fileName !== 'string') return '';
+  const trimmed = fileName.trim();
+  const lastDot = trimmed.lastIndexOf('.');
+  if (lastDot < 0) return '';
+  return trimmed.slice(lastDot).toLowerCase();
+}
+
 function getMaxSizeForMimeType(mimeType) {
   const normalizedMime = normalizeMimeType(mimeType);
   if (IMAGE_MIME_TYPES.has(normalizedMime)) return IMAGE_LIMIT_BYTES;
@@ -86,6 +103,12 @@ export function validateUploadPayload({ fileName, mimeType, sizeBytes }) {
   allowedMimes.add('application/pdf');
   if (!allowedMimes.has(normalizedMime)) {
     return { ok: false, error: 'Unsupported file type.' };
+  }
+
+  const allowedExtensions = ALLOWED_EXTENSIONS_BY_MIME.get(normalizedMime);
+  const fileExtension = getFileExtension(fileName);
+  if (allowedExtensions && (!fileExtension || !allowedExtensions.has(fileExtension))) {
+    return { ok: false, error: 'File extension does not match the file type.' };
   }
 
   const safeSize = Number(sizeBytes);
@@ -125,11 +148,13 @@ function isStorageKeyScopedToBusiness({ businessId, key }) {
   return typeof key === 'string' && key.startsWith(`${businessId}/`);
 }
 
-export async function createPresignedUploadUrl({ businessId, fileName, mimeType, sizeBytes }) {
-  const validation = validateUploadPayload({ fileName, mimeType, sizeBytes });
+export async function createPresignedUploadUrl({ businessId, fileName, mimeType, sizeBytes, plan: trustedPlan }) {
+  const validation = trustedPlan
+    ? { ok: true, fileName: trustedPlan.fileName, mimeType: trustedPlan.mimeType, sizeBytes: trustedPlan.sizeBytes }
+    : validateUploadPayload({ fileName, mimeType, sizeBytes });
   if (!validation.ok) return { ok: false, error: validation.error };
 
-  const plan = createPendingUploadPlan({ businessId, fileName: validation.fileName, mimeType: validation.mimeType, sizeBytes: validation.sizeBytes });
+  const plan = trustedPlan ?? createPendingUploadPlan({ businessId, fileName: validation.fileName, mimeType: validation.mimeType, sizeBytes: validation.sizeBytes });
   const client = getS3Client();
   const command = new PutObjectCommand({
     Bucket: getBucketName(),
@@ -140,6 +165,30 @@ export async function createPresignedUploadUrl({ businessId, fileName, mimeType,
 
   const uploadUrl = await getSignedUrl(client, command, { expiresIn: 600 });
   return { ok: true, uploadUrl, plan };
+}
+
+export async function headStoredFile({ businessId, key }) {
+  if (!isStorageKeyScopedToBusiness({ businessId, key })) {
+    return { ok: false, status: 403, error: 'Unauthorized storage key.' };
+  }
+
+  const client = getS3Client();
+  try {
+    const result = await client.send(new HeadObjectCommand({ Bucket: getBucketName(), Key: key }));
+    return {
+      ok: true,
+      contentLength: Number(result.ContentLength ?? 0),
+      contentType: typeof result.ContentType === 'string' ? result.ContentType : '',
+      etag: typeof result.ETag === 'string' ? result.ETag.replaceAll('"', '') : '',
+      checksumSha256: typeof result.ChecksumSHA256 === 'string' ? result.ChecksumSHA256 : '',
+    };
+  } catch (error) {
+    const httpStatusCode = Number(error?.$metadata?.httpStatusCode ?? error?.statusCode ?? 0);
+    if (httpStatusCode === 404 || error?.name === 'NotFound' || error?.name === 'NoSuchKey') {
+      return { ok: false, status: 404, error: 'Stored file not found.' };
+    }
+    return { ok: false, status: Number.isFinite(httpStatusCode) && httpStatusCode >= 400 ? httpStatusCode : 503, error: 'Stored file could not be verified.' };
+  }
 }
 
 export async function createPresignedDownloadUrl({ businessId, key }) {

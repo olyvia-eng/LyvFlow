@@ -9,7 +9,7 @@ test('25 MB image uploads are accepted', () => {
     sizeBytes: 25 * 1024 * 1024,
   });
 
-  assert.equal(result.ok, true);
+  assert.equal(result.valid, true);
   assert.equal(result.mimeType, 'image/jpeg');
   assert.equal(result.sizeBytes, 25 * 1024 * 1024);
 });
@@ -21,7 +21,7 @@ test('images above 25 MB are rejected', () => {
     sizeBytes: 25 * 1024 * 1024 + 1,
   });
 
-  assert.equal(result.ok, false);
+  assert.equal(result.valid, false);
   assert.match(result.error, /25 MB/);
 });
 
@@ -32,8 +32,19 @@ test('pdf above 25 MB is rejected', () => {
     sizeBytes: 25 * 1024 * 1024 + 1,
   });
 
-  assert.equal(result.ok, false);
+  assert.equal(result.valid, false);
   assert.match(result.error, /25 MB/);
+});
+
+test('mismatched file extension is rejected', () => {
+  const result = validateUploadPayload({
+    fileName: 'receipt.jpg',
+    mimeType: 'application/pdf',
+    sizeBytes: 1024,
+  });
+
+  assert.equal(result.valid, false);
+  assert.match(result.error, /extension/i);
 });
 
 test('office documents use their own limits', () => {
@@ -53,9 +64,9 @@ test('office documents use their own limits', () => {
     sizeBytes: 5 * 1024 * 1024,
   });
 
-  assert.equal(docx.ok, true);
-  assert.equal(xlsx.ok, true);
-  assert.equal(csv.ok, true);
+  assert.equal(docx.valid, true);
+  assert.equal(xlsx.valid, true);
+  assert.equal(csv.valid, true);
 });
 
 test('non-JSON API response is handled cleanly by client parser', async () => {

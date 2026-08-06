@@ -20,36 +20,12 @@ const ALLOWED_EXTENSIONS_BY_MIME = new Map([
 	['text/csv', new Set(['.csv'])],
 ]);
 
-type UploadValidationSuccess = {
-	valid: true;
-	fileName: string;
-	mimeType: string;
-	sizeBytes: number;
-};
-
-type UploadValidationFailure = {
-	valid: false;
-	error: string;
-};
-
-type UploadValidationResult = UploadValidationSuccess | UploadValidationFailure;
-
-type ParsedStorageApiResponse = {
-	ok?: boolean;
-	error?: string;
-	uploadUrl?: string;
-	fileId?: string;
-	requiredHeaders?: Record<string, string>;
-	expiresAt?: string;
-	downloadUrl?: string;
-};
-
-function normalizeMimeType(mimeType?: string) {
+function normalizeMimeType(mimeType) {
 	if (typeof mimeType !== 'string') return 'application/octet-stream';
 	return mimeType.trim().toLowerCase() || 'application/octet-stream';
 }
 
-function getLimitForMimeType(mimeType: string) {
+function getLimitForMimeType(mimeType) {
 	const normalizedMime = normalizeMimeType(mimeType);
 	if (IMAGE_MIME_TYPES.has(normalizedMime)) return IMAGE_LIMIT_BYTES;
 	if (normalizedMime === 'application/pdf') return PDF_LIMIT_BYTES;
@@ -58,7 +34,7 @@ function getLimitForMimeType(mimeType: string) {
 	return IMAGE_LIMIT_BYTES;
 }
 
-function getFileExtension(fileName?: string) {
+function getFileExtension(fileName) {
 	if (typeof fileName !== 'string') return '';
 	const trimmed = fileName.trim();
 	const lastDot = trimmed.lastIndexOf('.');
@@ -66,15 +42,7 @@ function getFileExtension(fileName?: string) {
 	return trimmed.slice(lastDot).toLowerCase();
 }
 
-export function validateUploadPayload({
-	fileName,
-	mimeType,
-	sizeBytes,
-}: {
-	fileName?: string;
-	mimeType?: string;
-	sizeBytes?: number;
-}): UploadValidationResult {
+export function validateUploadPayload({ fileName, mimeType, sizeBytes }) {
 	const normalizedMime = normalizeMimeType(mimeType);
 	const allowedMimes = new Set([...IMAGE_MIME_TYPES, ...DOCUMENT_MIME_TYPES]);
 	allowedMimes.add('application/pdf');
@@ -107,13 +75,13 @@ export function validateUploadPayload({
 	};
 }
 
-export async function parseStorageApiResponse(response: Response, fallbackErrorMessage?: string): Promise<ParsedStorageApiResponse> {
+export async function parseStorageApiResponse(response, fallbackErrorMessage) {
 	const contentType = (response.headers.get('content-type') || '').toLowerCase();
 	const isJson = contentType.includes('application/json');
 
 	if (isJson) {
 		try {
-			return await response.json() as ParsedStorageApiResponse;
+			return await response.json();
 		} catch {
 			return {
 				ok: false,
@@ -135,17 +103,7 @@ export async function parseStorageApiResponse(response: Response, fallbackErrorM
 	};
 }
 
-export async function uploadFileToStorage({
-	file,
-	entityType,
-	entityId,
-	category,
-}: {
-	file: File;
-	entityType: string;
-	entityId: string;
-	category: string;
-}): Promise<{ fileId: string }> {
+export async function uploadFileToStorage({ file, entityType, entityId, category }) {
 	const validation = validateUploadPayload({
 		fileName: file?.name,
 		mimeType: file?.type,
@@ -216,13 +174,7 @@ export async function uploadFileToStorage({
 	};
 }
 
-export async function resolveAttachmentUrl({
-	fileId,
-	legacyUrl,
-}: {
-	fileId?: string;
-	legacyUrl?: string;
-}) {
+export async function resolveAttachmentUrl({ fileId, legacyUrl }) {
 	if (!fileId) {
 		return legacyUrl || '';
 	}

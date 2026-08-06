@@ -13,9 +13,9 @@ import {
 interface StoredFileRecord {
   id: string;
   fileName: string;
+  originalFileName?: string;
   mimeType: string;
   sizeBytes: number;
-  key: string;
   uploadedAt: string;
   category?: string;
   entityType?: string;
@@ -103,14 +103,17 @@ export default function DocumentsPage() {
           category: uploadContext.category,
         }),
       });
-      const data = await parseStorageApiResponse(response, 'Upload could not be prepared.') as { ok?: boolean; error?: string; uploadUrl?: string; plan?: StoredFileRecord & { fileId?: string; key?: string; fileName?: string; mimeType?: string; sizeBytes?: number } };
-      if (!data?.ok || !data.uploadUrl || !data.plan) {
+      const data = await parseStorageApiResponse(response, 'Upload could not be prepared.') as { ok?: boolean; error?: string; uploadUrl?: string; fileId?: string; requiredHeaders?: Record<string, string> };
+      if (!data?.ok || !data.uploadUrl || typeof data.fileId !== 'string') {
         throw new Error(data?.error || 'Upload could not be prepared.');
       }
 
       const uploadResponse = await fetch(data.uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': data.plan.mimeType || selectedFile.type || 'application/octet-stream' },
+        headers: {
+          'Content-Type': selectedFile.type || 'application/octet-stream',
+          ...(data.requiredHeaders ?? {}),
+        },
         body: selectedFile,
       });
 
@@ -124,11 +127,7 @@ export default function DocumentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'complete-upload',
-          fileId: data.plan.fileId,
-          key: data.plan.key,
-          fileName: data.plan.fileName,
-          mimeType: data.plan.mimeType,
-          sizeBytes: data.plan.sizeBytes,
+          fileId: data.fileId,
           entityType: uploadContext.entityType,
           entityId: uploadContext.entityId,
           category: uploadContext.category,
@@ -139,7 +138,7 @@ export default function DocumentsPage() {
         throw new Error(completeData?.error || 'The upload could not be finalized.');
       }
 
-      setStatus(`Uploaded ${data.plan.fileName} successfully.`);
+      setStatus(`Uploaded ${selectedFile.name} successfully.`);
       setSelectedFile(null);
       setFileName('');
       setActiveTab('library');
@@ -157,7 +156,7 @@ export default function DocumentsPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'prepare-download', key: file.key }),
+        body: JSON.stringify({ action: 'prepare-download', fileId: file.id }),
       });
       const data = await parseStorageApiResponse(response, 'Download could not be prepared.') as { ok?: boolean; error?: string; downloadUrl?: string };
       if (!data?.ok || !data.downloadUrl) {
@@ -175,7 +174,7 @@ export default function DocumentsPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', key: file.key }),
+        body: JSON.stringify({ action: 'delete', fileId: file.id }),
       });
       const data = await parseStorageApiResponse(response, 'Delete failed.') as { ok?: boolean; error?: string };
       if (!data?.ok) {
