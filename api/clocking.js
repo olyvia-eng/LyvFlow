@@ -4,6 +4,7 @@ import {
   buildClockInTransaction,
   buildClockOutTransaction,
   getActiveShiftForEmployee,
+  validateClockOutPhotoAttachment,
   getClockingErrorResponse,
   getClockingFailureResponse,
   getExistingClockingIdempotency,
@@ -11,7 +12,7 @@ import {
 } from './_lib/clocking.js';
 import { ddb, tableName } from './_lib/db.js';
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
-import { getEmployeeForBusiness, listTimeEntriesForBusiness } from './_lib/authRepo.js';
+import { getEmployeeForBusiness, getFileForBusiness, listTimeEntriesForBusiness } from './_lib/authRepo.js';
 import { canClockForEmployee } from './_lib/authorization.js';
 
 function nowIso() {
@@ -192,6 +193,16 @@ export default async function handler(req, res) {
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
+    const attachmentValidation = await validateClockOutPhotoAttachment({
+      session,
+      timeEntryId: entryId,
+      photoAttachmentFileId: req.body?.photoAttachmentFileId ?? undefined,
+      getFileForBusiness,
+    });
+    if (!attachmentValidation.ok) {
+      return res.status(attachmentValidation.status).json({ ok: false, error: attachmentValidation.error });
+    }
+
     const activeShift = await getActiveShiftForEmployee({
       businessId: session.businessId,
       employeeId: activeEntry.employeeId,
@@ -250,7 +261,7 @@ export default async function handler(req, res) {
       auditEventId: `${session.id}:${clockOutAt}`,
       breakMinutes: req.body?.breakMinutes ?? 0,
       notes: req.body?.notes ?? '',
-      photoAttachmentFileId: req.body?.photoAttachmentFileId ?? undefined,
+      photoAttachmentFileId: attachmentValidation.fileId ?? undefined,
       photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
       employeeName: employee?.name ?? '',
     });
@@ -267,7 +278,7 @@ export default async function handler(req, res) {
         clockOut: clockOutAt,
         breakMinutes: req.body?.breakMinutes ?? 0,
         notes: req.body?.notes ?? '',
-        photoAttachmentFileId: req.body?.photoAttachmentFileId ?? undefined,
+        photoAttachmentFileId: attachmentValidation.fileId ?? undefined,
         photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
         status: 'clocked_out',
       };

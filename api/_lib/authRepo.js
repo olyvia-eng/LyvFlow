@@ -1482,6 +1482,10 @@ export async function getFileForBusiness(businessId, fileId) {
     key: result.Item.key,
     uploadedAt: result.Item.uploadedAt,
     uploadedByUserId: result.Item.uploadedByUserId,
+    businessId: result.Item.businessId,
+    entityType: result.Item.entityType,
+    entityId: result.Item.entityId,
+    uploadStatus: result.Item.uploadStatus,
   };
 }
 

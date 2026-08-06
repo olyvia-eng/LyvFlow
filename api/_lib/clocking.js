@@ -172,6 +172,36 @@ export function buildClockInTransaction({
   };
 }
 
+export async function validateClockOutPhotoAttachment({
+  session,
+  timeEntryId,
+  photoAttachmentFileId,
+  getFileForBusiness,
+}) {
+  if (typeof photoAttachmentFileId !== 'string' || photoAttachmentFileId.trim().length === 0) {
+    return { ok: true, fileId: undefined };
+  }
+
+  const file = await getFileForBusiness(session.businessId, photoAttachmentFileId.trim());
+  if (!file) {
+    return { ok: false, status: 400, error: 'Attachment does not exist.' };
+  }
+
+  if (file.businessId && file.businessId !== session.businessId) {
+    return { ok: false, status: 403, error: 'Forbidden' };
+  }
+
+  if (file.entityType !== 'time-entry' || file.entityId !== timeEntryId) {
+    return { ok: false, status: 400, error: 'Attachment does not match the current time entry.' };
+  }
+
+  if (file.uploadStatus !== 'uploaded') {
+    return { ok: false, status: 400, error: 'Attachment upload is not complete.' };
+  }
+
+  return { ok: true, fileId: file.id };
+}
+
 export function buildClockOutTransaction({
   businessId,
   employeeId,

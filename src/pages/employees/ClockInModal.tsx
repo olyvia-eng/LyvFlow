@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 import { useStore } from '../../store';
 import { Button, Modal } from '../../components/ui';
 import { Clock, LogOut, UserRound } from 'lucide-react';
@@ -20,10 +20,11 @@ export default function ClockInModal({ open, onClose }: Props) {
   const [clockType, setClockType] = useState<TimeEntryWorkType>('job');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [jobNotes, setJobNotes] = useState('');
-  const [photoAttachmentUrl, setPhotoAttachmentUrl] = useState('');
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('');
+  const [photoAttachmentFileId, setPhotoAttachmentFileId] = useState('');
+  const [photoAttachmentFileName, setPhotoAttachmentFileName] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState('');
+  const photoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const reset = () => {
     setStep('select_employee');
@@ -31,8 +32,8 @@ export default function ClockInModal({ open, onClose }: Props) {
     setClockType('job');
     setSelectedJobIds([]);
     setJobNotes('');
-    setPhotoAttachmentUrl('');
-    setPhotoPreviewUrl('');
+    setPhotoAttachmentFileId('');
+    setPhotoAttachmentFileName('');
     setPhotoUploading(false);
     setPhotoUploadError('');
   };
@@ -57,8 +58,8 @@ export default function ClockInModal({ open, onClose }: Props) {
   const handleClockOut = () => {
     if (!activeEntry) return;
     if (!jobNotes.trim()) return;
-    const nextPhotoAttachmentUrl = photoAttachmentUrl.trim() || undefined;
-    clockOut(activeEntry.id, 0, jobNotes.trim(), nextPhotoAttachmentUrl);
+    const nextPhotoAttachmentFileId = photoAttachmentFileId.trim() || undefined;
+    clockOut(activeEntry.id, 0, jobNotes.trim(), nextPhotoAttachmentFileId);
     reset();
     onClose();
   };
@@ -75,12 +76,12 @@ export default function ClockInModal({ open, onClose }: Props) {
         category: 'clock-out-photo',
       });
 
-      setPhotoAttachmentUrl(upload.fileId);
-      setPhotoPreviewUrl('');
+      setPhotoAttachmentFileId(upload.fileId);
+      setPhotoAttachmentFileName(file.name);
     } catch (error) {
       setPhotoUploadError(error instanceof Error ? error.message : 'Could not upload photo.');
-      setPhotoAttachmentUrl('');
-      setPhotoPreviewUrl('');
+      setPhotoAttachmentFileId('');
+      setPhotoAttachmentFileName('');
     } finally {
       setPhotoUploading(false);
     }
@@ -92,6 +93,17 @@ export default function ClockInModal({ open, onClose }: Props) {
 
     void uploadPhotoAttachment(file);
     event.target.value = '';
+  };
+
+  const openPhotoPicker = () => {
+    if (photoUploading) return;
+    photoFileInputRef.current?.click();
+  };
+
+  const clearPhotoAttachment = () => {
+    setPhotoAttachmentFileId('');
+    setPhotoAttachmentFileName('');
+    setPhotoUploadError('');
   };
 
   const activeJobs = jobs.filter((j) => j.status === 'in_progress' || j.status === 'scheduled');
@@ -178,31 +190,30 @@ export default function ClockInModal({ open, onClose }: Props) {
             <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
               <label className="text-sm font-medium text-gray-700">Attach Photo (optional)</label>
               <input
+                ref={photoFileInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
                 onChange={handlePhotoSelection}
                 disabled={photoUploading}
-                className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand-700 hover:file:bg-brand-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="hidden"
               />
+              {photoAttachmentFileId ? (
+                <div className="rounded-lg border border-brand-200 bg-white p-3">
+                  <p className="text-sm font-semibold text-brand-700">Photo uploaded</p>
+                  <p className="mt-1 text-xs text-gray-600">{photoAttachmentFileName || 'Uploaded photo'}</p>
+                  <div className="mt-3 flex gap-3">
+                    <button type="button" onClick={openPhotoPicker} className="text-sm font-medium text-brand-700 hover:text-brand-800">Replace</button>
+                    <button type="button" onClick={clearPhotoAttachment} className="text-sm font-medium text-accent-700 hover:text-accent-800">Remove</button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={openPhotoPicker} disabled={photoUploading} className="inline-flex items-center rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60">
+                  Choose photo
+                </button>
+              )}
               {photoUploading && <p className="text-xs text-gray-500">Uploading photo...</p>}
               {photoUploadError && <p className="text-xs text-accent-700">{photoUploadError}</p>}
-              {photoPreviewUrl && (
-                <div className="space-y-2">
-                  <img src={photoPreviewUrl} alt="Clock-out attachment" className="h-24 w-full rounded-md object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhotoAttachmentUrl('');
-                      setPhotoPreviewUrl('');
-                      setPhotoUploadError('');
-                    }}
-                    className="text-xs font-medium text-accent-700 hover:text-accent-800"
-                  >
-                    Remove photo
-                  </button>
-                </div>
-              )}
             </div>
           </div>
           <Button variant="danger" className="w-full justify-center py-3 text-base" onClick={handleClockOut} disabled={!jobNotes.trim()}>

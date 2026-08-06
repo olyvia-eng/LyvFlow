@@ -1,0 +1,148 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { validateClockOutPhotoAttachment } from '../api/_lib/clocking.js';
+import { buildClockOutPayload, applyUploadedPhotoAttachment, clearPhotoAttachmentState } from '../src/utils/clockingPhoto.js';
+import { createStorageHandler } from '../api/storage.js';
+
+function createMockRes() {
+  return {
+    statusCode: 200,
+    headers: {},
+    body: undefined,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    setHeader(name, value) {
+      this.headers[name] = value;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+      return this;
+    },
+  };
+}
+
+function baseDeps(overrides = {}) {
+  return {
+    requireSession: () => ({ id: 'user-1', role: 'admin', businessId: 'biz-1', employeeId: 'emp-1' }),
+    createPresignedUploadUrl: async () => ({ ok: true, uploadUrl: 'https://signed.example/upload', plan: { fileId: 'file-1', key: 'biz-1/file-1/photo.jpg', fileName: 'photo.jpg', mimeType: 'image/jpeg', sizeBytes: 100 } }),
+    createPresignedDownloadUrl: async () => ({ ok: true, downloadUrl: 'https://signed.example/download' }),
+    removeStoredFile: async () => ({ ok: true }),
+    validateUploadPayload: () => ({ ok: true }),
+    createAuditEventForBusiness: async () => ({ ok: true }),
+    createFileForBusiness: async () => ({ ok: true }),
+    deleteFileForBusiness: async () => ({ ok: true }),
+    getExpenseForBusiness: async () => ({ id: 'expense-1', vendor: 'Acme', description: 'd', category: 'other', expenseDate: '2026-01-01', amount: 10, status: 'pending', notes: '' }),
+    getFileForBusiness: async () => null,
+    getTimeEntryForBusiness: async () => ({ id: 'time-1', employeeId: 'emp-1', status: 'clocked_in' }),
+    listFilesForBusiness: async () => [],
+    updateExpenseForBusiness: async () => ({ ok: true }),
+    updateTimeEntryForBusiness: async () => ({ ok: true }),
+    ...overrides,
+  };
+}
+
+test('client clock-out payload carries the uploaded file ID', () => {
+  const payload = buildClockOutPayload({ entryId: 'entry-1', notes: 'Done', photoAttachmentFileId: 'file-123' });
+
+  assert.deepEqual(payload, {
+    entryId: 'entry-1',
+    breakMinutes: 0,
+    notes: 'Done',
+    photoAttachmentFileId: 'file-123',
+  });
+});
+
+test('uploaded photo state keeps the file ID after the upload succeeds', () => {
+  const state = applyUploadedPhotoAttachment(clearPhotoAttachmentState(), { fileId: 'file-123', fileName: 'job-photo.jpg' });
+
+  assert.equal(state.fileId, 'file-123');
+  assert.equal(state.fileName, 'job-photo.jpg');
+});
+
+test('storage complete-upload persists the uploaded file metadata for the attachment', async () => {
+  let storedFile;
+  const handler = createStorageHandler(baseDeps({
+    createFileForBusiness: async (_businessId, { file }) => {
+      storedFile = file;
+      return { ok: true };
+    },
+  }));
+
+  const req = {
+    method: 'POST',
+    body: {
+      action: 'complete-upload',
+      fileId: 'file-1',
+      key: 'biz-1/file-1/photo.jpg',
+      fileName: 'photo.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      entityType: 'time-entry',
+      entityId: 'time-1',
+      category: 'clock-out-photo',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(storedFile.uploadStatus, 'uploaded');
+  assert.equal(storedFile.entityType, 'time-entry');
+  assert.equal(storedFile.entityId, 'time-1');
+});
+
+test('clock-out attachment validation rejects a file from another business', async () => {
+  const result = await validateClockOutPhotoAttachment({
+    session: { businessId: 'biz-1', role: 'admin' },
+    timeEntryId: 'time-1',
+    photoAttachmentFileId: 'file-1',
+    getFileForBusiness: async () => ({ id: 'file-1', businessId: 'biz-2', entityType: 'time-entry', entityId: 'time-1', uploadStatus: 'uploaded' }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 403);
+  assert.equal(result.error, 'Forbidden');
+});
+
+test('clock-out attachment validation rejects a file for a different entity', async () => {
+  const result = await validateClockOutPhotoAttachment({
+    session: { businessId: 'biz-1', role: 'admin' },
+    timeEntryId: 'time-1',
+    photoAttachmentFileId: 'file-1',
+    getFileForBusiness: async () => ({ id: 'file-1', businessId: 'biz-1', entityType: 'time-entry', entityId: 'time-2', uploadStatus: 'uploaded' }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 400);
+  assert.equal(result.error, 'Attachment does not match the current time entry.');
+});
+
+test('clock-out attachment validation rejects a file that is not marked uploaded', async () => {
+  const result = await validateClockOutPhotoAttachment({
+    session: { businessId: 'biz-1', role: 'admin' },
+    timeEntryId: 'time-1',
+    photoAttachmentFileId: 'file-1',
+    getFileForBusiness: async () => ({ id: 'file-1', businessId: 'biz-1', entityType: 'time-entry', entityId: 'time-1', uploadStatus: 'processing' }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 400);
+  assert.equal(result.error, 'Attachment upload is not complete.');
+});
+
+test('clock-out attachment validation accepts a matching uploaded file', async () => {
+  const result = await validateClockOutPhotoAttachment({
+    session: { businessId: 'biz-1', role: 'admin' },
+    timeEntryId: 'time-1',
+    photoAttachmentFileId: 'file-1',
+    getFileForBusiness: async () => ({ id: 'file-1', businessId: 'biz-1', entityType: 'time-entry', entityId: 'time-1', uploadStatus: 'uploaded' }),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.fileId, 'file-1');
+});

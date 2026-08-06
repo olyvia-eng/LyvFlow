@@ -276,6 +276,7 @@ export function createStorageHandler(overrides = {}) {
               sizeBytes: Number.isFinite(Number(incomingSizeBytes)) ? Number(incomingSizeBytes) : 0,
               uploadedAt: new Date().toISOString(),
               uploadedByUserId: session.id,
+              uploadStatus: 'uploaded',
             },
           });
 
