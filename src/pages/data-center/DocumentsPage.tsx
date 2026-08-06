@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Card, PageHeader, Button, Input, Select } from '../../components/ui';
-import { parseStorageApiResponse } from '../../utils/fileUpload';
+import { parseStorageApiResponse, uploadFileToStorage } from '../../utils/fileUpload';
 import {
   buildDocumentUploadContext,
   DOCUMENT_ACTIONS,
@@ -89,54 +89,12 @@ export default function DocumentsPage() {
 
     try {
       const uploadContext = buildDocumentUploadContext(category);
-      const response = await fetch('/api/storage', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'prepare-upload',
-          fileName: fileName || selectedFile.name,
-          mimeType: selectedFile.type || 'application/octet-stream',
-          sizeBytes: selectedFile.size,
-          entityType: uploadContext.entityType,
-          entityId: uploadContext.entityId,
-          category: uploadContext.category,
-        }),
+      await uploadFileToStorage({
+        file: selectedFile,
+        entityType: uploadContext.entityType,
+        entityId: uploadContext.entityId,
+        category: uploadContext.category,
       });
-      const data = await parseStorageApiResponse(response, 'Upload could not be prepared.') as { ok?: boolean; error?: string; uploadUrl?: string; fileId?: string; requiredHeaders?: Record<string, string> };
-      if (!data?.ok || !data.uploadUrl || typeof data.fileId !== 'string') {
-        throw new Error(data?.error || 'Upload could not be prepared.');
-      }
-
-      const uploadResponse = await fetch(data.uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': selectedFile.type || 'application/octet-stream',
-          ...(data.requiredHeaders ?? {}),
-        },
-        body: selectedFile,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('The direct S3 upload failed.');
-      }
-
-      const completeResponse = await fetch('/api/storage', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'complete-upload',
-          fileId: data.fileId,
-          entityType: uploadContext.entityType,
-          entityId: uploadContext.entityId,
-          category: uploadContext.category,
-        }),
-      });
-      const completeData = await parseStorageApiResponse(completeResponse, 'The upload could not be finalized.') as { ok?: boolean; error?: string };
-      if (!completeData?.ok) {
-        throw new Error(completeData?.error || 'The upload could not be finalized.');
-      }
 
       setStatus(`Uploaded ${selectedFile.name} successfully.`);
       setSelectedFile(null);

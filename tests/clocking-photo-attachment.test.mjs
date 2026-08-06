@@ -113,6 +113,49 @@ test('storage complete-upload persists the uploaded file metadata for the attach
   assert.equal(updatedFile.expectedContentType, 'image/jpeg');
 });
 
+test('storage complete-upload supports clock-in photo attachment with fileId-only payload', async () => {
+  let updatedTimeEntry;
+  const handler = createStorageHandler(baseDeps({
+    getFileForBusiness: async () => ({
+      id: 'file-1',
+      businessId: 'biz-1',
+      entityType: 'time-entry',
+      entityId: 'time-1',
+      category: 'clock-in-photo',
+      fileName: 'photo.jpg',
+      originalFileName: 'photo.jpg',
+      sanitizedFileName: 'photo.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      expectedContentType: 'image/jpeg',
+      expectedFileSize: 1024,
+      objectKey: 'biz-1/file-1/photo.jpg',
+      key: 'biz-1/file-1/photo.jpg',
+      uploadStatus: 'pending',
+    }),
+    updateTimeEntryForBusiness: async ({ timeEntry }) => {
+      updatedTimeEntry = timeEntry;
+      return { ok: true };
+    },
+  }));
+
+  const req = {
+    method: 'POST',
+    body: {
+      action: 'complete-upload',
+      fileId: 'file-1',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.fileId, 'file-1');
+  assert.equal(updatedTimeEntry.clockInPhotoFileId, 'file-1');
+});
+
 test('clock-out attachment validation rejects a file from another business', async () => {
   const result = await validateClockOutPhotoAttachment({
     session: { businessId: 'biz-1', role: 'admin' },
