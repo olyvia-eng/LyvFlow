@@ -31,7 +31,6 @@ const DocumentsPage = lazy(() => import('./pages/data-center/DocumentsPage'));
 const InvoicesPage = lazy(() => import('./pages/finance/InvoicesPage'));
 const ExpensesPage = lazy(() => import('./pages/finance/ExpensesPage'));
 const ProfitLossPage = lazy(() => import('./pages/finance/ProfitLossPage'));
-const EquipmentPage = lazy(() => import('./pages/operations/EquipmentPage'));
 const FormsPage = lazy(() => import('./pages/operations/FormsPage'));
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
@@ -505,18 +504,7 @@ export default function App() {
               <Route path="finance/expenses" element={<ExpensesPage />} />
               <Route path="finance/profit-loss" element={<ProfitLossPage />} />
               <Route path="operations/dashboard" element={<OperationsDashboardPage />} />
-              <Route path="operations/equipment" element={<EquipmentPage />} />
               <Route path="operations/forms" element={<FormsPage />} />
-              <Route
-                path="operations/inventory"
-                element={
-                  <ModulePlaceholderPage
-                    title="Inventory"
-                    question="Which materials are running low and could delay upcoming work?"
-                    summary="Monitor key stock levels and reorder signals to prevent job delays while avoiding over-purchasing."
-                  />
-                }
-              />
               <Route
                 path="materials/catalog"
                 element={

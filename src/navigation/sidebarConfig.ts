@@ -7,8 +7,6 @@ import {
   FileText,
   FolderOpen,
   HandCoins,
-  HardHat,
-  Package,
   Receipt,
   LayoutDashboard,
   UserCheck,
@@ -74,9 +72,7 @@ const NAVIGATION_CONFIG: SidebarConfig = {
         { id: 'operations-dashboard', type: 'link', to: '/operations/dashboard', label: 'Dashboard', icon: icon(LayoutDashboard) },
         { id: 'operations-jobs', type: 'link', to: '/jobs', label: 'Jobs', icon: icon(Briefcase) },
         { id: 'operations-calendar', type: 'link', to: '/calendar', label: 'Calendar', icon: icon(CalendarDays) },
-        { id: 'operations-equipment', type: 'link', to: '/operations/equipment', label: 'Equipment', icon: icon(HardHat) },
         { id: 'operations-forms', type: 'link', to: '/operations/forms', label: 'Forms', icon: icon(FileBox) },
-        { id: 'operations-inventory', type: 'link', to: '/operations/inventory', label: 'Inventory', icon: icon(Package) },
       ],
     },
     {

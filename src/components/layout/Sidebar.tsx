@@ -30,8 +30,6 @@ const ACTION_ROUTE_MAP: Record<string, string> = {
   'placeholder-invoices': '/finance/invoices',
   'placeholder-expenses': '/finance/expenses',
   'placeholder-profit-loss': '/finance/profit-loss',
-  'placeholder-equipment': '/operations/equipment',
-  'placeholder-inventory': '/operations/inventory',
   'placeholder-purchase-orders': '/operations/purchase-orders',
   'placeholder-payroll': '/employees/payroll',
   'placeholder-certifications': '/employees/certifications',
