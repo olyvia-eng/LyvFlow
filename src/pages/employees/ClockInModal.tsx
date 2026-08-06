@@ -24,6 +24,7 @@ export default function ClockInModal({ open, onClose }: Props) {
   const [photoAttachmentFileName, setPhotoAttachmentFileName] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState('');
+  const [clockInSubmitting, setClockInSubmitting] = useState(false);
   const [clockOutSubmitting, setClockOutSubmitting] = useState(false);
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -37,6 +38,7 @@ export default function ClockInModal({ open, onClose }: Props) {
     setPhotoAttachmentFileName('');
     setPhotoUploading(false);
     setPhotoUploadError('');
+    setClockInSubmitting(false);
     setClockOutSubmitting(false);
   };
 
@@ -49,12 +51,18 @@ export default function ClockInModal({ open, onClose }: Props) {
   const handleClockIn = () => {
     if (!foundEmployee) return;
     if (clockType === 'job' && selectedJobIds.length === 0) return;
+    if (clockInSubmitting) return;
 
-    clockIn(foundEmployee.id, {
+    setClockInSubmitting(true);
+    void clockIn(foundEmployee.id, {
       workType: clockType,
       jobIds: clockType === 'job' ? selectedJobIds : [],
+    }).then((result) => {
+      if (!result.ok) return;
+      setStep('clocked_in');
+    }).finally(() => {
+      setClockInSubmitting(false);
     });
-    setStep('clocked_in');
   };
 
   const handleClockOut = () => {
@@ -274,8 +282,8 @@ export default function ClockInModal({ open, onClose }: Props) {
               </div>
             )}
           </div>
-          <Button disabled={clockType === 'job' && selectedJobIds.length === 0} className="w-full justify-center py-3 text-base" onClick={handleClockIn}>
-            <Clock size={18} /> Clock In
+          <Button disabled={clockInSubmitting || (clockType === 'job' && selectedJobIds.length === 0)} className="w-full justify-center py-3 text-base" onClick={handleClockIn}>
+            <Clock size={18} /> {clockInSubmitting ? 'Clocking In...' : 'Clock In'}
           </Button>
           <button onClick={reset} className="text-sm text-gray-400 hover:text-gray-600 text-center">← Back</button>
         </div>

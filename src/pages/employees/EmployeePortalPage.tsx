@@ -22,6 +22,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const [photoAttachmentFileName, setPhotoAttachmentFileName] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState('');
+  const [clockInSubmitting, setClockInSubmitting] = useState(false);
   const [clockOutSubmitting, setClockOutSubmitting] = useState(false);
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
   const [requiredFormsModalOpen, setRequiredFormsModalOpen] = useState(false);
@@ -70,10 +71,14 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const runClockIn = () => {
     if (!employee) return;
     if (clockType === 'job' && selectedJobIds.length === 0) return;
+    if (clockInSubmitting) return;
 
-    clockIn(employee.id, {
+    setClockInSubmitting(true);
+    void clockIn(employee.id, {
       workType: clockType,
       jobIds: clockType === 'job' ? selectedJobIds : [],
+    }).finally(() => {
+      setClockInSubmitting(false);
     });
   };
 
@@ -365,10 +370,10 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
 
                   <Button
                     onClick={handleClockIn}
-                    disabled={clockType === 'job' && selectedJobIds.length === 0}
+                    disabled={clockInSubmitting || (clockType === 'job' && selectedJobIds.length === 0)}
                     className="w-full justify-center"
                   >
-                    <Clock size={16} /> Clock In
+                    <Clock size={16} /> {clockInSubmitting ? 'Clocking In...' : 'Clock In'}
                   </Button>
                 </div>
               )}

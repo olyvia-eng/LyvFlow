@@ -81,6 +81,7 @@ interface AppState {
   jobs: Job[];
   employees: Employee[];
   timeEntries: TimeEntry[];
+  clockInInFlightEmployeeIds: ID[];
   clockOutInFlightEntryIds: ID[];
   budgetItems: BudgetItem[];
   labourBudgetPlans: LabourBudgetPlan[];
@@ -135,7 +136,7 @@ interface AppState {
   deleteEmployee: (id: ID) => void;
 
   // Time Entries
-  clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[] }) => void;
+  clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[] }) => Promise<{ ok: boolean; error?: string; timeEntry?: TimeEntry }>;
   clockOut: (entryId: ID, breakMinutes?: number, notes?: string, photoAttachmentFileId?: string) => Promise<{ ok: boolean; error?: string }>;
   addTimeEntry: (e: Omit<TimeEntry, 'id'>) => void;
   updateTimeEntry: (id: ID, data: Partial<TimeEntry>) => void;
@@ -180,6 +181,7 @@ export const useStore = create<AppState>()((set, get) => ({
       jobs: [],
       employees: [],
       timeEntries: [],
+      clockInInFlightEmployeeIds: [],
       clockOutInFlightEntryIds: [],
       budgetItems: [],
       labourBudgetPlans: [],
@@ -728,44 +730,73 @@ export const useStore = create<AppState>()((set, get) => ({
       },
 
       // ── Time Entries ──────────────────────────────────────────────────────
-      clockIn: (employeeId, options) => {
-        const previous = get().timeEntries;
+      clockIn: async (employeeId, options) => {
+        if (get().clockInInFlightEmployeeIds.includes(employeeId)) {
+          return { ok: false, error: 'Clock-in already in progress.' };
+        }
+
         const workType = options.workType;
         const selectedJobIds = Array.isArray(options.jobIds)
           ? options.jobIds.filter((value, index, all) => !!value && all.indexOf(value) === index)
           : [];
 
         if (workType === 'job' && selectedJobIds.length === 0) {
-          emitAppToast({ tone: 'error', message: 'Select at least one job to clock in.' });
-          return;
+          const message = 'Select at least one job to clock in.';
+          emitAppToast({ tone: 'error', message });
+          return { ok: false, error: message };
         }
 
-        const timeEntry: TimeEntry = {
-          id: generateId(),
-          employeeId,
-          jobId: workType === 'job' ? selectedJobIds[0] : undefined,
-          jobIds: workType === 'job' ? selectedJobIds : [],
-          workType,
-          clockIn: nowISO(),
-          clockOut: undefined,
-          breakMinutes: 0,
-          notes: '',
-          status: 'clocked_in',
-        };
+        set((state) => ({
+          clockInInFlightEmployeeIds: [...state.clockInInFlightEmployeeIds, employeeId],
+        }));
 
-        set((s) => ({ timeEntries: [...s.timeEntries, timeEntry] }));
+        const requestId = `${employeeId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+        const idempotencyKey = `${employeeId}:${requestId}`;
 
-        void ensureOk(fetch(dataUrl('time-entries'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({ data: timeEntry }),
-        })).catch((error) => {
-          set({ timeEntries: previous });
-          emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-in could not be saved.') });
-        });
+        try {
+          const response = await fetch('/api/clocking?action=clock-in', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              employeeId,
+              workType,
+              jobIds: workType === 'job' ? selectedJobIds : [],
+              requestId,
+              idempotencyKey,
+            }),
+          });
+
+          const payload = await response.json().catch(() => null) as { ok?: boolean; error?: string; timeEntry?: TimeEntry } | null;
+          if (!response.ok || !payload?.ok || !payload.timeEntry) {
+            const message = payload?.error ?? `Clock-in failed (HTTP ${response.status}).`;
+            emitAppToast({ tone: 'error', message });
+            return { ok: false, error: message };
+          }
+
+          const incoming = payload.timeEntry;
+          set((state) => ({
+            timeEntries: [
+              ...state.timeEntries.filter((entry) => (
+                entry.id !== incoming.id
+                && !(entry.employeeId === incoming.employeeId && entry.status === 'clocked_in')
+              )),
+              incoming,
+            ],
+          }));
+
+          return { ok: true, timeEntry: incoming };
+        } catch (error) {
+          const message = errorMessage(error, 'Clock-in could not be saved.');
+          emitAppToast({ tone: 'error', message });
+          return { ok: false, error: message };
+        } finally {
+          set((state) => ({
+            clockInInFlightEmployeeIds: state.clockInInFlightEmployeeIds.filter((id) => id !== employeeId),
+          }));
+        }
       },
       clockOut: async (entryId, breakMinutes = 0, notes = '', photoAttachmentFileId = '') => {
         const begin = beginClockOutSubmission(get().clockOutInFlightEntryIds, entryId);
