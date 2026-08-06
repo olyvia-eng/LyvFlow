@@ -205,6 +205,62 @@ test('successful prepare-upload returns presigned URL payload', async () => {
   assert.equal(pendingFile.objectKey, 'biz-1/file-1/photo.jpg');
 });
 
+test('prepare-upload for expense stores trusted entityType, normalized category, and authoritative entityId', async () => {
+  let pendingFile;
+  const handler = createStorageHandler(baseDeps({
+    getExpenseForBusiness: async () => ({ id: 'expense-1', vendor: 'Acme', description: 'd', category: 'other', expenseDate: '2026-01-01', amount: 10, status: 'pending', notes: '' }),
+    createPendingFileForBusiness: async ({ file }) => {
+      pendingFile = file;
+      return { ok: true };
+    },
+  }));
+
+  const req = {
+    method: 'POST',
+    body: {
+      action: 'prepare-upload',
+      fileName: 'receipt.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      entityType: 'expense',
+      entityId: 'client-sent-expense-id',
+      category: 'RECEIPT',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(pendingFile.entityType, 'expense');
+  assert.equal(pendingFile.category, 'receipt');
+  assert.equal(pendingFile.entityId, 'expense-1');
+});
+
+test('prepare-upload rejects unsupported expense categories', async () => {
+  const handler = createStorageHandler(baseDeps());
+
+  const req = {
+    method: 'POST',
+    body: {
+      action: 'prepare-upload',
+      fileName: 'receipt.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      entityType: 'expense',
+      entityId: 'expense-1',
+      category: 'receipts',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.error, 'Unsupported attachment category.');
+});
+
 test('prepare-upload rejects unsupported entity type', async () => {
   const handler = createStorageHandler(baseDeps());
 
@@ -269,6 +325,61 @@ test('successful complete-upload returns file metadata', async () => {
   assert.deepEqual(res.body, { ok: true, fileId: 'file-1' });
   assert.equal(updatedFile.uploadStatus, 'uploaded');
   assert.equal(updatedFile.objectKey, 'biz-1/file-1/photo.jpg');
+});
+
+test('complete-upload maps expense receipt to receiptFileId and persists on expense', async () => {
+  let updatedExpense;
+  const handler = createStorageHandler(baseDeps({
+    getFileForBusiness: async () => ({
+      id: 'file-1',
+      businessId: 'biz-1',
+      entityType: 'expense',
+      entityId: 'expense-1',
+      category: 'receipt',
+      fileName: 'receipt.pdf',
+      originalFileName: 'receipt.pdf',
+      sanitizedFileName: 'receipt.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      expectedContentType: 'application/pdf',
+      expectedFileSize: 1024,
+      objectKey: 'biz-1/file-1/receipt.pdf',
+      key: 'biz-1/file-1/receipt.pdf',
+      uploadStatus: 'pending',
+    }),
+    headStoredFile: async () => ({ ok: true, contentLength: 1024, contentType: 'application/pdf', etag: 'etag-1' }),
+    getExpenseForBusiness: async () => ({
+      id: 'expense-1',
+      vendor: 'Acme',
+      description: 'Materials',
+      category: 'materials',
+      expenseDate: '2026-01-01',
+      amount: 100,
+      status: 'pending',
+      notes: '',
+      receiptUrl: 'https://legacy.example/receipt.pdf',
+    }),
+    updateExpenseForBusiness: async ({ expense }) => {
+      updatedExpense = expense;
+      return { ok: true };
+    },
+  }));
+
+  const req = {
+    method: 'POST',
+    body: {
+      action: 'complete-upload',
+      fileId: 'file-1',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(updatedExpense.id, 'expense-1');
+  assert.equal(updatedExpense.receiptFileId, 'file-1');
+  assert.equal(updatedExpense.receiptUrl, undefined);
 });
 
 test('complete-upload rejects browser-supplied objectKey fields', async () => {

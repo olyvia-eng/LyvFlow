@@ -4,7 +4,7 @@ import { Button, Card, EmptyState, Input, Modal, PageHeader, Select, StatCard } 
 import { useStore } from '../../store';
 import { emitAppToast } from '../../toast';
 import { formatCurrency } from '../../utils';
-import { uploadFileToStorage } from '../../utils/fileUpload';
+import { resolveAttachmentUrl, uploadFileToStorage } from '../../utils/fileUpload';
 import type { Expense, ExpenseCategory, ExpenseStatus } from '../../types';
 
 type StatusFilter = 'all' | ExpenseStatus;
@@ -215,6 +215,20 @@ export default function ExpensesPage() {
     }
   };
 
+  const handleOpenReceipt = async (expense: Expense) => {
+    const resolvedUrl = await resolveAttachmentUrl({
+      fileId: expense.receiptFileId,
+      legacyUrl: expense.receiptUrl,
+    });
+
+    if (!resolvedUrl) {
+      emitAppToast({ tone: 'error', message: 'Receipt could not be opened.' });
+      return;
+    }
+
+    window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const saveExpense = async () => {
     if (!form.vendor.trim() || !form.description.trim() || form.amount <= 0 || !form.expenseDate) return;
     if (expenseSubmitting || receiptUploading) return;
@@ -339,15 +353,14 @@ export default function ExpensesPage() {
                       <td className="px-4 py-2 text-gray-700">{job?.title ?? 'General'}</td>
                       <td className="px-4 py-2 text-gray-700">{customer?.name ?? '—'}</td>
                       <td className="px-4 py-2 text-gray-700">
-                        {expense.receiptUrl ? (
-                          <a
-                            href={expense.receiptUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                        {expense.receiptFileId || expense.receiptUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleOpenReceipt(expense)}
                             className="inline-flex items-center gap-1 text-brand-700 hover:text-brand-800"
                           >
                             <LinkIcon size={13} /> View
-                          </a>
+                          </button>
                         ) : '—'}
                       </td>
                       <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(expense.amount)}</td>
