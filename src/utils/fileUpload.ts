@@ -12,14 +12,14 @@ const OFFICE_LIMIT_BYTES = 15 * 1024 * 1024;
 const CSV_LIMIT_BYTES = 5 * 1024 * 1024;
 
 type UploadValidationSuccess = {
-	ok: true;
+	valid: true;
 	fileName: string;
 	mimeType: string;
 	sizeBytes: number;
 };
 
 type UploadValidationFailure = {
-	ok: false;
+	valid: false;
 	error: string;
 };
 
@@ -68,22 +68,22 @@ export function validateUploadPayload({
 	const allowedMimes = new Set([...IMAGE_MIME_TYPES, ...DOCUMENT_MIME_TYPES]);
 	allowedMimes.add('application/pdf');
 	if (!allowedMimes.has(normalizedMime)) {
-		return { ok: false, error: 'Unsupported file type.' };
+		return { valid: false, error: 'Unsupported file type.' };
 	}
 
 	const safeSize = Number(sizeBytes);
 	if (!Number.isFinite(safeSize) || safeSize <= 0) {
-		return { ok: false, error: 'Invalid file size.' };
+		return { valid: false, error: 'Invalid file size.' };
 	}
 
 	const limit = getLimitForMimeType(normalizedMime);
 	if (safeSize > limit) {
 		const limitLabel = limit >= 1024 * 1024 ? `${limit / (1024 * 1024)} MB` : `${limit} bytes`;
-		return { ok: false, error: `File exceeds ${limitLabel} limit.` };
+		return { valid: false, error: `File exceeds ${limitLabel} limit.` };
 	}
 
 	return {
-		ok: true,
+		valid: true,
 		fileName: fileName?.trim() || 'file',
 		mimeType: normalizedMime,
 		sizeBytes: safeSize,
@@ -135,7 +135,7 @@ export async function uploadFileToStorage({
 		sizeBytes: file?.size,
 	});
 
-	if (!validation.ok) {
+	if (validation.valid === false) {
 		throw new Error(validation.error);
 	}
 
