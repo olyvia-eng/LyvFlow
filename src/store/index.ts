@@ -115,7 +115,7 @@ interface AppState {
   deleteInvoice: (id: ID) => void;
 
   // Expenses
-  addExpense: (e: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addExpense: (e: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ ok: boolean; expense?: Expense; error?: string }>;
   updateExpense: (id: ID, data: Partial<Expense>) => void;
   deleteExpense: (id: ID) => void;
 
@@ -487,22 +487,25 @@ export const useStore = create<AppState>()((set, get) => ({
       },
 
       // ── Expenses ─────────────────────────────────────────────────────────
-      addExpense: (e) => {
-        const previous = get().expenses;
+      addExpense: async (e) => {
         const expense = { ...e, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
-        set((s) => ({ expenses: [expense, ...s.expenses] }));
 
-        void ensureOk(fetch(dataUrl('expenses'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({ data: expense }),
-        })).catch((error: unknown) => {
-          set({ expenses: previous });
-          emitAppToast({ tone: 'error', message: errorMessage(error, 'Expense could not be saved.') });
-        });
+        try {
+          await ensureOk(fetch(dataUrl('expenses'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ data: expense }),
+          }));
+          set((s) => ({ expenses: [expense, ...s.expenses] }));
+          return { ok: true, expense };
+        } catch (error: unknown) {
+          const message = errorMessage(error, 'Expense could not be saved.');
+          emitAppToast({ tone: 'error', message });
+          return { ok: false, error: message };
+        }
       },
       updateExpense: (id, data) => {
         const previous = get().expenses;

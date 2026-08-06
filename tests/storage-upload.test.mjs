@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseStorageApiResponse, validateUploadPayload } from '../src/utils/fileUpload.js';
+import { parseStorageApiResponse, uploadFileToStorage, validateUploadPayload } from '../src/utils/fileUpload.js';
 
 test('25 MB image uploads are accepted', () => {
   const result = validateUploadPayload({
@@ -80,4 +80,60 @@ test('non-JSON API response is handled cleanly by client parser', async () => {
   const payload = await parseStorageApiResponse(response, 'Storage service is temporarily unavailable.');
   assert.equal(payload.ok, false);
   assert.equal(payload.error, 'Service unavailable');
+});
+
+test('complete-upload request includes only action and fileId', async () => {
+  const calls = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    calls.push({ url, init });
+
+    if (url === '/api/storage') {
+      const body = JSON.parse(init.body);
+      if (body.action === 'prepare-upload') {
+        return new Response(JSON.stringify({
+          ok: true,
+          fileId: 'file-123',
+          uploadUrl: 'https://signed.example/upload/file-123',
+          requiredHeaders: { 'Content-Type': 'image/jpeg' },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      if (body.action === 'complete-upload') {
+        return new Response(JSON.stringify({ ok: true, fileId: 'file-123' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    if (url === 'https://signed.example/upload/file-123') {
+      return new Response(null, { status: 200 });
+    }
+
+    return new Response('Unexpected request', { status: 500 });
+  };
+
+  try {
+    const file = new File(['binary-data'], 'clockout.jpg', { type: 'image/jpeg' });
+    const result = await uploadFileToStorage({
+      file,
+      entityType: 'time-entry',
+      entityId: 'time-1',
+      category: 'clock-out-photo',
+    });
+
+    assert.equal(result.fileId, 'file-123');
+
+    const completionCall = calls.find((call) => {
+      if (call.url !== '/api/storage') return false;
+      const body = JSON.parse(call.init.body);
+      return body.action === 'complete-upload';
+    });
+
+    assert.ok(completionCall, 'expected completion call to storage API');
+    const completionPayload = JSON.parse(completionCall.init.body);
+    assert.deepEqual(completionPayload, { action: 'complete-upload', fileId: 'file-123' });
+    assert.equal(Object.keys(completionPayload).length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

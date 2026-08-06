@@ -290,6 +290,58 @@ test('complete-upload rejects browser-supplied objectKey fields', async () => {
   assert.equal(res.body.ok, false);
 });
 
+test('complete-upload rejects legacy browser metadata fields', async () => {
+  const handler = createStorageHandler(baseDeps());
+
+  const req = {
+    method: 'POST',
+    body: {
+      action: 'complete-upload',
+      fileId: 'file-1',
+      fileName: 'receipt.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      entityType: 'expense',
+      entityId: 'expense-1',
+      category: 'receipt',
+      businessId: 'biz-1',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.error, 'Invalid upload completion payload.');
+});
+
+test('prepare-upload for new expense without persisted entity is forbidden', async () => {
+  const handler = createStorageHandler(baseDeps({
+    getExpenseForBusiness: async () => null,
+  }));
+
+  const req = {
+    method: 'POST',
+    body: {
+      action: 'prepare-upload',
+      fileName: 'receipt.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      entityType: 'expense',
+      entityId: '',
+      category: 'receipt',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.error, 'Forbidden');
+});
+
 test('prepare-download accepts fileId only', async () => {
   const handler = createStorageHandler(baseDeps({
     getFileForBusiness: async () => ({

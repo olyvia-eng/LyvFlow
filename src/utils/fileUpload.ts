@@ -196,9 +196,6 @@ export async function uploadFileToStorage({
 		body: JSON.stringify({
 			action: 'complete-upload',
 			fileId: preparePayload.fileId,
-			entityType,
-			entityId,
-			category,
 		}),
 	});
 

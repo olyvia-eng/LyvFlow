@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FilePlus2, HandCoins, Pencil, Receipt, Wallet, Link as LinkIcon } from 'lucide-react';
 import { Button, Card, EmptyState, Input, Modal, PageHeader, Select, StatCard } from '../../components/ui';
 import { useStore } from '../../store';
+import { emitAppToast } from '../../toast';
 import { formatCurrency } from '../../utils';
 import { uploadFileToStorage } from '../../utils/fileUpload';
 import type { Expense, ExpenseCategory, ExpenseStatus } from '../../types';
 
 type StatusFilter = 'all' | ExpenseStatus;
+type ReceiptAttachmentState = 'none' | 'selected' | 'uploading' | 'uploaded' | 'failed';
 
 const statusBadgeClass: Record<ExpenseStatus, string> = {
   pending: 'bg-accent-50 text-accent-700',
@@ -54,8 +56,11 @@ export default function ExpensesPage() {
   const [editing, setEditing] = useState<Expense | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [form, setForm] = useState(emptyExpenseForm());
+  const [expenseSubmitting, setExpenseSubmitting] = useState(false);
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [receiptUploadError, setReceiptUploadError] = useState('');
+  const [receiptSelectedFile, setReceiptSelectedFile] = useState<File | null>(null);
+  const [receiptAttachmentState, setReceiptAttachmentState] = useState<ReceiptAttachmentState>('none');
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState('');
   const [receiptPreviewKind, setReceiptPreviewKind] = useState<'image' | 'pdf' | 'other' | null>(null);
   const [receiptPreviewIsObjectUrl, setReceiptPreviewIsObjectUrl] = useState(false);
@@ -101,13 +106,27 @@ export default function ExpensesPage() {
       .sort((a, b) => b.amount - a.amount);
   }, [expenses]);
 
-  const openNew = () => {
-    setEditing(null);
-    setForm(emptyExpenseForm());
+  const resetReceiptState = () => {
+    setReceiptUploading(false);
     setReceiptUploadError('');
+    setReceiptSelectedFile(null);
+    setReceiptAttachmentState('none');
     setReceiptPreviewUrl('');
     setReceiptPreviewKind(null);
     setReceiptPreviewIsObjectUrl(false);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setExpenseSubmitting(false);
+    resetReceiptState();
+  };
+
+  const openNew = () => {
+    setEditing(null);
+    setForm(emptyExpenseForm());
+    setExpenseSubmitting(false);
+    resetReceiptState();
     setModalOpen(true);
   };
 
@@ -128,6 +147,9 @@ export default function ExpensesPage() {
     setReceiptPreviewUrl(expense.receiptUrl ?? '');
     setReceiptPreviewKind(expense.receiptUrl ? 'other' : null);
     setReceiptPreviewIsObjectUrl(false);
+    setReceiptSelectedFile(null);
+    setReceiptAttachmentState(expense.receiptFileId || expense.receiptUrl ? 'uploaded' : 'none');
+    setExpenseSubmitting(false);
     setModalOpen(true);
   };
 
@@ -154,35 +176,50 @@ export default function ExpensesPage() {
 
   const handleReceiptFile = async (file: File) => {
     setPreviewFromFile(file);
-    await uploadReceiptFile(file);
+    setReceiptSelectedFile(file);
+    setReceiptUploadError('');
+    setReceiptAttachmentState('selected');
+
+    if (editing) {
+      await uploadReceiptFile(file, editing.id);
+    }
   };
 
   const setField = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const uploadReceiptFile = async (file: File) => {
+  const uploadReceiptFile = async (file: File, expenseId: string) => {
     setReceiptUploadError('');
     setReceiptUploading(true);
+    setReceiptAttachmentState('uploading');
 
     try {
       const upload = await uploadFileToStorage({
         file,
         entityType: 'expense',
-        entityId: editing?.id ?? '',
+        entityId: expenseId,
         category: 'receipt',
       });
 
       setField('receiptUrl', upload.fileId);
+      updateExpense(expenseId, { receiptFileId: upload.fileId, receiptUrl: undefined });
+      setReceiptAttachmentState('uploaded');
+      return true;
     } catch (error) {
       setReceiptUploadError(error instanceof Error ? error.message : 'Could not upload receipt.');
+      setReceiptAttachmentState('failed');
+      return false;
     } finally {
       setReceiptUploading(false);
     }
   };
 
-  const saveExpense = () => {
+  const saveExpense = async () => {
     if (!form.vendor.trim() || !form.description.trim() || form.amount <= 0 || !form.expenseDate) return;
+    if (expenseSubmitting || receiptUploading) return;
+
+    setExpenseSubmitting(true);
 
     const payload = {
       jobId: form.jobId.trim() || undefined,
@@ -198,11 +235,41 @@ export default function ExpensesPage() {
 
     if (editing) {
       updateExpense(editing.id, payload);
-    } else {
-      addExpense(payload);
+      setExpenseSubmitting(false);
+      closeModal();
+      return;
     }
 
-    setModalOpen(false);
+    const createPayload = {
+      ...payload,
+      receiptUrl: undefined,
+    };
+
+    const created = await addExpense(createPayload);
+    if (!created.ok || !created.expense) {
+      setExpenseSubmitting(false);
+      return;
+    }
+
+    if (!receiptSelectedFile) {
+      setExpenseSubmitting(false);
+      closeModal();
+      return;
+    }
+
+    const attachmentSaved = await uploadReceiptFile(receiptSelectedFile, created.expense.id);
+    if (attachmentSaved) {
+      setExpenseSubmitting(false);
+      closeModal();
+      return;
+    }
+
+    setEditing(created.expense);
+    emitAppToast({
+      tone: 'error',
+      message: 'Expense was created, but the receipt failed to upload. You can retry attaching the receipt now.',
+    });
+    setExpenseSubmitting(false);
   };
 
   return (
@@ -328,12 +395,14 @@ export default function ExpensesPage() {
 
       <Modal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={closeModal}
         title={editing ? 'Edit Expense' : 'New Expense'}
         footer={(
           <>
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={saveExpense}>{editing ? 'Save Changes' : 'Create Expense'}</Button>
+            <Button variant="secondary" onClick={closeModal} disabled={expenseSubmitting || receiptUploading}>Cancel</Button>
+            <Button onClick={() => void saveExpense()} disabled={expenseSubmitting || receiptUploading}>
+              {editing ? (expenseSubmitting ? 'Saving...' : 'Save Changes') : (expenseSubmitting ? 'Creating...' : 'Create Expense')}
+            </Button>
           </>
         )}
       >
@@ -371,7 +440,7 @@ export default function ExpensesPage() {
                 event.currentTarget.value = '';
               }}
               className="hidden"
-              disabled={receiptUploading}
+              disabled={receiptUploading || expenseSubmitting}
             />
             <div
               role="button"
@@ -403,20 +472,33 @@ export default function ExpensesPage() {
               }`}
             >
               <p className="font-medium">Drag and drop receipt here</p>
-              <p className="mt-1 text-xs">or click to browse (image or PDF, max 2 MB)</p>
+              <p className="mt-1 text-xs">or click to browse (image or PDF, max 25 MB)</p>
             </div>
+            {receiptAttachmentState === 'selected' && !editing && (
+              <p className="text-xs text-gray-600">Receipt selected locally. It will upload after the expense is created.</p>
+            )}
             {receiptUploading && <p className="text-xs text-gray-500">Uploading receipt...</p>}
+            {receiptAttachmentState === 'uploaded' && <p className="text-xs text-brand-700">Receipt uploaded and attached.</p>}
             {receiptUploadError && <p className="text-xs text-accent-700">{receiptUploadError}</p>}
-            {form.receiptUrl ? (
-              <a href={form.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-brand-700 hover:text-brand-800">
-                <LinkIcon size={13} /> View uploaded receipt
-              </a>
+            {editing && receiptAttachmentState === 'failed' && receiptSelectedFile ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void uploadReceiptFile(receiptSelectedFile, editing.id)}
+                disabled={receiptUploading || expenseSubmitting}
+              >
+                Retry receipt upload
+              </Button>
             ) : null}
             {receiptPreviewUrl && receiptPreviewKind === 'image' && (
               <img src={receiptPreviewUrl} alt="Receipt preview" className="mt-2 max-h-48 rounded-md border border-gray-200 object-contain" />
             )}
             {receiptPreviewUrl && receiptPreviewKind === 'pdf' && (
               <iframe title="Receipt preview" src={receiptPreviewUrl} className="mt-2 h-52 w-full rounded-md border border-gray-200" />
+            )}
+            {receiptPreviewUrl && receiptAttachmentState !== 'uploaded' && (
+              <p className="text-xs text-gray-500">Preview is local until the receipt upload finishes successfully.</p>
             )}
           </div>
           <Input
