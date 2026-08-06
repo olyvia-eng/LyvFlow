@@ -15,17 +15,12 @@ const JobDetailPage = lazy(() => import('./pages/jobs/JobDetailPage'));
 const BudgetPage = lazy(() => import('./pages/budget/BudgetPage'));
 const BudgetsPage = lazy(() => import('./pages/budget/BudgetsPage'));
 const EmployeesPage = lazy(() => import('./pages/employees/EmployeesPage'));
-const DataCenterPage = lazy(() => import('./pages/datacenter/DataCenterPage'));
 const TimeReportsPage = lazy(() => import('./pages/reports/TimeReportsPage'));
 const EmployeePortalPage = lazy(() => import('./pages/employees/EmployeePortalPage'));
 const CalendarPage = lazy(() => import('./pages/calendar/CalendarPage'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const SignupPage = lazy(() => import('./pages/auth/SignupPage'));
 const UserAccessPage = lazy(() => import('./pages/users/UserAccessPage'));
-const RevenueDashboardPage = lazy(() => import('./pages/department-dashboards/RevenueDashboardPage'));
-const FinanceDashboardPage = lazy(() => import('./pages/department-dashboards/FinanceDashboardPage'));
-const OperationsDashboardPage = lazy(() => import('./pages/department-dashboards/OperationsDashboardPage'));
-const EmployeesDashboardPage = lazy(() => import('./pages/department-dashboards/EmployeesDashboardPage'));
 const ModulePlaceholderPage = lazy(() => import('./pages/placeholders/ModulePlaceholderPage'));
 const DocumentsPage = lazy(() => import('./pages/data-center/DocumentsPage'));
 const InvoicesPage = lazy(() => import('./pages/finance/InvoicesPage'));
@@ -478,7 +473,6 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="crm" element={<CRMPage />} />
-              <Route path="revenue/dashboard" element={<RevenueDashboardPage />} />
               <Route
                 path="revenue/leads"
                 element={
@@ -499,11 +493,9 @@ export default function App() {
                   />
                 }
               />
-              <Route path="finance/dashboard" element={<FinanceDashboardPage />} />
               <Route path="finance/invoices" element={<InvoicesPage />} />
               <Route path="finance/expenses" element={<ExpensesPage />} />
               <Route path="finance/profit-loss" element={<ProfitLossPage />} />
-              <Route path="operations/dashboard" element={<OperationsDashboardPage />} />
               <Route path="operations/forms" element={<FormsPage />} />
               <Route
                 path="materials/catalog"
@@ -525,7 +517,6 @@ export default function App() {
                   />
                 }
               />
-              <Route path="employees/dashboard" element={<EmployeesDashboardPage />} />
               <Route
                 path="employees/payroll"
                 element={
@@ -576,7 +567,7 @@ export default function App() {
               <Route path="budgets/:budgetId" element={<BudgetPage />} />
               <Route path="budget" element={<BudgetPage />} />
               <Route path="employees" element={<EmployeesPage onCreateEmployee={createUser} />} />
-              <Route path="data-center" element={<DataCenterPage />} />
+              <Route path="data-center" element={<Navigate to="/" replace />} />
               <Route
                 path="time-reports"
                 element={
