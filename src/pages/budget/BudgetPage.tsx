@@ -163,6 +163,25 @@ const toOptionLabel = (value: string) => value
   .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
   .join(' ');
 
+const formatBudgetTabLabel = (value: BudgetTab) => {
+  switch (value) {
+    case 'analysis':
+      return 'Analysis';
+    case 'revenue':
+      return 'Revenue';
+    case 'labour':
+      return 'Labour';
+    case 'materials':
+      return 'Materials';
+    case 'equipment':
+      return 'Equipment';
+    case 'subcontractors':
+      return 'Subcontractors';
+    case 'overhead':
+      return 'Overhead';
+  }
+};
+
 export default function BudgetPage() {
   const navigate = useNavigate();
   const { budgetId: routeBudgetId } = useParams<{ budgetId: string }>();
@@ -172,8 +191,6 @@ export default function BudgetPage() {
     labourBudgetPlans,
     revenueSalesGoals,
     addBudget,
-    updateBudget,
-    deleteBudget,
     employees,
     addEmployee,
     updateEmployee,
@@ -1703,7 +1720,7 @@ export default function BudgetPage() {
           {activeTab !== 'revenue' && (
             <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
               <Card className="p-4">
-                <p className="text-xs text-gray-500">{activeTab === 'revenue' ? 'Revenue' : activeTab === 'materials' ? 'Materials' : activeTab === 'subcontractors' ? 'Subcontractors' : activeTab === 'equipment' ? 'Equipment' : activeTab === 'overhead' ? 'Overhead' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</p>
+                <p className="text-xs text-gray-500">{formatBudgetTabLabel(activeTab)}</p>
                 <p className="text-xl font-bold text-gray-900">{formatCurrency(selectedCategoryTotals.budgeted)}</p>
               </Card>
             </div>
