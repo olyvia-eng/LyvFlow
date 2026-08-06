@@ -1113,6 +1113,18 @@ export default function BudgetPage() {
         <input
           type="text"
           inputMode="decimal"
+          min={1}
+          step={0.1}
+          value={formatNumericDisplayValue(row.overtimeMultiplier)}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeMultiplier', parseNumericInputValue(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
+        />
+      </td>
+      <td className="px-4 py-3 text-right">
+        <input
+          type="text"
+          inputMode="decimal"
           min={0}
           step={0.1}
           value={formatNumericDisplayValue(row.payrollBurdenPct)}
@@ -1285,37 +1297,6 @@ export default function BudgetPage() {
 
           <Card className="p-4 mb-6">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Revenue Goal Planner</h2>
-              <p className="text-sm text-gray-500 mt-1">Set a revenue goal and working days for {scopeLabel} to see daily revenue required to hit target.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              <Input
-                label="Revenue Goal"
-                type="number"
-                min={0}
-                value={currentRevenuePlan.goalRevenue}
-                onChange={(e) => updateRevenuePlan('goalRevenue', Number(e.target.value))}
-              />
-              <Input
-                label="Working Days"
-                type="number"
-                min={1}
-                value={currentRevenuePlan.workingDays}
-                onChange={(e) => updateRevenuePlan('workingDays', Number(e.target.value))}
-              />
-              <Card className="p-3 border border-gray-100">
-                <p className="text-xs text-gray-500">Revenue / Day Needed</p>
-                <p className="text-lg font-semibold text-gray-900">{formatCurrency(revenuePerDayNeeded)}</p>
-              </Card>
-              <Card className="p-3 border border-gray-100">
-                <p className="text-xs text-gray-500">Working Days</p>
-                <p className="text-lg font-semibold text-gray-900">{currentRevenuePlan.workingDays}</p>
-              </Card>
-            </div>
-          </Card>
-
-          <Card className="p-4 mb-6">
-            <div className="mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Estimate Pricing Calculator</h2>
               <p className="text-sm text-gray-500 mt-1">Use current budget + payroll assumptions to set charge-out rates for labour, machine time, materials, and subcontractors.</p>
             </div>
@@ -1342,27 +1323,6 @@ export default function BudgetPage() {
                 max={95}
                 value={pricingInputs.targetMarginPct}
                 onChange={(e) => updatePricingInput('targetMarginPct', Number(e.target.value))}
-              />
-              <Input
-                label="Machine Utilization (hrs/year)"
-                type="number"
-                min={1}
-                value={pricingInputs.equipmentUtilizationHours}
-                onChange={(e) => updatePricingInput('equipmentUtilizationHours', Number(e.target.value))}
-              />
-              <Input
-                label="Material Waste Buffer (%)"
-                type="number"
-                min={0}
-                value={pricingInputs.materialWastePct}
-                onChange={(e) => updatePricingInput('materialWastePct', Number(e.target.value))}
-              />
-              <Input
-                label="Subcontractor Risk Buffer (%)"
-                type="number"
-                min={0}
-                value={pricingInputs.subcontractorRiskPct}
-                onChange={(e) => updatePricingInput('subcontractorRiskPct', Number(e.target.value))}
               />
             </div>
 
@@ -1457,7 +1417,7 @@ export default function BudgetPage() {
               <p className="text-sm text-gray-400 p-4">No active labour items yet. Add a labour item to start your planner.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[1880px]">
+                <table className="w-full text-sm min-w-[1980px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-left">
                       <th className="px-4 py-3 font-medium">Employee</th>
@@ -1467,6 +1427,7 @@ export default function BudgetPage() {
                       <th className="px-4 py-3 font-medium text-right">Hours per Year</th>
                       <th className="px-4 py-3 font-medium text-center">Billable %</th>
                       <th className="px-4 py-3 font-medium text-right">Overtime Hours</th>
+                      <th className="px-4 py-3 font-medium text-right">Overtime Multiplier</th>
                       <th className="px-4 py-3 font-medium text-right">Payroll Burden (%)</th>
                       <th className="px-4 py-3 font-medium text-right">Benefits / Extra Cost</th>
                       <th className="px-4 py-3 font-medium text-right">Bonus</th>
@@ -1479,11 +1440,11 @@ export default function BudgetPage() {
                     {labourTableView === 'all' ? (
                       <>
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={13}>Hourly Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={14}>Hourly Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => row.plan.compType === 'hourly').map((row) => renderLabourPlannerRow(row))}
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={13}>Salaried Employees</td>
+                          <td className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500" colSpan={14}>Salaried Employees</td>
                         </tr>
                         {labourPlannerRows.filter((row) => isSalariedCompType(row.plan.compType)).map((row) => renderLabourPlannerRow(row))}
                       </>
@@ -1492,7 +1453,7 @@ export default function BudgetPage() {
                     )}
                     {visibleLabourPlannerRows.length === 0 && (
                       <tr>
-                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={13}>No employees in this compensation type view yet.</td>
+                        <td className="px-4 py-4 text-sm text-gray-400" colSpan={14}>No employees in this compensation type view yet.</td>
                       </tr>
                     )}
                   </tbody>
@@ -1522,6 +1483,37 @@ export default function BudgetPage() {
               </Card>
             </button>
           </div>
+
+          <Card className="p-4 mb-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Revenue Goal Planner</h2>
+              <p className="text-sm text-gray-500 mt-1">Set a revenue goal and working days for {scopeLabel} to see daily revenue required to hit target.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <Input
+                label="Revenue Goal"
+                type="number"
+                min={0}
+                value={currentRevenuePlan.goalRevenue}
+                onChange={(e) => updateRevenuePlan('goalRevenue', Number(e.target.value))}
+              />
+              <Input
+                label="Working Days"
+                type="number"
+                min={1}
+                value={currentRevenuePlan.workingDays}
+                onChange={(e) => updateRevenuePlan('workingDays', Number(e.target.value))}
+              />
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Revenue / Day Needed</p>
+                <p className="text-lg font-semibold text-gray-900">{formatCurrency(revenuePerDayNeeded)}</p>
+              </Card>
+              <Card className="p-3 border border-gray-100">
+                <p className="text-xs text-gray-500">Working Days</p>
+                <p className="text-lg font-semibold text-gray-900">{currentRevenuePlan.workingDays}</p>
+              </Card>
+            </div>
+          </Card>
         </>
       )}
 
