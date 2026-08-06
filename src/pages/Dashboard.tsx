@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '../store';
 import { Card, PageHeader, StatCard } from '../components/ui';
+import DashboardOnboardingCard from '../components/dashboard/DashboardOnboardingCard';
+import { buildDashboardOnboardingItems } from '../components/dashboard/onboardingProgress';
 import { formatCurrency } from '../utils';
 import {
   DollarSign,
@@ -30,8 +32,12 @@ const relativeTime = (value: string) => {
   return formatDistanceToNow(new Date(timestamp), { addSuffix: true });
 };
 
-export default function Dashboard() {
-  const { customers, estimates, jobs, employees, timeEntries } = useStore();
+interface DashboardProps {
+  businessName?: string;
+}
+
+export default function Dashboard({ businessName = '' }: DashboardProps) {
+  const { customers, estimates, jobs, employees, timeEntries, expenses } = useStore();
 
   const openEstimates = estimates.filter((estimate) => estimate.status === 'draft' || estimate.status === 'sent');
   const jobsInProgress = jobs.filter((job) => job.status === 'in_progress');
@@ -99,6 +105,15 @@ export default function Dashboard() {
   const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
   const activeEmployees = employees.filter((employee) => employee.active).length;
   const scheduledJobs = jobs.filter((job) => job.status === 'scheduled').length;
+  const onboardingItems = useMemo(() => buildDashboardOnboardingItems({
+    businessName,
+    employees,
+    customers,
+    estimates,
+    jobs,
+    timeEntries,
+    expenses,
+  }), [businessName, customers, employees, estimates, expenses, jobs, timeEntries]);
 
   return (
     <div>
@@ -106,6 +121,10 @@ export default function Dashboard() {
         title="Company Dashboard"
         subtitle="Executive overview of business performance."
       />
+
+      <div className="mb-6">
+        <DashboardOnboardingCard items={onboardingItems} />
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <StatCard
