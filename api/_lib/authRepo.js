@@ -1292,6 +1292,7 @@ export async function listExpensesForBusiness(businessId) {
     status: item.status,
     notes: item.notes,
     receiptUrl: item.receiptUrl,
+    receiptFileId: item.receiptFileId,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   }));
@@ -1339,6 +1340,7 @@ export async function getExpenseForBusiness(businessId, expenseId) {
         status: result.Item.status,
         notes: result.Item.notes,
         receiptUrl: result.Item.receiptUrl,
+        receiptFileId: result.Item.receiptFileId,
         createdAt: result.Item.createdAt,
         updatedAt: result.Item.updatedAt,
       }
@@ -1565,6 +1567,7 @@ export async function getFileForBusiness(businessId, fileId) {
     businessId: result.Item.businessId,
     entityType: result.Item.entityType,
     entityId: result.Item.entityId,
+    category: result.Item.category,
     uploadStatus: result.Item.uploadStatus,
     pendingReason: result.Item.pendingReason,
     etag: result.Item.etag,
