@@ -34,6 +34,7 @@ const ProfitLossPage = lazy(() => import('./pages/finance/ProfitLossPage'));
 const EquipmentCatalogPage = lazy(() => import('./pages/data-center/EquipmentCatalogPage'));
 const EquipmentPage = lazy(() => import('./pages/data-center/EquipmentCatalogPage'));
 const FormsPage = lazy(() => import('./pages/operations/FormsPage'));
+const DocumentsPage = lazy(() => import('./pages/data-center/DocumentsPage'));
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
 
@@ -542,13 +543,7 @@ export default function App() {
               <Route path="data-center/dashboard" element={<DataCenterDashboardPage />} />
               <Route
                 path="data-center/documents"
-                element={
-                  <ModulePlaceholderPage
-                    title="Documents"
-                    question="Where are the latest project documents and who can access them?"
-                    summary="Centralize important files by department and job context to reduce searching and keep teams aligned on current information."
-                  />
-                }
+                element={<DocumentsPage />}
               />
               <Route
                 path="data-center/forms"

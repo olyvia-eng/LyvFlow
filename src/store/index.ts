@@ -27,6 +27,11 @@ import {
   nowISO,
 } from '../utils';
 import { emitAppToast } from '../toast';
+import {
+  beginClockOutSubmission,
+  createClockOutRequestMeta,
+  endClockOutSubmission,
+} from '../utils/clockOutSubmission';
 
 async function ensureOk(responsePromise: Promise<Response>) {
   const response = await responsePromise;
@@ -76,6 +81,7 @@ interface AppState {
   jobs: Job[];
   employees: Employee[];
   timeEntries: TimeEntry[];
+  clockOutInFlightEntryIds: ID[];
   budgetItems: BudgetItem[];
   labourBudgetPlans: LabourBudgetPlan[];
   labourHoursSalesGoals: LabourHoursSalesGoal[];
@@ -130,7 +136,7 @@ interface AppState {
 
   // Time Entries
   clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[] }) => void;
-  clockOut: (entryId: ID, breakMinutes?: number, notes?: string, photoAttachmentFileId?: string) => void;
+  clockOut: (entryId: ID, breakMinutes?: number, notes?: string, photoAttachmentFileId?: string) => Promise<{ ok: boolean; error?: string }>;
   addTimeEntry: (e: Omit<TimeEntry, 'id'>) => void;
   updateTimeEntry: (id: ID, data: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: ID) => void;
@@ -174,6 +180,7 @@ export const useStore = create<AppState>()((set, get) => ({
       jobs: [],
       employees: [],
       timeEntries: [],
+      clockOutInFlightEntryIds: [],
       budgetItems: [],
       labourBudgetPlans: [],
       labourHoursSalesGoals: [],
@@ -760,10 +767,18 @@ export const useStore = create<AppState>()((set, get) => ({
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-in could not be saved.') });
         });
       },
-      clockOut: (entryId, breakMinutes = 0, notes = '', photoAttachmentFileId = '') => {
+      clockOut: async (entryId, breakMinutes = 0, notes = '', photoAttachmentFileId = '') => {
+        const begin = beginClockOutSubmission(get().clockOutInFlightEntryIds, entryId);
+        if (!begin.allowed) {
+          return { ok: false, error: 'Clock-out already in progress.' };
+        }
+
         const previous = get().timeEntries;
         const clockOutAt = nowISO();
         const normalizedPhotoAttachmentFileId = typeof photoAttachmentFileId === 'string' ? photoAttachmentFileId.trim() : '';
+
+        set({ clockOutInFlightEntryIds: begin.nextInFlightEntryIds });
+
         set((s) => ({
           timeEntries: s.timeEntries.map((te) =>
             te.id === entryId
@@ -780,22 +795,35 @@ export const useStore = create<AppState>()((set, get) => ({
           ),
         }));
 
-        void ensureOk(fetch('/api/clocking?action=clock-out', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            entryId,
-            breakMinutes,
-            notes,
-            ...(normalizedPhotoAttachmentFileId ? { photoAttachmentFileId: normalizedPhotoAttachmentFileId } : {}),
-          }),
-        })).catch((error) => {
+        const { requestId, idempotencyKey } = createClockOutRequestMeta(entryId);
+
+        try {
+          await ensureOk(fetch('/api/clocking?action=clock-out', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              entryId,
+              breakMinutes,
+              notes,
+              requestId,
+              idempotencyKey,
+              ...(normalizedPhotoAttachmentFileId ? { photoAttachmentFileId: normalizedPhotoAttachmentFileId } : {}),
+            }),
+          }));
+          return { ok: true };
+        } catch (error) {
           set({ timeEntries: previous });
-          emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-out could not be saved.') });
-        });
+          const message = errorMessage(error, 'Clock-out could not be saved.');
+          emitAppToast({ tone: 'error', message });
+          return { ok: false, error: message };
+        } finally {
+          set((state) => ({
+            clockOutInFlightEntryIds: endClockOutSubmission(state.clockOutInFlightEntryIds, entryId),
+          }));
+        }
       },
       addTimeEntry: (e) => {
         const previous = get().timeEntries;

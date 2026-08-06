@@ -19,6 +19,17 @@ import {
 import { canReadEntity, canWriteEntity } from './_lib/authorization.js';
 
 const STORAGE_FAILURE_MESSAGE = 'Storage service is temporarily unavailable.';
+const DOCUMENT_ENTITY_TYPE = 'document';
+const DOCUMENT_ENTITY_ID = 'library';
+const DOCUMENT_CATEGORIES = new Set([
+  'contracts',
+  'proposals',
+  'permits',
+  'insurance',
+  'compliance',
+  'photos',
+  'misc',
+]);
 
 function parseJsonBody(req) {
   if (typeof req.body === 'string') {
@@ -68,6 +79,16 @@ function getAttachmentFieldForCategory({ entityType, category }) {
   return undefined;
 }
 
+function canManageDocuments(role) {
+  return role === 'owner' || role === 'admin';
+}
+
+function normalizeDocumentCategory(category) {
+  if (typeof category !== 'string') return 'misc';
+  const normalized = category.trim().toLowerCase();
+  return DOCUMENT_CATEGORIES.has(normalized) ? normalized : 'misc';
+}
+
 async function resolveAttachmentEntity({ session, entityType, entityId }) {
   if (entityType === 'expense') {
     const expense = await getExpenseForBusiness(session.businessId, entityId);
@@ -86,6 +107,14 @@ async function resolveAttachmentEntity({ session, entityType, entityId }) {
       };
     }
     return { entity: timeEntry, allowed: canWriteEntity('time-entries', role) || canReadEntity('time-entries', role) };
+  }
+
+  if (entityType === DOCUMENT_ENTITY_TYPE) {
+    const normalizedEntityId = typeof entityId === 'string' && entityId.trim() ? entityId.trim() : DOCUMENT_ENTITY_ID;
+    return {
+      entity: { id: normalizedEntityId },
+      allowed: canManageDocuments(session.role),
+    };
   }
 
   return null;
@@ -129,6 +158,14 @@ export function createStorageHandler(overrides = {}) {
         };
       }
       return { entity: timeEntry, allowed: canWriteEntity('time-entries', role) || canReadEntity('time-entries', role) };
+    }
+
+    if (entityType === DOCUMENT_ENTITY_TYPE) {
+      const normalizedEntityId = typeof entityId === 'string' && entityId.trim() ? entityId.trim() : DOCUMENT_ENTITY_ID;
+      return {
+        entity: { id: normalizedEntityId },
+        allowed: canManageDocuments(session.role),
+      };
     }
 
     return null;
@@ -258,8 +295,13 @@ export function createStorageHandler(overrides = {}) {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
           }
 
-          const attachmentField = getAttachmentFieldForCategory({ entityType, category });
-          if (!attachmentField) {
+          const normalizedDocumentCategory = entityType === DOCUMENT_ENTITY_TYPE
+            ? normalizeDocumentCategory(category)
+            : category;
+          const attachmentField = entityType === DOCUMENT_ENTITY_TYPE
+            ? undefined
+            : getAttachmentFieldForCategory({ entityType, category: normalizedDocumentCategory });
+          if (entityType !== DOCUMENT_ENTITY_TYPE && !attachmentField) {
             return res.status(400).json({ ok: false, error: 'Unsupported attachment category.' });
           }
 
@@ -270,7 +312,7 @@ export function createStorageHandler(overrides = {}) {
               key: incomingKey,
               entityType,
               entityId,
-              category,
+              category: normalizedDocumentCategory,
               fileName: typeof incomingFileName === 'string' && incomingFileName ? incomingFileName : 'uploaded-file',
               mimeType: typeof incomingMimeType === 'string' && incomingMimeType ? incomingMimeType : 'application/octet-stream',
               sizeBytes: Number.isFinite(Number(incomingSizeBytes)) ? Number(incomingSizeBytes) : 0,
@@ -335,7 +377,20 @@ export function createStorageHandler(overrides = {}) {
         const view = req.query?.view;
         if (view === 'files') {
           const files = await deps.listFilesForBusiness(session.businessId);
-          return res.status(200).json({ ok: true, files });
+          const entityTypeFilter = typeof req.query?.entityType === 'string' ? req.query.entityType.trim().toLowerCase() : '';
+          const categoryFilter = typeof req.query?.category === 'string' ? req.query.category.trim().toLowerCase() : '';
+
+          const scopedFiles = files.filter((file) => {
+            if (entityTypeFilter && String(file.entityType || '').toLowerCase() !== entityTypeFilter) {
+              return false;
+            }
+            if (categoryFilter && String(file.category || '').toLowerCase() !== categoryFilter) {
+              return false;
+            }
+            return true;
+          });
+
+          return res.status(200).json({ ok: true, files: scopedFiles });
         }
 
         return res.status(200).json({ ok: true, message: 'Storage API is ready.' });

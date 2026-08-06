@@ -24,6 +24,7 @@ export default function ClockInModal({ open, onClose }: Props) {
   const [photoAttachmentFileName, setPhotoAttachmentFileName] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState('');
+  const [clockOutSubmitting, setClockOutSubmitting] = useState(false);
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const reset = () => {
@@ -36,6 +37,7 @@ export default function ClockInModal({ open, onClose }: Props) {
     setPhotoAttachmentFileName('');
     setPhotoUploading(false);
     setPhotoUploadError('');
+    setClockOutSubmitting(false);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -58,10 +60,18 @@ export default function ClockInModal({ open, onClose }: Props) {
   const handleClockOut = () => {
     if (!activeEntry) return;
     if (!jobNotes.trim()) return;
+    if (photoUploading || clockOutSubmitting) return;
     const nextPhotoAttachmentFileId = photoAttachmentFileId.trim() || undefined;
-    clockOut(activeEntry.id, 0, jobNotes.trim(), nextPhotoAttachmentFileId);
-    reset();
-    onClose();
+    setClockOutSubmitting(true);
+    void clockOut(activeEntry.id, 0, jobNotes.trim(), nextPhotoAttachmentFileId)
+      .then((result) => {
+        if (!result.ok) return;
+        reset();
+        onClose();
+      })
+      .finally(() => {
+        setClockOutSubmitting(false);
+      });
   };
 
   const uploadPhotoAttachment = async (file: File) => {
@@ -216,8 +226,8 @@ export default function ClockInModal({ open, onClose }: Props) {
               {photoUploadError && <p className="text-xs text-accent-700">{photoUploadError}</p>}
             </div>
           </div>
-          <Button variant="danger" className="w-full justify-center py-3 text-base" onClick={handleClockOut} disabled={!jobNotes.trim()}>
-            <LogOut size={18} /> Clock Out
+          <Button variant="danger" className="w-full justify-center py-3 text-base" onClick={handleClockOut} disabled={!jobNotes.trim() || photoUploading || clockOutSubmitting}>
+            <LogOut size={18} /> {clockOutSubmitting ? 'Clocking Out...' : 'Clock Out'}
           </Button>
           {!jobNotes.trim() && <p className="text-xs text-accent-700">Job notes are required before clocking out.</p>}
           <button onClick={reset} className="text-sm text-gray-400 hover:text-gray-600">← Back</button>

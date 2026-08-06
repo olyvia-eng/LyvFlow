@@ -1,6 +1,14 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Card, PageHeader, Button, Input } from '../../components/ui';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Card, PageHeader, Button, Input, Select } from '../../components/ui';
 import { parseStorageApiResponse } from '../../utils/fileUpload';
+import {
+  buildDocumentUploadContext,
+  DOCUMENT_ACTIONS,
+  DOCUMENT_CATEGORIES,
+  DOCUMENT_TABLE_COLUMNS,
+  DOCUMENT_TABS,
+  filterDocuments,
+} from './documentsConfig';
 
 interface StoredFileRecord {
   id: string;
@@ -9,6 +17,10 @@ interface StoredFileRecord {
   sizeBytes: number;
   key: string;
   uploadedAt: string;
+  category?: string;
+  entityType?: string;
+  entityId?: string;
+  uploadStatus?: string;
 }
 
 function formatBytes(bytes: number) {
@@ -24,15 +36,19 @@ function formatBytes(bytes: number) {
 }
 
 export default function DocumentsPage() {
+  const [activeTab, setActiveTab] = useState<'library' | 'upload'>('library');
   const [fileName, setFileName] = useState('');
+  const [category, setCategory] = useState('contracts');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [files, setFiles] = useState<StoredFileRecord[]>([]);
-  const [status, setStatus] = useState('Ready to upload a project file.');
+  const [status, setStatus] = useState('Ready to manage project documents.');
   const [busy, setBusy] = useState(false);
 
   const loadFiles = async () => {
     try {
-      const response = await fetch('/api/storage?view=files', { credentials: 'include' });
+      const response = await fetch('/api/storage?view=files&entityType=document', { credentials: 'include' });
       const data = await parseStorageApiResponse(response, 'Could not load files.') as { ok?: boolean; files?: StoredFileRecord[] };
       if (data.ok) {
         setFiles(data.files ?? []);
@@ -46,6 +62,21 @@ export default function DocumentsPage() {
     void loadFiles();
   }, []);
 
+  const filteredFiles = useMemo(() => {
+    return filterDocuments(files, { search: searchQuery, category: categoryFilter });
+  }, [categoryFilter, files, searchQuery]);
+
+  const totalBytes = useMemo(() => {
+    return filteredFiles.reduce((sum, file) => sum + (Number.isFinite(file.sizeBytes) ? file.sizeBytes : 0), 0);
+  }, [filteredFiles]);
+
+  const latestUploadLabel = useMemo(() => {
+    if (filteredFiles.length === 0) return 'No uploads yet';
+    const latest = [...filteredFiles]
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
+    return latest?.uploadedAt ? new Date(latest.uploadedAt).toLocaleString() : 'No uploads yet';
+  }, [filteredFiles]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedFile) {
@@ -57,6 +88,7 @@ export default function DocumentsPage() {
     setStatus('Preparing secure upload...');
 
     try {
+      const uploadContext = buildDocumentUploadContext(category);
       const response = await fetch('/api/storage', {
         method: 'POST',
         credentials: 'include',
@@ -66,6 +98,9 @@ export default function DocumentsPage() {
           fileName: fileName || selectedFile.name,
           mimeType: selectedFile.type || 'application/octet-stream',
           sizeBytes: selectedFile.size,
+          entityType: uploadContext.entityType,
+          entityId: uploadContext.entityId,
+          category: uploadContext.category,
         }),
       });
       const data = await parseStorageApiResponse(response, 'Upload could not be prepared.') as { ok?: boolean; error?: string; uploadUrl?: string; plan?: StoredFileRecord & { fileId?: string; key?: string; fileName?: string; mimeType?: string; sizeBytes?: number } };
@@ -94,6 +129,9 @@ export default function DocumentsPage() {
           fileName: data.plan.fileName,
           mimeType: data.plan.mimeType,
           sizeBytes: data.plan.sizeBytes,
+          entityType: uploadContext.entityType,
+          entityId: uploadContext.entityId,
+          category: uploadContext.category,
         }),
       });
       const completeData = await parseStorageApiResponse(completeResponse, 'The upload could not be finalized.') as { ok?: boolean; error?: string };
@@ -104,6 +142,7 @@ export default function DocumentsPage() {
       setStatus(`Uploaded ${data.plan.fileName} successfully.`);
       setSelectedFile(null);
       setFileName('');
+      setActiveTab('library');
       await loadFiles();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Upload could not be prepared.');
@@ -151,43 +190,141 @@ export default function DocumentsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Documents" subtitle="Upload files securely to business-scoped storage, then download or remove them from the same place." />
-      <Card className="p-6 space-y-4">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="Suggested file name" value={fileName} onChange={(event) => setFileName(event.target.value)} placeholder="Quarterly-Estimate.pdf" />
-          <input
-            type="file"
-            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-            className="block w-full rounded-xl border border-brand-100 bg-white px-3 py-2 text-sm text-gray-700"
-          />
-          <Button type="submit" disabled={busy || !selectedFile}>{busy ? 'Uploading...' : 'Upload to Secure Storage'}</Button>
-        </form>
-        <p className="text-sm text-gray-600">{status}</p>
-      </Card>
+      <PageHeader
+        title="Documents"
+        subtitle="Organize company documents by category, securely upload to private storage, and control access through signed links."
+      />
 
-      <Card className="p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Stored Documents</h2>
-          <span className="text-sm text-gray-500">{files.length} file{files.length === 1 ? '' : 's'}</span>
+      <Card className="p-4 sm:p-6 space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {DOCUMENT_TABS.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as 'library' | 'upload')}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                  active
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
-        {files.length === 0 ? (
-          <p className="text-sm text-gray-500">No files uploaded yet.</p>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-brand-100 bg-brand-50 p-3">
+            <p className="text-xs uppercase tracking-wide text-brand-700">Visible files</p>
+            <p className="mt-1 text-lg font-semibold text-brand-900">{filteredFiles.length}</p>
+          </div>
+          <div className="rounded-xl border border-brand-100 bg-brand-50 p-3">
+            <p className="text-xs uppercase tracking-wide text-brand-700">Storage in view</p>
+            <p className="mt-1 text-lg font-semibold text-brand-900">{formatBytes(totalBytes)}</p>
+          </div>
+          <div className="rounded-xl border border-brand-100 bg-brand-50 p-3">
+            <p className="text-xs uppercase tracking-wide text-brand-700">Latest upload</p>
+            <p className="mt-1 text-sm font-semibold text-brand-900">{latestUploadLabel}</p>
+          </div>
+        </div>
+
+        {activeTab === 'upload' ? (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Suggested file name"
+                value={fileName}
+                onChange={(event) => setFileName(event.target.value)}
+                placeholder="Quarterly-Estimate.pdf"
+              />
+              <Select label="Category" value={category} onChange={(event) => setCategory(event.target.value)}>
+                {DOCUMENT_CATEGORIES.map((item) => (
+                  <option key={item.id} value={item.id}>{item.label}</option>
+                ))}
+              </Select>
+            </div>
+            <input
+              type="file"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+              className="block w-full rounded-xl border border-brand-100 bg-white px-3 py-2 text-sm text-gray-700"
+            />
+            <div className="flex items-center gap-3">
+              <Button type="submit" disabled={busy || !selectedFile}>{busy ? 'Uploading...' : 'Upload Document'}</Button>
+              <Button type="button" variant="secondary" onClick={() => setActiveTab('library')}>Back to Library</Button>
+            </div>
+            <p className="text-sm text-gray-600">{status}</p>
+          </form>
         ) : (
-          <ul className="space-y-3">
-            {files.map((file) => (
-              <li key={file.id} className="flex flex-col gap-3 rounded-2xl border border-brand-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{file.fileName}</p>
-                  <p className="text-sm text-gray-500">{formatBytes(file.sizeBytes)} · {file.mimeType}</p>
-                  <p className="text-xs text-gray-400">Uploaded {new Date(file.uploadedAt).toLocaleString()}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="secondary" size="sm" onClick={() => void handleDownload(file)}>Download</Button>
-                  <Button type="button" variant="danger" size="sm" onClick={() => void handleDelete(file)}>Delete</Button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+              <Input
+                label="Search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by file name or type"
+              />
+              <Select
+                label="Category Filter"
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+              >
+                <option value="all">All categories</option>
+                {DOCUMENT_CATEGORIES.map((item) => (
+                  <option key={item.id} value={item.id}>{item.label}</option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-brand-100">
+              <table className="min-w-full divide-y divide-brand-100 text-sm">
+                <thead className="bg-brand-50">
+                  <tr>
+                    {DOCUMENT_TABLE_COLUMNS.map((column) => (
+                      <th key={column} className="px-3 py-2 text-left font-semibold text-brand-800">
+                        {column}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-brand-100 bg-white">
+                  {filteredFiles.length === 0 ? (
+                    <tr>
+                      <td colSpan={DOCUMENT_TABLE_COLUMNS.length} className="px-4 py-6 text-center text-gray-500">
+                        No documents matched your current filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredFiles.map((file) => (
+                      <tr key={file.id}>
+                        <td className="px-3 py-2 font-medium text-gray-900">{file.fileName}</td>
+                        <td className="px-3 py-2 text-gray-700">{file.category || 'misc'}</td>
+                        <td className="px-3 py-2 text-gray-700">{file.mimeType}</td>
+                        <td className="px-3 py-2 text-gray-700">{formatBytes(file.sizeBytes)}</td>
+                        <td className="px-3 py-2 text-gray-700">{new Date(file.uploadedAt).toLocaleString()}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-2">
+                            {DOCUMENT_ACTIONS.includes('view') && (
+                              <Button type="button" variant="secondary" size="sm" onClick={() => void handleDownload(file)}>View</Button>
+                            )}
+                            {DOCUMENT_ACTIONS.includes('download') && (
+                              <Button type="button" variant="secondary" size="sm" onClick={() => void handleDownload(file)}>Download</Button>
+                            )}
+                            {DOCUMENT_ACTIONS.includes('delete') && (
+                              <Button type="button" variant="danger" size="sm" onClick={() => void handleDelete(file)}>Delete</Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-sm text-gray-600">{status}</p>
+          </div>
         )}
       </Card>
     </div>

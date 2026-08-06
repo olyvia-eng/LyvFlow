@@ -101,6 +101,7 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
   const [photoAttachmentFileName, setPhotoAttachmentFileName] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState('');
+  const [clockOutSubmitting, setClockOutSubmitting] = useState(false);
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const openNew = () => {
@@ -240,14 +241,22 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
   const handleClockOut = () => {
     if (!clockOutEntry) return;
     if (!jobNotes.trim()) return;
+    if (photoUploading || clockOutSubmitting) return;
     const nextPhotoAttachmentFileId = photoAttachmentFileId.trim() || undefined;
-    clockOut(clockOutEntry, 0, jobNotes.trim(), nextPhotoAttachmentFileId);
-    setClockOutEntry(null);
-    setJobNotes('');
-    setPhotoAttachmentFileId('');
-    setPhotoAttachmentFileName('');
-    setPhotoUploading(false);
-    setPhotoUploadError('');
+    setClockOutSubmitting(true);
+    void clockOut(clockOutEntry, 0, jobNotes.trim(), nextPhotoAttachmentFileId)
+      .then((result) => {
+        if (!result.ok) return;
+        setClockOutEntry(null);
+        setJobNotes('');
+        setPhotoAttachmentFileId('');
+        setPhotoAttachmentFileName('');
+        setPhotoUploading(false);
+        setPhotoUploadError('');
+      })
+      .finally(() => {
+        setClockOutSubmitting(false);
+      });
   };
 
   const uploadPhotoAttachment = async (file: File) => {
@@ -454,8 +463,11 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
             setPhotoAttachmentFileName('');
             setPhotoUploading(false);
             setPhotoUploadError('');
+            setClockOutSubmitting(false);
           }}>Cancel</Button>
-          <Button variant="danger" onClick={handleClockOut}>Clock Out</Button>
+          <Button variant="danger" onClick={handleClockOut} disabled={!jobNotes.trim() || photoUploading || clockOutSubmitting}>
+            {clockOutSubmitting ? 'Clocking Out...' : 'Clock Out'}
+          </Button>
         </>}
       >
         <div className="space-y-4">

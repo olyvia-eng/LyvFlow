@@ -201,3 +201,49 @@ test('successful complete-upload returns file metadata', async () => {
     key: 'biz-1/file-1/photo.jpg',
   });
 });
+
+test('list files view supports entityType filter for restored documents page', async () => {
+  const handler = createStorageHandler(baseDeps({
+    listFilesForBusiness: async () => ([
+      {
+        id: 'doc-1',
+        fileName: 'Master Contract.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1200,
+        key: 'biz-1/doc-1/master-contract.pdf',
+        uploadedAt: '2026-08-05T10:00:00.000Z',
+        entityType: 'document',
+        entityId: 'library',
+        category: 'contracts',
+      },
+      {
+        id: 'photo-1',
+        fileName: 'Clock Out.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 2000,
+        key: 'biz-1/photo-1/clock-out.jpg',
+        uploadedAt: '2026-08-05T11:00:00.000Z',
+        entityType: 'time-entry',
+        entityId: 'time-1',
+        category: 'clock-out-photo',
+      },
+    ]),
+  }));
+
+  const req = {
+    method: 'GET',
+    query: {
+      view: 'files',
+      entityType: 'document',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.files.length, 1);
+  assert.equal(res.body.files[0].entityType, 'document');
+  assert.equal(res.body.files[0].fileName, 'Master Contract.pdf');
+});

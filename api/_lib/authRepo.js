@@ -1458,6 +1458,10 @@ export async function listFilesForBusiness(businessId) {
     key: item.key,
     uploadedAt: item.uploadedAt,
     uploadedByUserId: item.uploadedByUserId,
+    entityType: item.entityType,
+    entityId: item.entityId,
+    category: item.category,
+    uploadStatus: item.uploadStatus,
   }));
 }
 

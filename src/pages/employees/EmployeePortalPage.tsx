@@ -22,6 +22,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const [photoAttachmentFileName, setPhotoAttachmentFileName] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState('');
+  const [clockOutSubmitting, setClockOutSubmitting] = useState(false);
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
   const [requiredFormsModalOpen, setRequiredFormsModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<'clock_in' | 'clock_out' | null>(null);
@@ -74,17 +75,25 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
       workType: clockType,
       jobIds: clockType === 'job' ? selectedJobIds : [],
     });
-    setSelectedJobIds([]);
   };
 
   const runClockOut = () => {
     if (!activeEntry) return;
     if (!jobNotes.trim()) return;
+    if (photoUploading || clockOutSubmitting) return;
     const nextPhotoAttachmentFileId = photoAttachmentFileId.trim() || undefined;
-    clockOut(activeEntry.id, 0, jobNotes.trim(), nextPhotoAttachmentFileId);
-    setJobNotes('');
-    setPhotoAttachmentFileId('');
-    setPhotoAttachmentFileName('');
+    setClockOutSubmitting(true);
+    void clockOut(activeEntry.id, 0, jobNotes.trim(), nextPhotoAttachmentFileId)
+      .then((result) => {
+        if (!result.ok) return;
+        setJobNotes('');
+        setPhotoAttachmentFileId('');
+        setPhotoAttachmentFileName('');
+        setPhotoUploadError('');
+      })
+      .finally(() => {
+        setClockOutSubmitting(false);
+      });
   };
 
   const uploadPhotoAttachment = async (file: File) => {
@@ -308,10 +317,10 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                   <Button
                     variant="danger"
                     onClick={handleClockOut}
-                    disabled={!jobNotes.trim()}
+                    disabled={!jobNotes.trim() || photoUploading || clockOutSubmitting}
                     className="w-full justify-center"
                   >
-                    <LogOut size={16} /> Clock Out
+                    <LogOut size={16} /> {clockOutSubmitting ? 'Clocking Out...' : 'Clock Out'}
                   </Button>
                   {!jobNotes.trim() && (
                     <p className="text-xs text-accent-700">Job notes are required before clocking out.</p>
