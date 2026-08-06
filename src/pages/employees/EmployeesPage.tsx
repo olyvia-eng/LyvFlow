@@ -102,6 +102,7 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState('');
   const [clockOutSubmitting, setClockOutSubmitting] = useState(false);
+  const [employeeViewMode, setEmployeeViewMode] = useState<'card' | 'list'>('card');
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const openNew = () => {
@@ -238,6 +239,98 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
     return titles.length > 0 ? titles.join(', ') : 'Job Work';
   };
 
+  const renderEmployeeCard = (emp: Employee, activeEntry: ReturnType<typeof getActiveEntry>, activeWorkLabel: string | null, todayHours: number) => {
+    const compensationType = emp.compensationType ?? 'hourly';
+
+    return (
+      <Card key={emp.id} className="p-4">
+        <div className="flex items-start justify-between mb-2">
+          <div>
+            <p className="font-semibold text-gray-900">{emp.name}</p>
+            <p className="text-sm text-gray-500">{emp.email}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge label={compensationTypeLabel[compensationType]} className={compensationTypeColor[compensationType]} />
+            <Badge label={roleLabel[emp.role]} className={roleColor[emp.role]} />
+          </div>
+        </div>
+        <div className="text-sm text-gray-600 space-y-1">
+          <p>{formatCurrency(emp.hourlyRate)}{compensationType === 'salary' ? '/yr' : '/hr'}</p>
+          <p className="text-xs text-gray-500 capitalize">{labourTypeLabel[emp.labourType ?? 'field_producing']}</p>
+          <p className="text-xs text-gray-400">Today: {todayHours.toFixed(2)} hrs</p>
+        </div>
+
+        {activeEntry ? (
+          <div className="mt-3 bg-brand-50 border border-brand-200 rounded-lg p-2 text-xs">
+            <p className="font-semibold text-brand-700">Clocked In</p>
+            <p className="text-brand-700">{activeWorkLabel}</p>
+            <p className="text-brand-600">Since {formatDateTime(activeEntry.clockIn)}</p>
+            <button
+              onClick={() => setClockOutEntry(activeEntry.id)}
+              className="mt-2 flex items-center gap-1 text-accent-700 hover:text-accent-800 font-medium"
+            >
+              <LogOut size={12} /> Clock Out
+            </button>
+          </div>
+        ) : (
+          <div className="mt-3 text-xs text-gray-400">Not clocked in</div>
+        )}
+
+        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+          <Button variant="secondary" size="sm" onClick={() => openEdit(emp)}><Pencil size={13} /> Edit</Button>
+          <Button variant="danger" size="sm" onClick={() => setConfirmDelete(emp.id)}><Trash2 size={13} /></Button>
+        </div>
+      </Card>
+    );
+  };
+
+  const renderEmployeeListRow = (emp: Employee, activeEntry: ReturnType<typeof getActiveEntry>, activeWorkLabel: string | null, todayHours: number) => {
+    const compensationType = emp.compensationType ?? 'hourly';
+
+    return (
+      <tr key={emp.id} className="border-b border-gray-100 hover:bg-gray-50">
+        <td className="px-4 py-3">
+          <div>
+            <p className="font-semibold text-gray-900">{emp.name}</p>
+            <p className="text-sm text-gray-500">{emp.email}</p>
+          </div>
+        </td>
+        <td className="px-4 py-3 text-left">
+          <div className="flex flex-wrap gap-2">
+            <Badge label={compensationTypeLabel[compensationType]} className={compensationTypeColor[compensationType]} />
+            <Badge label={roleLabel[emp.role]} className={roleColor[emp.role]} />
+          </div>
+        </td>
+        <td className="px-4 py-3 text-right text-gray-700">
+          {formatCurrency(emp.hourlyRate)}{compensationType === 'salary' ? '/yr' : '/hr'}
+        </td>
+        <td className="px-4 py-3 text-gray-600 capitalize">
+          {labourTypeLabel[emp.labourType ?? 'field_producing']}
+        </td>
+        <td className="px-4 py-3 text-right text-gray-600">
+          {todayHours.toFixed(2)} hrs
+        </td>
+        <td className="px-4 py-3 text-gray-600">
+          {activeEntry ? (
+            <div className="space-y-1">
+              <p className="font-medium text-brand-700">Clocked In</p>
+              <p className="text-xs text-gray-500">{activeWorkLabel}</p>
+              <p className="text-xs text-gray-500">Since {formatDateTime(activeEntry.clockIn)}</p>
+            </div>
+          ) : (
+            <span className="text-gray-400">Not clocked in</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-right">
+          <div className="flex justify-end gap-1">
+            <Button variant="secondary" size="sm" onClick={() => openEdit(emp)}><Pencil size={13} /></Button>
+            <Button variant="danger" size="sm" onClick={() => setConfirmDelete(emp.id)}><Trash2 size={13} /></Button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   const handleClockOut = () => {
     if (!clockOutEntry) return;
     if (!jobNotes.trim()) return;
@@ -307,7 +400,23 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
         title="Employees"
         subtitle="Manage your team and track time."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+              <button
+                type="button"
+                onClick={() => setEmployeeViewMode('card')}
+                className={`px-3 py-1 text-xs font-medium rounded ${employeeViewMode === 'card' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                Card View
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmployeeViewMode('list')}
+                className={`px-3 py-1 text-xs font-medium rounded ${employeeViewMode === 'list' ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                List View
+              </button>
+            </div>
             <Button variant="secondary" onClick={() => setClockInOpen(true)}><Clock size={16} /> Clock In/Out</Button>
             <Button onClick={openNew}><Plus size={16} /> New Employee</Button>
           </div>
@@ -316,7 +425,7 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
 
       {employees.length === 0 ? (
         <EmptyState title="No employees yet" action={<Button onClick={openNew}><Plus size={16} /> New Employee</Button>} />
-      ) : (
+      ) : employeeViewMode === 'card' ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {employees.map((emp) => {
             const activeEntry = getActiveEntry(emp.id);
@@ -328,51 +437,43 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
               (s, te) => s + durationHours(te.clockIn, te.clockOut, te.breakMinutes),
               0
             );
-            const compensationType = emp.compensationType ?? 'hourly';
 
-            return (
-              <Card key={emp.id} className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <p className="font-semibold text-gray-900">{emp.name}</p>
-                    <p className="text-sm text-gray-500">{emp.email}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge label={compensationTypeLabel[compensationType]} className={compensationTypeColor[compensationType]} />
-                    <Badge label={roleLabel[emp.role]} className={roleColor[emp.role]} />
-                  </div>
-                </div>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <p>{formatCurrency(emp.hourlyRate)}{compensationType === 'salary' ? '/yr' : '/hr'}</p>
-                  <p className="text-xs text-gray-500 capitalize">{labourTypeLabel[emp.labourType ?? 'field_producing']}</p>
-                  <p className="text-xs text-gray-400">Today: {todayHours.toFixed(2)} hrs</p>
-                </div>
-
-                {/* Clock status */}
-                {activeEntry ? (
-                  <div className="mt-3 bg-brand-50 border border-brand-200 rounded-lg p-2 text-xs">
-                    <p className="font-semibold text-brand-700">Clocked In</p>
-                    <p className="text-brand-700">{activeWorkLabel}</p>
-                    <p className="text-brand-600">Since {formatDateTime(activeEntry.clockIn)}</p>
-                    <button
-                      onClick={() => setClockOutEntry(activeEntry.id)}
-                      className="mt-2 flex items-center gap-1 text-accent-700 hover:text-accent-800 font-medium"
-                    >
-                      <LogOut size={12} /> Clock Out
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-3 text-xs text-gray-400">Not clocked in</div>
-                )}
-
-                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
-                  <Button variant="secondary" size="sm" onClick={() => openEdit(emp)}><Pencil size={13} /> Edit</Button>
-                  <Button variant="danger" size="sm" onClick={() => setConfirmDelete(emp.id)}><Trash2 size={13} /></Button>
-                </div>
-              </Card>
-            );
+            return renderEmployeeCard(emp, activeEntry, activeWorkLabel, todayHours);
           })}
         </div>
+      ) : (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[1100px]">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-500">
+                  <th className="px-4 py-3 font-medium">Employee</th>
+                  <th className="px-4 py-3 font-medium">Type</th>
+                  <th className="px-4 py-3 font-medium text-right">Pay</th>
+                  <th className="px-4 py-3 font-medium">Labour</th>
+                  <th className="px-4 py-3 font-medium text-right">Today</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {employees.map((emp) => {
+                  const activeEntry = getActiveEntry(emp.id);
+                  const activeWorkLabel = activeEntry ? entryWorkLabel(activeEntry) : null;
+                  const todayEntries = timeEntries.filter(
+                    (te) => te.employeeId === emp.id && te.clockIn.startsWith(new Date().toISOString().slice(0, 10))
+                  );
+                  const todayHours = todayEntries.reduce(
+                    (s, te) => s + durationHours(te.clockIn, te.clockOut, te.breakMinutes),
+                    0
+                  );
+
+                  return renderEmployeeListRow(emp, activeEntry, activeWorkLabel, todayHours);
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       {/* Employee form modal */}
