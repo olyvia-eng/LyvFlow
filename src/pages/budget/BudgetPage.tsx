@@ -194,11 +194,6 @@ export default function BudgetPage() {
   const [equipmentTableView, setEquipmentTableView] = useState<EquipmentTableView>('all');
   const [showLabourCalcDetails, setShowLabourCalcDetails] = useState(false);
   const [showEquipmentCalcDetails, setShowEquipmentCalcDetails] = useState(false);
-  const [isEditingBudgetMeta, setIsEditingBudgetMeta] = useState(false);
-  const [budgetNameDraft, setBudgetNameDraft] = useState('');
-  const [budgetDivisionDraft, setBudgetDivisionDraft] = useState('');
-  const [budgetMetaError, setBudgetMetaError] = useState('');
-  const [confirmDeleteBudgetOpen, setConfirmDeleteBudgetOpen] = useState(false);
   const [averageFuelPriceInput, setAverageFuelPriceInput] = useState('0');
   const [averageFuelBurnPerHourInput, setAverageFuelBurnPerHourInput] = useState('0');
   const [billablePctDrafts, setBillablePctDrafts] = useState<Record<string, string>>({});
@@ -227,61 +222,6 @@ export default function BudgetPage() {
   const activeBudget = activeBudgetId ? (budgets.find((budget) => budget.id === activeBudgetId) ?? null) : null;
   const hasLegacyBudgetData = budgetItems.length > 0 || labourBudgetPlans.length > 0 || revenueSalesGoals.length > 0;
 
-  useEffect(() => {
-    if (!activeBudget) return;
-    if (isEditingBudgetMeta) return;
-    setBudgetNameDraft(activeBudget.name);
-    setBudgetDivisionDraft(activeBudget.division);
-  }, [activeBudget, isEditingBudgetMeta]);
-
-  const startEditingBudgetMeta = () => {
-    if (!activeBudget) return;
-    setBudgetNameDraft(activeBudget.name);
-    setBudgetDivisionDraft(activeBudget.division);
-    setBudgetMetaError('');
-    setIsEditingBudgetMeta(true);
-  };
-
-  const cancelEditingBudgetMeta = () => {
-    setBudgetMetaError('');
-    setIsEditingBudgetMeta(false);
-  };
-
-  const saveBudgetMeta = () => {
-    if (!activeBudget) return;
-    const trimmedName = budgetNameDraft.trim();
-    const trimmedDivision = budgetDivisionDraft.trim();
-    if (!trimmedName) {
-      setBudgetMetaError('Budget name is required.');
-      return;
-    }
-    if (!trimmedDivision) {
-      setBudgetMetaError('Division is required.');
-      return;
-    }
-
-    updateBudget(activeBudget.id, {
-      name: trimmedName,
-      division: trimmedDivision,
-    });
-    setBudgetMetaError('');
-    setIsEditingBudgetMeta(false);
-  };
-
-  const handleDeleteBudget = () => {
-    if (!activeBudgetId) return;
-
-    const nextBudget = sortedBudgets.find((budget) => budget.id !== activeBudgetId) ?? null;
-    deleteBudget(activeBudgetId);
-    setConfirmDeleteBudgetOpen(false);
-
-    if (nextBudget) {
-      navigate(`/budgets/${nextBudget.id}`, { replace: true });
-      return;
-    }
-
-    navigate('/budgets', { replace: true });
-  };
 
   useEffect(() => {
     if (legacyBudgetBootstrapStarted.current) return;
@@ -1229,9 +1169,6 @@ export default function BudgetPage() {
           : 'Track your company budget with category breakdowns for pricing and planning.'}
         action={
           <div className="flex gap-2">
-            <Button variant="danger" onClick={() => setConfirmDeleteBudgetOpen(true)}>
-              <Trash2 size={16} /> Delete Budget
-            </Button>
             <Button variant="secondary" onClick={() => exportToPdf('budgeted')}><FileDown size={16} /> Export Budget PDF</Button>
             {activeTab === 'labour' ? (
               <Button onClick={openLabourItemModal}><Plus size={16} /> Add Labour Item</Button>
@@ -1245,36 +1182,9 @@ export default function BudgetPage() {
       {/* Scope selector */}
       <div className="flex flex-col gap-3 mb-6">
         <div className="flex flex-wrap items-center gap-2">
-          {isEditingBudgetMeta ? (
-            <>
-              <Input
-                label="Budget Name"
-                required
-                value={budgetNameDraft}
-                onChange={(e) => setBudgetNameDraft(e.target.value)}
-                className="min-w-[260px]"
-              />
-              <Input
-                label="Division"
-                required
-                value={budgetDivisionDraft}
-                onChange={(e) => setBudgetDivisionDraft(e.target.value)}
-                className="min-w-[220px]"
-              />
-              <Button size="sm" onClick={saveBudgetMeta}>Save</Button>
-              <Button size="sm" variant="secondary" onClick={cancelEditingBudgetMeta}>Cancel</Button>
-              {budgetMetaError && <span className="text-xs text-accent-700">{budgetMetaError}</span>}
-            </>
-          ) : (
-            <>
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                Budget: {activeBudget.name}
-              </span>
-              <Button size="sm" variant="secondary" onClick={startEditingBudgetMeta}>
-                <Pencil size={14} /> Edit Budget
-              </Button>
-            </>
-          )}
+          <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+            Budget: {activeBudget.name}
+          </span>
           <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
             {toOptionLabel(activeBudget.division)}
           </span>
@@ -2234,20 +2144,6 @@ export default function BudgetPage() {
         </>}
       >
         <p className="text-gray-600">Delete this budget item?</p>
-      </Modal>
-
-      <Modal
-        open={confirmDeleteBudgetOpen}
-        onClose={() => setConfirmDeleteBudgetOpen(false)}
-        title="Delete Budget"
-        footer={(
-          <>
-            <Button variant="secondary" onClick={() => setConfirmDeleteBudgetOpen(false)}>Cancel</Button>
-            <Button variant="danger" onClick={handleDeleteBudget}>Delete Budget</Button>
-          </>
-        )}
-      >
-        <p className="text-gray-600">Delete this budget and return to another budget (or Budgets list if none remain)?</p>
       </Modal>
 
       <Modal
