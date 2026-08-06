@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Card, Button, Badge, Modal, Input, Select } from '../../components/ui';
 import { statusColor, formatCurrency, formatDate, formatDateTime, durationHours } from '../../utils';
-import { resolveAttachmentUrl } from '../../utils/fileUploadClient';
+import { resolveAttachmentUrl } from '../../utils/fileUpload';
 import { HIGH_LABOR_VARIANCE_THRESHOLD_PCT, LOW_MARGIN_THRESHOLD_PCT } from '../../config/profitability';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { CostEntry, LineItemCategory, JobStatus } from '../../types';

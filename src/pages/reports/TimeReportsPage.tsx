@@ -3,7 +3,7 @@ import { endOfWeek, format, startOfMonth, startOfWeek, subWeeks } from 'date-fns
 import { useStore } from '../../store';
 import { Card, PageHeader, StatCard, Button, Select, Input } from '../../components/ui';
 import { durationHours, formatDateTime, generateId, nowISO } from '../../utils';
-import { resolveAttachmentUrl } from '../../utils/fileUploadClient';
+import { resolveAttachmentUrl } from '../../utils/fileUpload';
 import type { BusinessUserRole } from '../../auth/types';
 import type { AuditEvent, TimeEntry, TimeEntryWorkType } from '../../types';
 import { emitAppToast } from '../../toast';

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Card, PageHeader, Button, Input } from '../../components/ui';
-import { parseStorageApiResponse } from '../../utils/fileUploadClient';
+import { parseStorageApiResponse } from '../../utils/fileUpload';
 
 interface StoredFileRecord {
   id: string;

@@ -3,7 +3,7 @@ import { useStore } from '../../store';
 import { Button, Modal } from '../../components/ui';
 import { Clock, LogOut, UserRound } from 'lucide-react';
 import { formatDateTime, durationHours } from '../../utils';
-import { uploadFileToStorage } from '../../utils/fileUploadClient';
+import { uploadFileToStorage } from '../../utils/fileUpload';
 import type { TimeEntryWorkType } from '../../types';
 
 type Step = 'select_employee' | 'select_job' | 'clocked_in';
