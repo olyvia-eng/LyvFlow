@@ -28,15 +28,22 @@ function createMockRes() {
 function baseDeps(overrides = {}) {
   return {
     requireSession: () => ({ id: 'user-1', role: 'admin', businessId: 'biz-1', employeeId: 'emp-1' }),
-    createPresignedUploadUrl: async () => ({ ok: true, uploadUrl: 'https://signed.example/upload', plan: { fileId: 'file-1', key: 'biz-1/file-1/photo.jpg', fileName: 'photo.jpg', mimeType: 'image/jpeg', sizeBytes: 100 } }),
+    createPendingUploadPlan: () => ({ fileId: 'file-1', key: 'biz-1/file-1/photo.jpg', objectKey: 'biz-1/file-1/photo.jpg', fileName: 'photo.jpg', mimeType: 'image/jpeg', sizeBytes: 100, expiresAt: '2026-08-06T10:10:00.000Z' }),
+    createPresignedUploadUrl: async ({ plan }) => ({ ok: true, uploadUrl: `https://signed.example/upload/${plan.fileId}`, plan }),
     createPresignedDownloadUrl: async () => ({ ok: true, downloadUrl: 'https://signed.example/download' }),
+    headStoredFile: async () => ({ ok: true, contentLength: 1024, contentType: 'image/jpeg', etag: 'etag-1' }),
     removeStoredFile: async () => ({ ok: true }),
     validateUploadPayload: () => ({ ok: true }),
     createAuditEventForBusiness: async () => ({ ok: true }),
-    createFileForBusiness: async () => ({ ok: true }),
+    createPendingFileForBusiness: async () => ({ ok: true }),
+    updateFileForBusiness: async () => ({ ok: true }),
     deleteFileForBusiness: async () => ({ ok: true }),
     getExpenseForBusiness: async () => ({ id: 'expense-1', vendor: 'Acme', description: 'd', category: 'other', expenseDate: '2026-01-01', amount: 10, status: 'pending', notes: '' }),
     getFileForBusiness: async () => null,
+    getCustomerForBusiness: async () => null,
+    getEstimateForBusiness: async () => null,
+    getJobForBusiness: async () => null,
+    getEmployeeForBusiness: async () => null,
     getTimeEntryForBusiness: async () => ({ id: 'time-1', employeeId: 'emp-1', status: 'clocked_in' }),
     listFilesForBusiness: async () => [],
     updateExpenseForBusiness: async () => ({ ok: true }),
@@ -64,10 +71,27 @@ test('uploaded photo state keeps the file ID after the upload succeeds', () => {
 });
 
 test('storage complete-upload persists the uploaded file metadata for the attachment', async () => {
-  let storedFile;
+  let updatedFile;
   const handler = createStorageHandler(baseDeps({
-    createFileForBusiness: async (_businessId, { file }) => {
-      storedFile = file;
+    getFileForBusiness: async () => ({
+      id: 'file-1',
+      businessId: 'biz-1',
+      entityType: 'time-entry',
+      entityId: 'time-1',
+      category: 'clock-out-photo',
+      fileName: 'photo.jpg',
+      originalFileName: 'photo.jpg',
+      sanitizedFileName: 'photo.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      expectedContentType: 'image/jpeg',
+      expectedFileSize: 1024,
+      objectKey: 'biz-1/file-1/photo.jpg',
+      key: 'biz-1/file-1/photo.jpg',
+      uploadStatus: 'pending',
+    }),
+    updateFileForBusiness: async ({ updates }) => {
+      updatedFile = updates;
       return { ok: true };
     },
   }));
@@ -77,13 +101,6 @@ test('storage complete-upload persists the uploaded file metadata for the attach
     body: {
       action: 'complete-upload',
       fileId: 'file-1',
-      key: 'biz-1/file-1/photo.jpg',
-      fileName: 'photo.jpg',
-      mimeType: 'image/jpeg',
-      sizeBytes: 1024,
-      entityType: 'time-entry',
-      entityId: 'time-1',
-      category: 'clock-out-photo',
     },
   };
   const res = createMockRes();
@@ -91,9 +108,9 @@ test('storage complete-upload persists the uploaded file metadata for the attach
   await handler(req, res);
 
   assert.equal(res.statusCode, 200);
-  assert.equal(storedFile.uploadStatus, 'uploaded');
-  assert.equal(storedFile.entityType, 'time-entry');
-  assert.equal(storedFile.entityId, 'time-1');
+  assert.equal(updatedFile.uploadStatus, 'uploaded');
+  assert.equal(updatedFile.objectKey, 'biz-1/file-1/photo.jpg');
+  assert.equal(updatedFile.expectedContentType, 'image/jpeg');
 });
 
 test('clock-out attachment validation rejects a file from another business', async () => {

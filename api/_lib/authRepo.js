@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import {
   GetCommand,
   PutCommand,
+  UpdateCommand,
   QueryCommand,
   DeleteCommand,
   ScanCommand,
@@ -1438,6 +1439,63 @@ export async function createFileForBusiness({ businessId, file }) {
   return { ok: true };
 }
 
+export async function createPendingFileForBusiness({ businessId, file }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: fileSk(file.id),
+        entityType: 'FILE',
+        businessId,
+        fileId: file.id,
+        ...file,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function updateFileForBusiness({ businessId, fileId, updates }) {
+  const entries = Object.entries(updates ?? {}).filter(([, value]) => value !== undefined);
+  if (entries.length === 0) {
+    return { ok: true };
+  }
+
+  const ExpressionAttributeNames = {};
+  const ExpressionAttributeValues = { ':businessId': businessId };
+  const assignments = [];
+
+  entries.forEach(([key, value], index) => {
+    const nameKey = `#f${index}`;
+    const valueKey = `:v${index}`;
+    ExpressionAttributeNames[nameKey] = key;
+    ExpressionAttributeValues[valueKey] = value;
+    assignments.push(`${nameKey} = ${valueKey}`);
+  });
+
+  ExpressionAttributeNames['#businessId'] = 'businessId';
+  ExpressionAttributeValues[':now'] = nowIso();
+
+  await ddb.send(
+    new UpdateCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: fileSk(fileId),
+      },
+      UpdateExpression: `SET ${assignments.join(', ')}, #businessId = :businessId, updatedAt = :now`,
+      ExpressionAttributeNames,
+      ExpressionAttributeValues,
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
 export async function listFilesForBusiness(businessId) {
   const result = await ddb.send(
     new QueryCommand({
@@ -1453,15 +1511,25 @@ export async function listFilesForBusiness(businessId) {
   return (result.Items ?? []).map((item) => ({
     id: item.fileId,
     fileName: item.fileName,
+    originalFileName: item.originalFileName ?? item.fileName,
+    sanitizedFileName: item.sanitizedFileName,
     mimeType: item.mimeType,
     sizeBytes: item.sizeBytes,
+    expectedContentType: item.expectedContentType,
+    expectedFileSize: item.expectedFileSize,
     key: item.key,
+    objectKey: item.objectKey ?? item.key,
     uploadedAt: item.uploadedAt,
+    updatedAt: item.updatedAt,
+    createdAt: item.createdAt,
+    expiresAt: item.expiresAt,
     uploadedByUserId: item.uploadedByUserId,
     entityType: item.entityType,
     entityId: item.entityId,
     category: item.category,
     uploadStatus: item.uploadStatus,
+    pendingReason: item.pendingReason,
+    etag: item.etag,
   }));
 }
 
@@ -1481,15 +1549,25 @@ export async function getFileForBusiness(businessId, fileId) {
   return {
     id: result.Item.fileId,
     fileName: result.Item.fileName,
+    originalFileName: result.Item.originalFileName ?? result.Item.fileName,
+    sanitizedFileName: result.Item.sanitizedFileName,
     mimeType: result.Item.mimeType,
     sizeBytes: result.Item.sizeBytes,
+    expectedContentType: result.Item.expectedContentType,
+    expectedFileSize: result.Item.expectedFileSize,
     key: result.Item.key,
+    objectKey: result.Item.objectKey ?? result.Item.key,
     uploadedAt: result.Item.uploadedAt,
+    updatedAt: result.Item.updatedAt,
+    createdAt: result.Item.createdAt,
+    expiresAt: result.Item.expiresAt,
     uploadedByUserId: result.Item.uploadedByUserId,
     businessId: result.Item.businessId,
     entityType: result.Item.entityType,
     entityId: result.Item.entityId,
     uploadStatus: result.Item.uploadStatus,
+    pendingReason: result.Item.pendingReason,
+    etag: result.Item.etag,
   };
 }
 

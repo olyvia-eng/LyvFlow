@@ -22,6 +22,7 @@ test('storage keys are scoped to the business and file id', () => {
   });
 
   assert.match(plan.key, /^biz-1\//);
+  assert.equal(plan.objectKey, plan.key);
   assert.equal(plan.key.endsWith('/photo.jpg'), true);
   assert.equal(plan.fileId.length > 0, true);
 });

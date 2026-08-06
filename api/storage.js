@@ -2,17 +2,24 @@ import { requireSession } from './_lib/session.js';
 import {
   createPresignedUploadUrl,
   createPresignedDownloadUrl,
+  createPendingUploadPlan,
+  headStoredFile,
   removeStoredFile,
   validateUploadPayload,
 } from './_lib/storage.js';
 import {
   createAuditEventForBusiness,
-  createFileForBusiness,
+  createPendingFileForBusiness,
   deleteFileForBusiness,
+  getCustomerForBusiness,
   getExpenseForBusiness,
   getFileForBusiness,
+  getEstimateForBusiness,
+  getJobForBusiness,
+  getEmployeeForBusiness,
   getTimeEntryForBusiness,
   listFilesForBusiness,
+  updateFileForBusiness,
   updateExpenseForBusiness,
   updateTimeEntryForBusiness,
 } from './_lib/authRepo.js';
@@ -21,15 +28,60 @@ import { canReadEntity, canWriteEntity } from './_lib/authorization.js';
 const STORAGE_FAILURE_MESSAGE = 'Storage service is temporarily unavailable.';
 const DOCUMENT_ENTITY_TYPE = 'document';
 const DOCUMENT_ENTITY_ID = 'library';
-const DOCUMENT_CATEGORIES = new Set([
-  'contracts',
-  'proposals',
-  'permits',
-  'insurance',
-  'compliance',
-  'photos',
-  'misc',
-]);
+const DOCUMENT_CATEGORIES = new Set(['contracts', 'proposals', 'permits', 'insurance', 'compliance', 'photos', 'misc']);
+const ATTACHMENT_ALLOWLIST = {
+  'time-entry': new Set(['clock-in-photo', 'clock-out-photo']),
+  expense: new Set(['receipt']),
+  document: DOCUMENT_CATEGORIES,
+  job: new Set(['document', 'photo', 'misc']),
+  customer: new Set(['document', 'photo', 'misc']),
+  estimate: new Set(['document', 'photo', 'misc']),
+  employee: new Set(['document', 'photo', 'misc']),
+};
+
+const COMPLETION_ALLOWED_KEYS = new Set(['action', 'fileId', 'checksum', 'etag']);
+const DOWNLOAD_ALLOWED_KEYS = new Set(['action', 'fileId']);
+const DELETE_ALLOWED_KEYS = new Set(['action', 'fileId']);
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function businessScopedKey(file) {
+  return file?.objectKey ?? file?.key ?? '';
+}
+
+function isAttachmentEntityType(entityType) {
+  return typeof entityType === 'string' && Object.prototype.hasOwnProperty.call(ATTACHMENT_ALLOWLIST, entityType);
+}
+
+function normalizeAttachmentCategory(entityType, category) {
+  if (!isAttachmentEntityType(entityType)) return null;
+  if (typeof category !== 'string') return null;
+
+  const normalized = category.trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (entityType === DOCUMENT_ENTITY_TYPE) {
+    return DOCUMENT_CATEGORIES.has(normalized) ? normalized : null;
+  }
+
+  return ATTACHMENT_ALLOWLIST[entityType].has(normalized) ? normalized : null;
+}
+
+function getAttachmentFieldForCategory({ entityType, category }) {
+  if (entityType === 'expense') {
+    return category === 'receipt' ? 'receiptFileId' : undefined;
+  }
+
+  if (entityType === 'time-entry') {
+    if (category === 'clock-in-photo') return 'clockInPhotoFileId';
+    if (category === 'clock-out-photo') return 'clockOutPhotoFileId';
+    return 'photoAttachmentFileId';
+  }
+
+  return undefined;
+}
 
 function parseJsonBody(req) {
   if (typeof req.body === 'string') {
@@ -61,78 +113,70 @@ function logStorageFailure(action, error) {
     action,
     errorName: error?.name,
     errorMessage: error?.message,
+    fileId: error?.fileId ?? undefined,
+    businessId: error?.businessId ?? undefined,
+    operation: error?.operation ?? undefined,
     httpStatusCode: error?.$metadata?.httpStatusCode ?? error?.statusCode ?? null,
   });
-}
-
-function getAttachmentFieldForCategory({ entityType, category }) {
-  if (entityType === 'expense') {
-    return category === 'receipt' ? 'receiptFileId' : undefined;
-  }
-
-  if (entityType === 'time-entry') {
-    if (category === 'clock-in-photo') return 'clockInPhotoFileId';
-    if (category === 'clock-out-photo') return 'clockOutPhotoFileId';
-    return 'photoAttachmentFileId';
-  }
-
-  return undefined;
 }
 
 function canManageDocuments(role) {
   return role === 'owner' || role === 'admin';
 }
 
-function normalizeDocumentCategory(category) {
-  if (typeof category !== 'string') return 'misc';
-  const normalized = category.trim().toLowerCase();
-  return DOCUMENT_CATEGORIES.has(normalized) ? normalized : 'misc';
+function ensureAllowedKeys(body, allowedKeys) {
+  const unexpectedKeys = Object.keys(body).filter((key) => !allowedKeys.has(key));
+  return unexpectedKeys.length === 0;
 }
 
-async function resolveAttachmentEntity({ session, entityType, entityId }) {
-  if (entityType === 'expense') {
-    const expense = await getExpenseForBusiness(session.businessId, entityId);
-    if (!expense) return null;
-    return { entity: expense, allowed: canWriteEntity('expenses', session.role) || canReadEntity('expenses', session.role) };
-  }
-
-  if (entityType === 'time-entry') {
-    const timeEntry = await getTimeEntryForBusiness(session.businessId, entityId);
-    if (!timeEntry) return null;
-    const role = session.role;
-    if (role === 'crew_member') {
-      return {
-        entity: timeEntry,
-        allowed: typeof session.employeeId === 'string' && timeEntry.employeeId === session.employeeId,
-      };
-    }
-    return { entity: timeEntry, allowed: canWriteEntity('time-entries', role) || canReadEntity('time-entries', role) };
-  }
-
-  if (entityType === DOCUMENT_ENTITY_TYPE) {
-    const normalizedEntityId = typeof entityId === 'string' && entityId.trim() ? entityId.trim() : DOCUMENT_ENTITY_ID;
-    return {
-      entity: { id: normalizedEntityId },
-      allowed: canManageDocuments(session.role),
-    };
-  }
-
-  return null;
+function buildPendingFileRecord({ session, plan, entityType, entityId, category, fileName, mimeType, sizeBytes }) {
+  const now = nowIso();
+  return {
+    id: plan.fileId,
+    fileId: plan.fileId,
+    businessId: session.businessId,
+    entityType,
+    entityId,
+    category,
+    originalFileName: fileName,
+    sanitizedFileName: plan.fileName,
+    fileName,
+    objectKey: plan.objectKey ?? plan.key,
+    key: plan.objectKey ?? plan.key,
+    expectedContentType: mimeType,
+    expectedFileSize: sizeBytes,
+    mimeType,
+    sizeBytes,
+    uploadStatus: 'pending',
+    uploadedByUserId: session.id,
+    uploadedAt: undefined,
+    createdAt: now,
+    updatedAt: now,
+    expiresAt: plan.expiresAt,
+    ttl: Math.floor(new Date(plan.expiresAt).getTime() / 1000),
+  };
 }
 
 const defaultDeps = {
   requireSession,
   createPresignedUploadUrl,
   createPresignedDownloadUrl,
+  createPendingUploadPlan,
+  headStoredFile,
   removeStoredFile,
   validateUploadPayload,
   createAuditEventForBusiness,
-  createFileForBusiness,
+  createPendingFileForBusiness,
   deleteFileForBusiness,
+  getCustomerForBusiness,
   getExpenseForBusiness,
   getFileForBusiness,
+  getEstimateForBusiness,
+  getJobForBusiness,
+  getEmployeeForBusiness,
   getTimeEntryForBusiness,
   listFilesForBusiness,
+  updateFileForBusiness,
   updateExpenseForBusiness,
   updateTimeEntryForBusiness,
 };
@@ -141,6 +185,37 @@ export function createStorageHandler(overrides = {}) {
   const deps = { ...defaultDeps, ...overrides };
 
   async function resolveAttachmentEntityWithDeps({ session, entityType, entityId }) {
+    if (entityType === 'job') {
+      const job = await deps.getJobForBusiness(session.businessId, entityId);
+      if (!job) return null;
+      return { entity: job, allowed: canWriteEntity('jobs', session.role) || canReadEntity('jobs', session.role) };
+    }
+
+    if (entityType === 'customer') {
+      const customer = await deps.getCustomerForBusiness(session.businessId, entityId);
+      if (!customer) return null;
+      return { entity: customer, allowed: canWriteEntity('customers', session.role) || canReadEntity('customers', session.role) };
+    }
+
+    if (entityType === 'estimate') {
+      const estimate = await deps.getEstimateForBusiness(session.businessId, entityId);
+      if (!estimate) return null;
+      return { entity: estimate, allowed: canWriteEntity('estimates', session.role) || canReadEntity('estimates', session.role) };
+    }
+
+    if (entityType === 'employee') {
+      const employee = await deps.getEmployeeForBusiness(session.businessId, entityId);
+      if (!employee) return null;
+      const role = session.role;
+      if (role === 'crew_member') {
+        return {
+          entity: employee,
+          allowed: typeof session.employeeId === 'string' && employee.id === session.employeeId,
+        };
+      }
+      return { entity: employee, allowed: canWriteEntity('employees', role) || canReadEntity('employees', role) };
+    }
+
     if (entityType === 'expense') {
       const expense = await deps.getExpenseForBusiness(session.businessId, entityId);
       if (!expense) return null;
@@ -181,7 +256,7 @@ export function createStorageHandler(overrides = {}) {
         return res.status(400).json({ ok: false, error: 'Invalid JSON request body.' });
       }
 
-      const { action, fileName, mimeType, sizeBytes, key } = body;
+      const { action, fileName, mimeType, sizeBytes } = body;
 
       try {
         if (action === 'prepare-upload') {
@@ -190,16 +265,48 @@ export function createStorageHandler(overrides = {}) {
             return res.status(400).json({ ok: false, error: 'Attachment context is required.' });
           }
 
+          if (!isAttachmentEntityType(entityType)) {
+            return res.status(400).json({ ok: false, error: 'Unsupported attachment entity type.' });
+          }
+
+          const normalizedCategory = normalizeAttachmentCategory(entityType, category);
+          if (!normalizedCategory) {
+            return res.status(400).json({ ok: false, error: 'Unsupported attachment category.' });
+          }
+
+          const validation = deps.validateUploadPayload({ fileName, mimeType, sizeBytes });
+          if (!validation.ok) {
+            return res.status(400).json({ ok: false, error: validation.error });
+          }
+
           const resolvedEntity = await resolveAttachmentEntityWithDeps({ session, entityType, entityId });
           if (!resolvedEntity?.entity || !resolvedEntity.allowed) {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
           }
 
+          const plan = deps.createPendingUploadPlan({
+            businessId: session.businessId,
+            fileName: validation.fileName,
+            mimeType: validation.mimeType,
+            sizeBytes: validation.sizeBytes,
+          });
+
+          const pendingRecord = buildPendingFileRecord({
+            session,
+            plan,
+            entityType,
+            entityId: typeof resolvedEntity.entity.id === 'string' ? resolvedEntity.entity.id : entityId,
+            category: normalizedCategory,
+            fileName: typeof fileName === 'string' && fileName.trim() ? fileName.trim() : validation.fileName,
+            mimeType: validation.mimeType,
+            sizeBytes: validation.sizeBytes,
+          });
+
+          await deps.createPendingFileForBusiness({ businessId: session.businessId, file: pendingRecord });
+
           const result = await deps.createPresignedUploadUrl({
             businessId: session.businessId,
-            fileName,
-            mimeType,
-            sizeBytes,
+            plan,
           });
 
           if (!result.ok) {
@@ -214,55 +321,82 @@ export function createStorageHandler(overrides = {}) {
               action: 'prepare-upload',
               userId: session.id,
               employeeId: session.employeeId,
-              createdAt: new Date().toISOString(),
-              details: { fileName: result.plan.fileName, mimeType: result.plan.mimeType, sizeBytes: result.plan.sizeBytes },
+              createdAt: nowIso(),
+              details: {
+                fileId: plan.fileId,
+                entityType,
+                entityId: pendingRecord.entityId,
+                category: normalizedCategory,
+              },
             },
           });
 
-          return res.status(200).json({ ok: true, uploadUrl: result.uploadUrl, plan: result.plan });
+          return res.status(200).json({
+            ok: true,
+            fileId: plan.fileId,
+            uploadUrl: result.uploadUrl,
+            requiredHeaders: { 'Content-Type': validation.mimeType },
+            expiresAt: plan.expiresAt,
+          });
         }
 
         if (action === 'prepare-download') {
-          const fileIdValue = typeof body.fileId === 'string' ? body.fileId : undefined;
-          if (fileIdValue) {
-            const file = await deps.getFileForBusiness(session.businessId, fileIdValue);
-            if (!file) {
-              return res.status(404).json({ ok: false, error: 'File not found.' });
-            }
-            const entityResolution = await resolveAttachmentEntityWithDeps({ session, entityType: file.entityType, entityId: file.entityId });
-            if (!entityResolution?.allowed) {
-              return res.status(403).json({ ok: false, error: 'Forbidden' });
-            }
-            const result = await deps.createPresignedDownloadUrl({ businessId: session.businessId, key: file.key });
-            if (!result.ok) {
-              return res.status(400).json({ ok: false, error: result.error });
-            }
-            return res.status(200).json({ ok: true, downloadUrl: result.downloadUrl, key: file.key, fileId: file.id });
+          if (!ensureAllowedKeys(body, DOWNLOAD_ALLOWED_KEYS) || typeof body.fileId !== 'string' || !body.fileId.trim()) {
+            return res.status(400).json({ ok: false, error: 'Invalid file request.' });
           }
 
-          if (typeof key !== 'string' || !key) {
-            return res.status(400).json({ ok: false, error: 'Invalid storage key.' });
+          const file = await deps.getFileForBusiness(session.businessId, body.fileId.trim());
+          if (!file) {
+            return res.status(404).json({ ok: false, error: 'File not found.' });
           }
 
-          const result = await deps.createPresignedDownloadUrl({ businessId: session.businessId, key });
+          if (file.uploadStatus !== 'uploaded') {
+            return res.status(409).json({ ok: false, error: 'File is not ready for download.' });
+          }
+
+          const entityResolution = await resolveAttachmentEntityWithDeps({ session, entityType: file.entityType, entityId: file.entityId });
+          if (!entityResolution?.allowed) {
+            return res.status(403).json({ ok: false, error: 'Forbidden' });
+          }
+
+          const storageKey = businessScopedKey(file);
+          const result = await deps.createPresignedDownloadUrl({ businessId: session.businessId, key: storageKey });
           if (!result.ok) {
             return res.status(400).json({ ok: false, error: result.error });
           }
 
-          return res.status(200).json({ ok: true, downloadUrl: result.downloadUrl, key });
+          return res.status(200).json({ ok: true, downloadUrl: result.downloadUrl, fileId: file.id });
         }
 
         if (action === 'delete') {
-          if (typeof key !== 'string' || !key) {
-            return res.status(400).json({ ok: false, error: 'Invalid storage key.' });
+          if (!ensureAllowedKeys(body, DELETE_ALLOWED_KEYS) || typeof body.fileId !== 'string' || !body.fileId.trim()) {
+            return res.status(400).json({ ok: false, error: 'Invalid file request.' });
           }
 
-          const result = await deps.removeStoredFile({ businessId: session.businessId, key });
-          if (!result.ok) {
-            return res.status(400).json({ ok: false, error: result.error });
+          const file = await deps.getFileForBusiness(session.businessId, body.fileId.trim());
+          if (!file) {
+            return res.status(404).json({ ok: false, error: 'File not found.' });
           }
 
-          await deps.deleteFileForBusiness(session.businessId, key.split('/')[1] ?? '');
+          const entityResolution = await resolveAttachmentEntityWithDeps({ session, entityType: file.entityType, entityId: file.entityId });
+          if (!entityResolution?.allowed) {
+            return res.status(403).json({ ok: false, error: 'Forbidden' });
+          }
+
+          const storageKey = businessScopedKey(file);
+          if (storageKey) {
+            const headResult = await deps.headStoredFile({ businessId: session.businessId, key: storageKey });
+            if (!headResult.ok && headResult.status === 404) {
+              console.warn('[storage:integrity]', { action: 'delete', businessId: session.businessId, fileId: file.id, message: 'Object missing before delete.' });
+            }
+
+            const result = await deps.removeStoredFile({ businessId: session.businessId, key: storageKey });
+            if (!result.ok && result.status && result.status !== 404) {
+              return res.status(result.status).json({ ok: false, error: result.error || STORAGE_FAILURE_MESSAGE });
+            }
+          }
+
+          await deps.deleteFileForBusiness(session.businessId, file.id);
           return res.status(200).json({ ok: true });
         }
 
@@ -272,78 +406,82 @@ export function createStorageHandler(overrides = {}) {
         }
 
         if (action === 'complete-upload') {
-          const {
-            fileId: incomingFileId,
-            key: incomingKey,
-            fileName: incomingFileName,
-            mimeType: incomingMimeType,
-            sizeBytes: incomingSizeBytes,
-            entityType,
-            entityId,
-            category,
-          } = body;
-
-          if (typeof incomingFileId !== 'string' || !incomingFileId || typeof incomingKey !== 'string' || !incomingKey) {
+          if (!ensureAllowedKeys(body, COMPLETION_ALLOWED_KEYS) || typeof body.fileId !== 'string' || !body.fileId.trim()) {
             return res.status(400).json({ ok: false, error: 'Invalid upload completion payload.' });
           }
-          if (typeof entityType !== 'string' || typeof entityId !== 'string' || typeof category !== 'string') {
-            return res.status(400).json({ ok: false, error: 'Attachment context is required.' });
+
+          const file = await deps.getFileForBusiness(session.businessId, body.fileId.trim());
+          if (!file) {
+            return res.status(404).json({ ok: false, error: 'File not found.' });
           }
 
-          const resolvedEntity = await resolveAttachmentEntityWithDeps({ session, entityType, entityId });
+          const resolvedEntity = await resolveAttachmentEntityWithDeps({ session, entityType: file.entityType, entityId: file.entityId });
           if (!resolvedEntity?.entity || !resolvedEntity.allowed) {
             return res.status(403).json({ ok: false, error: 'Forbidden' });
           }
 
-          const normalizedDocumentCategory = entityType === DOCUMENT_ENTITY_TYPE
-            ? normalizeDocumentCategory(category)
-            : category;
-          const attachmentField = entityType === DOCUMENT_ENTITY_TYPE
+          const normalizedCategory = normalizeAttachmentCategory(file.entityType, file.category) ?? file.category;
+          const attachmentField = file.entityType === DOCUMENT_ENTITY_TYPE
             ? undefined
-            : getAttachmentFieldForCategory({ entityType, category: normalizedDocumentCategory });
-          if (entityType !== DOCUMENT_ENTITY_TYPE && !attachmentField) {
+            : getAttachmentFieldForCategory({ entityType: file.entityType, category: normalizedCategory });
+          if (file.entityType !== DOCUMENT_ENTITY_TYPE && !attachmentField) {
             return res.status(400).json({ ok: false, error: 'Unsupported attachment category.' });
           }
 
-          await deps.createFileForBusiness({
-            businessId: session.businessId,
-            file: {
-              id: incomingFileId,
-              key: incomingKey,
-              entityType,
-              entityId,
-              category: normalizedDocumentCategory,
-              fileName: typeof incomingFileName === 'string' && incomingFileName ? incomingFileName : 'uploaded-file',
-              mimeType: typeof incomingMimeType === 'string' && incomingMimeType ? incomingMimeType : 'application/octet-stream',
-              sizeBytes: Number.isFinite(Number(incomingSizeBytes)) ? Number(incomingSizeBytes) : 0,
-              uploadedAt: new Date().toISOString(),
-              uploadedByUserId: session.id,
-              uploadStatus: 'uploaded',
-            },
-          });
+          const objectKey = businessScopedKey(file);
+          const headResult = await deps.headStoredFile({ businessId: session.businessId, key: objectKey });
+          if (!headResult.ok) {
+            return res.status(headResult.status === 404 ? 409 : 409).json({ ok: false, error: 'Uploaded file could not be verified.' });
+          }
 
-          if (entityType === 'expense') {
-            const expense = await deps.getExpenseForBusiness(session.businessId, entityId);
+          const expectedContentType = typeof file.expectedContentType === 'string' ? file.expectedContentType : file.mimeType;
+          const expectedFileSize = Number(file.expectedFileSize ?? file.sizeBytes ?? 0);
+          if (headResult.contentLength !== expectedFileSize) {
+            return res.status(409).json({ ok: false, error: 'Uploaded file could not be verified.' });
+          }
+          if (expectedContentType && headResult.contentType && headResult.contentType !== expectedContentType) {
+            return res.status(409).json({ ok: false, error: 'Uploaded file could not be verified.' });
+          }
+
+          if (file.uploadStatus !== 'uploaded') {
+            await deps.updateFileForBusiness({
+              businessId: session.businessId,
+              fileId: file.id,
+              updates: {
+                uploadStatus: 'uploaded',
+                uploadedAt: nowIso(),
+                etag: headResult.etag || undefined,
+                checksumSha256: headResult.checksumSha256 || undefined,
+                key: objectKey,
+                objectKey,
+                expectedContentType,
+                expectedFileSize,
+              },
+            });
+          }
+
+          if (file.entityType === 'expense') {
+            const expense = await deps.getExpenseForBusiness(session.businessId, file.entityId);
             if (expense) {
               await deps.updateExpenseForBusiness({
                 businessId: session.businessId,
                 expense: {
                   ...expense,
                   id: expense.id,
-                  receiptFileId: incomingFileId,
+                  receiptFileId: file.id,
                   receiptUrl: undefined,
                 },
               });
             }
-          } else if (entityType === 'time-entry') {
-            const timeEntry = await deps.getTimeEntryForBusiness(session.businessId, entityId);
+          } else if (file.entityType === 'time-entry') {
+            const timeEntry = await deps.getTimeEntryForBusiness(session.businessId, file.entityId);
             if (timeEntry) {
               await deps.updateTimeEntryForBusiness({
                 businessId: session.businessId,
                 timeEntry: {
                   ...timeEntry,
                   id: timeEntry.id,
-                  [attachmentField]: incomingFileId,
+                  [attachmentField]: file.id,
                 },
               });
             }
@@ -357,12 +495,12 @@ export function createStorageHandler(overrides = {}) {
               action: 'complete-upload',
               userId: session.id,
               employeeId: session.employeeId,
-              createdAt: new Date().toISOString(),
-              details: { fileId: incomingFileId, key: incomingKey, fileName: incomingFileName },
+              createdAt: nowIso(),
+              details: { fileId: file.id, entityType: file.entityType, entityId: file.entityId },
             },
           });
 
-          return res.status(200).json({ ok: true, fileId: incomingFileId, key: incomingKey });
+          return res.status(200).json({ ok: true, fileId: file.id });
         }
 
         return res.status(400).json({ ok: false, error: 'Unsupported action.' });
@@ -390,7 +528,23 @@ export function createStorageHandler(overrides = {}) {
             return true;
           });
 
-          return res.status(200).json({ ok: true, files: scopedFiles });
+          return res.status(200).json({
+            ok: true,
+            files: scopedFiles.map((file) => ({
+              id: file.id,
+              fileName: file.fileName,
+              originalFileName: file.originalFileName,
+              mimeType: file.mimeType,
+              sizeBytes: file.sizeBytes,
+              uploadedAt: file.uploadedAt,
+              uploadedByUserId: file.uploadedByUserId,
+              entityType: file.entityType,
+              entityId: file.entityId,
+              category: file.category,
+              uploadStatus: file.uploadStatus,
+              expiresAt: file.expiresAt,
+            })),
+          });
         }
 
         return res.status(200).json({ ok: true, message: 'Storage API is ready.' });
