@@ -123,7 +123,7 @@ export default function Dashboard({ businessName = '' }: DashboardProps) {
       />
 
       <div className="mb-6">
-        <DashboardOnboardingCard items={onboardingItems} />
+        <DashboardOnboardingCard items={onboardingItems} businessId={businessName || 'global'} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">

@@ -10,6 +10,12 @@ import type { CostEntry, LineItemCategory, JobStatus } from '../../types';
 
 const CATEGORIES: LineItemCategory[] = ['material', 'equipment', 'labour', 'subcontractor'];
 
+const normalizeEntryJobIds = (entry: { jobIds?: string[]; jobId?: string }): string[] => {
+  return Array.isArray(entry.jobIds) && entry.jobIds.length > 0
+    ? entry.jobIds
+    : (entry.jobId ? [entry.jobId] : []);
+};
+
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -24,12 +30,12 @@ export default function JobDetailPage() {
 
   const customer = customers.find((c) => c.id === job?.customerId);
   const assignedEmployees = employees.filter((e) => job?.assignedEmployeeIds.includes(e.id));
-  const entryJobIds = (entry: { jobIds?: string[]; jobId?: string }) =>
-    Array.isArray(entry.jobIds) && entry.jobIds.length > 0
-      ? entry.jobIds
-      : (entry.jobId ? [entry.jobId] : []);
 
-  const jobTimeEntries = job ? timeEntries.filter((te) => entryJobIds(te).includes(id)) : [];
+  const jobTimeEntries = useMemo(() => {
+    if (!job || !id) return [];
+
+    return timeEntries.filter((entry) => normalizeEntryJobIds(entry).includes(id));
+  }, [job, timeEntries, id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,7 +90,7 @@ export default function JobDetailPage() {
     let trackedLaborCost = 0;
 
     for (const entry of jobTimeEntries) {
-      const ids = entryJobIds(entry);
+      const ids = normalizeEntryJobIds(entry);
       const divisor = ids.length > 0 ? ids.length : 1;
       const sharedHours = durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes) / divisor;
 
