@@ -49,8 +49,6 @@ async function ensureOk(responsePromise: Promise<Response>) {
 
     throw new Error(detail);
   }
-
-  return response;
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -63,10 +61,6 @@ function errorMessage(error: unknown, fallback: string) {
 function dataUrl(entity: string, id?: string) {
   const query = id ? `?entity=${entity}&id=${id}` : `?entity=${entity}`;
   return `/api/data${query}`;
-}
-
-function clockingUrl(action: 'clock-in' | 'clock-out') {
-  return `/api/clocking?action=${encodeURIComponent(action)}`;
 }
 
 // ─── Store definition ─────────────────────────────────────────────────────────
@@ -136,7 +130,7 @@ interface AppState {
 
   // Time Entries
   clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[] }) => void;
-  clockOut: (entryId: ID, breakMinutes?: number, notes?: string, photoAttachmentReference?: string) => void;
+  clockOut: (entryId: ID, breakMinutes?: number, notes?: string) => void;
   addTimeEntry: (e: Omit<TimeEntry, 'id'>) => void;
   updateTimeEntry: (id: ID, data: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: ID) => void;
@@ -739,7 +733,7 @@ export const useStore = create<AppState>()((set, get) => ({
           return;
         }
 
-        const optimisticEntry: TimeEntry = {
+        const timeEntry: TimeEntry = {
           id: generateId(),
           employeeId,
           jobId: workType === 'job' ? selectedJobIds[0] : undefined,
@@ -752,97 +746,39 @@ export const useStore = create<AppState>()((set, get) => ({
           status: 'clocked_in',
         };
 
-        set((s) => ({ timeEntries: [...s.timeEntries, optimisticEntry] }));
+        set((s) => ({ timeEntries: [...s.timeEntries, timeEntry] }));
 
-        void ensureOk(fetch(clockingUrl('clock-in'), {
+        void ensureOk(fetch(dataUrl('time-entries'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({
-            employeeId,
-            workType,
-            jobIds: selectedJobIds,
-            requestId: generateId(),
-            idempotencyKey: `${employeeId}:${optimisticEntry.clockIn}`,
-          }),
-        })).then(async (response) => {
-          const payload = await response.json() as { ok?: boolean; timeEntry?: Partial<TimeEntry> };
-          if (payload?.ok && payload.timeEntry) {
-            set((s) => ({
-              timeEntries: s.timeEntries.map((entry) =>
-                entry.id === optimisticEntry.id
-                  ? {
-                      ...entry,
-                      ...payload.timeEntry,
-                      id: payload.timeEntry.id ?? entry.id,
-                    }
-                  : entry
-              ),
-            }));
-          }
-        }).catch((error) => {
+          body: JSON.stringify({ data: timeEntry }),
+        })).catch((error) => {
           set({ timeEntries: previous });
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-in could not be saved.') });
         });
       },
-      clockOut: (entryId, breakMinutes = 0, notes = '', photoAttachmentReference = '') => {
+      clockOut: (entryId, breakMinutes = 0, notes = '') => {
         const previous = get().timeEntries;
         const clockOutAt = nowISO();
-        const normalizedAttachment = photoAttachmentReference.trim();
-        const isLegacyAttachmentUrl = normalizedAttachment.startsWith('/api/receipts') || normalizedAttachment.startsWith('http://') || normalizedAttachment.startsWith('https://');
-        const nextPhotoAttachmentUrl = normalizedAttachment && isLegacyAttachmentUrl ? normalizedAttachment : undefined;
-        const nextPhotoAttachmentFileId = normalizedAttachment && !isLegacyAttachmentUrl ? normalizedAttachment : undefined;
-        const optimisticEntry = get().timeEntries.find((te) => te.id === entryId);
         set((s) => ({
           timeEntries: s.timeEntries.map((te) =>
             te.id === entryId
-              ? {
-                  ...te,
-                  clockOut: clockOutAt,
-                  breakMinutes,
-                  notes,
-                  photoAttachmentUrl: nextPhotoAttachmentUrl,
-                  photoAttachmentFileId: nextPhotoAttachmentFileId,
-                  clockOutPhotoFileId: nextPhotoAttachmentFileId,
-                  status: 'clocked_out',
-                }
+              ? { ...te, clockOut: clockOutAt, breakMinutes, notes, status: 'clocked_out' }
               : te
           ),
         }));
 
-        void ensureOk(fetch(clockingUrl('clock-out'), {
-          method: 'POST',
+        void ensureOk(fetch(dataUrl('time-entries', entryId), {
+          method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify({
-            entryId: optimisticEntry?.id ?? entryId,
-            breakMinutes,
-            notes,
-            photoAttachmentUrl: nextPhotoAttachmentUrl,
-            photoAttachmentFileId: nextPhotoAttachmentFileId,
-            requestId: generateId(),
-            idempotencyKey: `${entryId}:${clockOutAt}`,
-          }),
-        })).then(async (response) => {
-          const payload = await response.json() as { ok?: boolean; timeEntry?: Partial<TimeEntry> };
-          if (payload?.ok && payload.timeEntry) {
-            set((s) => ({
-              timeEntries: s.timeEntries.map((entry) =>
-                entry.id === (optimisticEntry?.id ?? entryId)
-                  ? {
-                      ...entry,
-                      ...payload.timeEntry,
-                      id: payload.timeEntry.id ?? entry.id,
-                    }
-                  : entry
-              ),
-            }));
-          }
-        }).catch((error) => {
+          body: JSON.stringify({ data: { clockOut: clockOutAt, breakMinutes, notes, status: 'clocked_out' } }),
+        })).catch((error) => {
           set({ timeEntries: previous });
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Clock-out could not be saved.') });
         });

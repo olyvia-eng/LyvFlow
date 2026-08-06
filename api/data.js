@@ -97,7 +97,6 @@ import {
   updateTimeEntryForBusiness,
 } from './_lib/authRepo.js';
 import { requireSession } from './_lib/session.js';
-import { filterRecordsForSession, authorizeRecordAccess } from './_lib/authorization.js';
 
 const ENTITY_CONFIG = {
   budgets: {
@@ -323,7 +322,7 @@ const ENTITY_CONFIG = {
   },
   'time-entries': {
     readRoles: null,
-    writeRoles: ['owner', 'admin'],
+    writeRoles: null,
     list: listTimeEntriesForBusiness,
     get: getTimeEntryForBusiness,
     create: createTimeEntryForBusiness,
@@ -359,6 +358,7 @@ const EXPENSE_CATEGORIES = new Set(['materials', 'equipment', 'subcontractor', '
 const EQUIPMENT_STATUSES = new Set(['available', 'in_use', 'maintenance', 'inactive']);
 const EQUIPMENT_COST_TYPES = new Set(['financed', 'leased', 'owned']);
 const BUDGET_TYPES = new Set(['operating', 'capital', 'project', 'forecast', 'custom']);
+const BUDGET_DIVISIONS = new Set(['company_wide', 'earthworks', 'septic', 'landscaping', 'other']);
 const BUDGET_STATUSES = new Set(['draft', 'active', 'archived']);
 const FORM_CATEGORIES = new Set(['safety', 'vehicle', 'equipment', 'job_site', 'hr', 'operations', 'maintenance', 'custom']);
 const FORM_STATUSES = new Set(['active', 'draft', 'archived']);
@@ -597,7 +597,7 @@ function validateBudgetRecord(record) {
   if (!isNonEmptyString(record.id)) return 'Budget id is required.';
   if (!isNonEmptyString(record.name)) return 'Budget name is required.';
   if (!BUDGET_TYPES.has(record.budgetType)) return 'Budget type is invalid.';
-  if (!isNonEmptyString(record.division)) return 'Budget division is required.';
+  if (!BUDGET_DIVISIONS.has(record.division)) return 'Budget division is invalid.';
   if (typeof record.fiscalYear !== 'string' || !YEAR_REGEX.test(record.fiscalYear)) {
     return 'Fiscal year must use YYYY format.';
   }
@@ -700,20 +700,19 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const session = requireSession(req, res, config.readRoles ?? undefined, entity);
+    const session = requireSession(req, res, config.readRoles ?? undefined);
     if (!session) return;
 
     try {
       const items = await config.list(session.businessId);
-      const scopedItems = filterRecordsForSession(session, entity, items);
-      return res.status(200).json({ ok: true, items: scopedItems });
+      return res.status(200).json({ ok: true, items });
     } catch {
       return res.status(500).json({ ok: false, error: `Could not load ${entity}` });
     }
   }
 
   if (req.method === 'POST') {
-    const session = requireSession(req, res, config.writeRoles ?? undefined, entity);
+    const session = requireSession(req, res, config.writeRoles ?? undefined);
     if (!session) return;
 
     const record = req.body?.data;
@@ -822,7 +821,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const session = requireSession(req, res, config.writeRoles ?? undefined, entity);
+    const session = requireSession(req, res, config.writeRoles ?? undefined);
     if (!session) return;
 
     const id = req.query.id;
@@ -835,11 +834,6 @@ export default async function handler(req, res) {
       const existing = await config.get(session.businessId, id);
       if (!existing) {
         return res.status(404).json({ ok: false, error: `${entity} not found` });
-      }
-
-      const isAllowed = authorizeRecordAccess(session, entity, existing);
-      if (!isAllowed) {
-        return res.status(403).json({ ok: false, error: 'Forbidden' });
       }
 
       const next = { ...existing, ...data };
@@ -986,7 +980,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    const session = requireSession(req, res, config.writeRoles ?? undefined, entity);
+    const session = requireSession(req, res, config.writeRoles ?? undefined);
     if (!session) return;
 
     const id = req.query.id;
@@ -995,17 +989,8 @@ export default async function handler(req, res) {
     }
 
     try {
-      const existing = await config.get(session.businessId, id);
-      if (!existing) {
-        return res.status(404).json({ ok: false, error: `${entity} not found` });
-      }
-
-      const isAllowed = authorizeRecordAccess(session, entity, existing);
-      if (!isAllowed) {
-        return res.status(403).json({ ok: false, error: 'Forbidden' });
-      }
-
       if (entity === 'employees') {
+        const existing = await getEmployeeForBusiness(session.businessId, id);
         if (existing?.email) {
           const authDelete = await deleteAuthUserForBusinessByEmail(session.businessId, existing.email);
           if (!authDelete.ok) {

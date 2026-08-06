@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
@@ -15,17 +15,24 @@ const JobDetailPage = lazy(() => import('./pages/jobs/JobDetailPage'));
 const BudgetPage = lazy(() => import('./pages/budget/BudgetPage'));
 const BudgetsPage = lazy(() => import('./pages/budget/BudgetsPage'));
 const EmployeesPage = lazy(() => import('./pages/employees/EmployeesPage'));
+const DataCenterPage = lazy(() => import('./pages/datacenter/DataCenterPage'));
 const TimeReportsPage = lazy(() => import('./pages/reports/TimeReportsPage'));
 const EmployeePortalPage = lazy(() => import('./pages/employees/EmployeePortalPage'));
 const CalendarPage = lazy(() => import('./pages/calendar/CalendarPage'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const SignupPage = lazy(() => import('./pages/auth/SignupPage'));
 const UserAccessPage = lazy(() => import('./pages/users/UserAccessPage'));
+const RevenueDashboardPage = lazy(() => import('./pages/department-dashboards/RevenueDashboardPage'));
+const FinanceDashboardPage = lazy(() => import('./pages/department-dashboards/FinanceDashboardPage'));
+const OperationsDashboardPage = lazy(() => import('./pages/department-dashboards/OperationsDashboardPage'));
+const EmployeesDashboardPage = lazy(() => import('./pages/department-dashboards/EmployeesDashboardPage'));
+const DataCenterDashboardPage = lazy(() => import('./pages/department-dashboards/DataCenterDashboardPage'));
 const ModulePlaceholderPage = lazy(() => import('./pages/placeholders/ModulePlaceholderPage'));
-const DocumentsPage = lazy(() => import('./pages/data-center/DocumentsPage'));
 const InvoicesPage = lazy(() => import('./pages/finance/InvoicesPage'));
 const ExpensesPage = lazy(() => import('./pages/finance/ExpensesPage'));
 const ProfitLossPage = lazy(() => import('./pages/finance/ProfitLossPage'));
+const EquipmentCatalogPage = lazy(() => import('./pages/data-center/EquipmentCatalogPage'));
+const EquipmentPage = lazy(() => import('./pages/data-center/EquipmentCatalogPage'));
 const FormsPage = lazy(() => import('./pages/operations/FormsPage'));
 
 const STORE_OWNER_KEY = 'oliveops.store.ownerBusinessId';
@@ -46,7 +53,6 @@ export default function App() {
   const [hasLoadedBusinessData, setHasLoadedBusinessData] = useState(false);
   const [businessDataError, setBusinessDataError] = useState('');
   const [toasts, setToasts] = useState<Array<AppToastDetail & { id: number }>>([]);
-  const loadUsersRequestIdRef = useRef(0);
 
   const canManageUsers =
     sessionUser?.role === 'owner' || sessionUser?.role === 'admin';
@@ -126,42 +132,24 @@ export default function App() {
   };
 
   const loadUsers = async (user: SessionUser | null = sessionUser) => {
-    const requestId = ++loadUsersRequestIdRef.current;
     const canManage = user?.role === 'owner' || user?.role === 'admin';
     if (!user || !canManage) {
-      if (requestId === loadUsersRequestIdRef.current) {
-        setUsers([]);
-      }
+      setUsers([]);
       return;
     }
 
-    try {
-      const response = await fetch('/api/users', {
-        method: 'GET',
-        credentials: 'include',
-      });
-      const payload = await readApiJson<{ ok: boolean; users?: BusinessUserSummary[] }>(response);
+    const response = await fetch('/api/users', {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const payload = await readApiJson<{ ok: boolean; users?: BusinessUserSummary[] }>(response);
 
-      if (requestId !== loadUsersRequestIdRef.current) {
-        return;
-      }
-
-      if (!response.ok || !payload?.ok || !Array.isArray(payload.users)) {
-        if (response.status === 401 || response.status === 403) {
-          setUsers([]);
-          emitAppToast({ tone: 'error', message: 'Your session no longer has access to user management.' });
-          return;
-        }
-        emitAppToast({ tone: 'error', message: 'Could not refresh user access list.' });
-        return;
-      }
-
-      setUsers(payload.users);
-    } catch {
-      if (requestId === loadUsersRequestIdRef.current) {
-        emitAppToast({ tone: 'error', message: 'Could not refresh user access list.' });
-      }
+    if (!response.ok || !payload?.ok || !Array.isArray(payload.users)) {
+      setUsers([]);
+      return;
     }
+
+    setUsers(payload.users);
   };
 
   useEffect(() => {
@@ -310,7 +298,7 @@ export default function App() {
       return { ok: false, error: 'Could not reach the API. Run npm run dev:full for local API routes.' };
     }
 
-    const body = await readApiJson<{ ok: boolean; error?: string; user?: SessionUser; employee?: Employee }>(response);
+    const body = await readApiJson<{ ok: boolean; error?: string }>(response);
 
     if (!response.ok || !body?.ok) {
       if (!body?.error && response.status === 404) {
@@ -329,9 +317,8 @@ export default function App() {
     }
 
     await loadUsers();
-    await loadBusinessData(sessionUser);
     emitAppToast({ tone: 'success', message: 'User created successfully.' });
-    return { ok: true, user: body?.user, employee: body?.employee };
+    return { ok: true };
   };
 
   const updateUser = async (userId: string, data: { role?: 'admin' | 'foreman' | 'crew_member'; active?: boolean }) => {
@@ -473,6 +460,7 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="crm" element={<CRMPage />} />
+              <Route path="revenue/dashboard" element={<RevenueDashboardPage />} />
               <Route
                 path="revenue/leads"
                 element={
@@ -493,10 +481,23 @@ export default function App() {
                   />
                 }
               />
+              <Route path="finance/dashboard" element={<FinanceDashboardPage />} />
               <Route path="finance/invoices" element={<InvoicesPage />} />
               <Route path="finance/expenses" element={<ExpensesPage />} />
               <Route path="finance/profit-loss" element={<ProfitLossPage />} />
+              <Route path="operations/dashboard" element={<OperationsDashboardPage />} />
+              <Route path="operations/equipment" element={<EquipmentPage />} />
               <Route path="operations/forms" element={<FormsPage />} />
+              <Route
+                path="operations/inventory"
+                element={
+                  <ModulePlaceholderPage
+                    title="Inventory"
+                    question="Which materials are running low and could delay upcoming work?"
+                    summary="Monitor key stock levels and reorder signals to prevent job delays while avoiding over-purchasing."
+                  />
+                }
+              />
               <Route
                 path="materials/catalog"
                 element={
@@ -517,6 +518,7 @@ export default function App() {
                   />
                 }
               />
+              <Route path="employees/dashboard" element={<EmployeesDashboardPage />} />
               <Route
                 path="employees/payroll"
                 element={
@@ -537,7 +539,27 @@ export default function App() {
                   />
                 }
               />
-              <Route path="data-center/documents" element={<DocumentsPage />} />
+              <Route path="data-center/dashboard" element={<DataCenterDashboardPage />} />
+              <Route
+                path="data-center/documents"
+                element={
+                  <ModulePlaceholderPage
+                    title="Documents"
+                    question="Where are the latest project documents and who can access them?"
+                    summary="Centralize important files by department and job context to reduce searching and keep teams aligned on current information."
+                  />
+                }
+              />
+              <Route
+                path="data-center/forms"
+                element={
+                  <ModulePlaceholderPage
+                    title="Forms"
+                    question="Which operational forms are required and are they being completed consistently?"
+                    summary="Standardize field and office form workflows to improve accountability and reduce missed compliance steps."
+                  />
+                }
+              />
               <Route
                 path="data-center/photos"
                 element={
@@ -548,16 +570,7 @@ export default function App() {
                   />
                 }
               />
-              <Route
-                path="data-center/settings"
-                element={
-                  <ModulePlaceholderPage
-                    title="Data Center Settings"
-                    question="Are data organization rules and access settings configured for reliable operations?"
-                    summary="Manage retention, structure, and permissions so business data stays organized, secure, and easy to use."
-                  />
-                }
-              />
+              <Route path="data-center/settings" element={<EquipmentCatalogPage />} />
               <Route path="estimates" element={<EstimatesPage />} />
               <Route path="estimates/templates" element={<TemplatesPage />} />
               <Route path="jobs" element={<JobsPage />} />
@@ -566,8 +579,8 @@ export default function App() {
               <Route path="budgets" element={<BudgetsPage />} />
               <Route path="budgets/:budgetId" element={<BudgetPage />} />
               <Route path="budget" element={<BudgetPage />} />
-              <Route path="employees" element={<EmployeesPage onCreateEmployee={createUser} />} />
-              <Route path="data-center" element={<Navigate to="/" replace />} />
+              <Route path="employees" element={<EmployeesPage />} />
+              <Route path="data-center" element={<DataCenterPage />} />
               <Route
                 path="time-reports"
                 element={
