@@ -890,10 +890,19 @@ export default function BudgetPage() {
         ? annualSalary
         : hourlyWage * hoursPerYear;
 
-      const overtimeFactorPct = Math.max(0, Number.isFinite(plan.overtimeFactorPct ?? 0) ? (plan.overtimeFactorPct ?? 0) : 0);
+      const overtimeHoursYear = Math.max(
+        0,
+        Math.min(
+          hoursPerYear,
+          Number.isFinite(plan.overtimeHoursYear ?? 0)
+            ? (plan.overtimeHoursYear ?? 0)
+            : 0
+        )
+      );
+      const overtimeMultiplier = Math.max(1, Number.isFinite(plan.overtimeMultiplier ?? 1.5) ? (plan.overtimeMultiplier ?? 1.5) : 1.5);
       const overtimeCost = isSalariedEmployee
         ? 0
-        : annualBasePay * (overtimeFactorPct / 100);
+        : hourlyWage * overtimeHoursYear * (overtimeMultiplier - 1);
       const payrollBurdenPct = Math.max(0, Number.isFinite(plan.payrollBurdenPct ?? plan.labourBurdenPct ?? 0) ? (plan.payrollBurdenPct ?? plan.labourBurdenPct ?? 0) : 0);
       const benefitsExtraCost = Math.max(0, Number.isFinite(plan.benefitsExtraCost ?? 0) ? (plan.benefitsExtraCost ?? 0) : 0);
       const bonus = Math.max(0, Number.isFinite(plan.bonus ?? 0) ? (plan.bonus ?? 0) : 0);
@@ -913,9 +922,10 @@ export default function BudgetPage() {
         plan,
         roleTitle,
         hoursPerYear,
+        overtimeHoursYear,
         billablePct,
         annualBillableHours,
-        overtimeFactorPct,
+        overtimeMultiplier,
         payrollBurdenPct,
         benefitsExtraCost,
         bonus,
@@ -1092,9 +1102,9 @@ export default function BudgetPage() {
           type="text"
           inputMode="decimal"
           min={0}
-          step={0.1}
-          value={formatNumericDisplayValue(row.overtimeFactorPct)}
-          onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeFactorPct', parseNumericInputValue(e.target.value))}
+          step={1}
+          value={formatNumericDisplayValue(row.overtimeHoursYear)}
+          onChange={(e) => updateLabourPlan(row.employee.id, 'overtimeHoursYear', parseNumericInputValue(e.target.value))}
           onFocus={(e) => e.currentTarget.select()}
           className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right"
         />
@@ -1147,7 +1157,7 @@ export default function BudgetPage() {
     <details className="rounded-lg border border-gray-200 bg-white mt-4">
       <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-gray-700">Show Calculation Details</summary>
       <div className="px-4 pb-4 text-sm text-gray-600 space-y-2">
-        <p>Overtime Cost = Annual Wage x Overtime Factor (%)</p>
+        <p>Overtime Cost = Overtime Hours x Hourly Rate x (Overtime Multiplier - 1)</p>
         <p>Total Cost per Employee per Year = Annual Wage + Overtime Cost + Payroll Burden + Benefits/Extra Cost + Bonus</p>
         <p>Hourly Rate = Total Cost per Employee per Year / Hours per Year</p>
         <p>Suggested Charge-Out Rate = Hourly Rate x (1 + Overhead Recovery %) / (1 - Target Margin %)</p>
@@ -1456,7 +1466,7 @@ export default function BudgetPage() {
                       <th className="px-4 py-3 font-medium text-right">Wage</th>
                       <th className="px-4 py-3 font-medium text-right">Hours per Year</th>
                       <th className="px-4 py-3 font-medium text-center">Billable %</th>
-                      <th className="px-4 py-3 font-medium text-right">Overtime Factor (%)</th>
+                      <th className="px-4 py-3 font-medium text-right">Overtime Hours</th>
                       <th className="px-4 py-3 font-medium text-right">Payroll Burden (%)</th>
                       <th className="px-4 py-3 font-medium text-right">Benefits / Extra Cost</th>
                       <th className="px-4 py-3 font-medium text-right">Bonus</th>
