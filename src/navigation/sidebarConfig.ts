@@ -32,6 +32,16 @@ const NAVIGATION_CONFIG: SidebarConfig = {
   ],
   sections: [
     {
+      id: 'data-center',
+      title: 'Data Center',
+      collapsible: true,
+      defaultExpanded: false,
+      items: [
+        { id: 'data-center-dashboard', type: 'link', to: '/data-center/dashboard', label: 'Dashboard', icon: icon(BarChart3) },
+        { id: 'data-center-documents', type: 'link', to: '/data-center/documents', label: 'Documents', icon: icon(FolderOpen) },
+      ],
+    },
+    {
       id: 'revenue',
       title: 'Revenue',
       collapsible: true,
@@ -91,16 +101,6 @@ const NAVIGATION_CONFIG: SidebarConfig = {
           icon: icon(Clock),
           roles: ownerAdminRoles,
         },
-      ],
-    },
-    {
-      id: 'data-center',
-      title: 'Data Center',
-      collapsible: true,
-      defaultExpanded: false,
-      items: [
-        { id: 'data-center-dashboard', type: 'link', to: '/data-center/dashboard', label: 'Dashboard', icon: icon(BarChart3) },
-        { id: 'data-center-documents', type: 'link', to: '/data-center/documents', label: 'Documents', icon: icon(FolderOpen) },
       ],
     },
   ],
