@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   buildClockInTransaction,
   buildClockOutTransaction,
+  buildSwitchActivityTransaction,
   getActiveShiftForEmployee,
   validateClockOutPhotoAttachment,
   getClockingErrorResponse,
@@ -10,10 +11,12 @@ import {
   getExistingClockingIdempotency,
   resolveClockOutActiveShift,
 } from './_lib/clocking.js';
-import { ddb, tableName } from './_lib/db.js';
+import { ddb } from './_lib/db.js';
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
-import { getEmployeeForBusiness, getFileForBusiness, listTimeEntriesForBusiness } from './_lib/authRepo.js';
+import { getEmployeeForBusiness, getFileForBusiness, getJobForBusiness, listTimeEntriesForBusiness } from './_lib/authRepo.js';
 import { canClockForEmployee } from './_lib/authorization.js';
+
+const VALID_WORK_TYPES = new Set(['job', 'drive_time', 'non_billable']);
 
 function nowIso() {
   return new Date().toISOString();
@@ -44,6 +47,24 @@ function getTimeEntryIdFromRequest(body) {
   if (typeof body?.entryId === 'string' && body.entryId.trim()) return body.entryId.trim();
   if (typeof body?.id === 'string' && body.id.trim()) return body.id.trim();
   return null;
+}
+
+function getNormalizedJobIds(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((value) => typeof value === 'string').map((value) => value.trim()).filter(Boolean);
+}
+
+function getSwitchWorkType(body) {
+  if (typeof body?.workType !== 'string') {
+    return { ok: false, status: 400, error: 'Work type is required.' };
+  }
+
+  const workType = body.workType.trim();
+  if (!VALID_WORK_TYPES.has(workType)) {
+    return { ok: false, status: 400, error: 'Invalid activity type.' };
+  }
+
+  return { ok: true, workType };
 }
 
 function summarizeTransaction(tx) {
@@ -308,8 +329,157 @@ export default async function handler(req, res) {
               Message: typeof reason?.Message === 'string' ? reason.Message : undefined,
             }))
           : undefined,
-        cancellationReasons: Array.isArray(error?.cancellationReasons)
+        legacyCancellationReasons: Array.isArray(error?.cancellationReasons)
           ? error.cancellationReasons.map((reason) => ({
+              Code: reason?.Code ?? reason?.code,
+              Message: typeof reason?.Message === 'string' ? reason.Message : undefined,
+            }))
+          : undefined,
+        stack: error?.stack,
+        transactionSummary: summarizeTransaction(tx),
+      });
+      return res.status(response.status).json({ ok: false, error: response.error });
+    }
+  }
+
+  if (action === 'switch-activity') {
+    const employeeId = typeof session.employeeId === 'string' && session.employeeId.trim()
+      ? session.employeeId.trim()
+      : null;
+
+    if (!employeeId) {
+      return res.status(400).json({ ok: false, error: 'Employee is required.' });
+    }
+
+    const employeeValidation = ensureClockingEmployee(session, employeeId);
+    if (!employeeValidation.ok) {
+      return res.status(employeeValidation.status).json({ ok: false, error: employeeValidation.error });
+    }
+
+    const employee = await getEmployeeForBusiness(session.businessId, employeeId);
+    if (!employee || !employee.active) {
+      return res.status(400).json({ ok: false, error: 'Employee is invalid.' });
+    }
+
+    const workTypeResult = getSwitchWorkType(req.body);
+    if (!workTypeResult.ok) {
+      return res.status(workTypeResult.status).json({ ok: false, error: workTypeResult.error });
+    }
+
+    const nextWorkType = workTypeResult.workType;
+    const nextJobIds = getNormalizedJobIds(req.body?.jobIds);
+
+    if (nextWorkType === 'job' && nextJobIds.length === 0) {
+      return res.status(400).json({ ok: false, error: 'At least one job is required for job work.' });
+    }
+
+    if (nextWorkType === 'drive_time' && !canRecordDriveTime(nextWorkType, employee)) {
+      return res.status(403).json({ ok: false, error: 'Drive time is not enabled for this employee.' });
+    }
+
+    if (nextWorkType === 'job' || nextWorkType === 'drive_time') {
+      for (const jobId of nextJobIds) {
+        const job = await getJobForBusiness(session.businessId, jobId);
+        if (!job) {
+          return res.status(400).json({ ok: false, error: 'Job is invalid.' });
+        }
+      }
+    }
+
+    const activeShift = await getActiveShiftForEmployee({
+      businessId: session.businessId,
+      employeeId,
+    });
+
+    if (!activeShift || typeof activeShift.activeEntryId !== 'string' || !activeShift.activeEntryId.trim()) {
+      return res.status(409).json({ ok: false, error: 'No active shift found' });
+    }
+
+    const requestId = typeof req.body?.requestId === 'string' && req.body.requestId.trim()
+      ? req.body.requestId.trim()
+      : `${session.id}:${nowIso()}`;
+    const idempotencyKey = typeof req.body?.idempotencyKey === 'string' && req.body.idempotencyKey.trim()
+      ? req.body.idempotencyKey.trim()
+      : `${employeeId}:${requestId}`;
+
+    const payload = {
+      action: 'switch-activity',
+      employeeId,
+      previousEntryId: activeShift.activeEntryId,
+      workType: nextWorkType,
+      jobIds: nextJobIds,
+      requestId,
+      idempotencyKey,
+    };
+    const hashedPayload = payloadHash(payload);
+
+    const existing = await getExistingClockingIdempotency({ businessId: session.businessId, idempotencyKey });
+    if (existing) {
+      return res.status(200).json({ ok: true, timeEntry: existing.response });
+    }
+
+    const allEntries = await listTimeEntriesForBusiness(session.businessId);
+    const previousEntry = allEntries.find((entry) => entry.id === activeShift.activeEntryId);
+    if (!previousEntry || previousEntry.status !== 'clocked_in' || previousEntry.employeeId !== employeeId) {
+      return res.status(409).json({ ok: false, error: 'No active shift found' });
+    }
+
+    console.info('[clocking:switch-activity:pre-transaction]', {
+      businessId: session.businessId,
+      employeeId,
+      previousEntryId: previousEntry.id,
+      previousWorkType: previousEntry.workType,
+      nextWorkType,
+      nextJobIds,
+      activeShiftActiveEntryId: activeShift.activeEntryId,
+    });
+
+    const switchedAt = nowIso();
+    const nextTimeEntryId = `${employeeId}:${switchedAt}`;
+    const tx = buildSwitchActivityTransaction({
+      businessId: session.businessId,
+      employeeId,
+      userId: session.id,
+      previousTimeEntry: previousEntry,
+      nextTimeEntry: {
+        id: nextTimeEntryId,
+        workType: nextWorkType,
+        jobIds: nextWorkType === 'non_billable' ? [] : nextJobIds,
+      },
+      switchedAt,
+      requestId,
+      idempotencyKey,
+      payloadHash: hashedPayload,
+      source: 'mobile',
+      auditEventId: `${session.id}:${switchedAt}`,
+      employeeName: employee.name,
+    });
+
+    try {
+      await ddb.send(new TransactWriteCommand(tx));
+      const timeEntry = {
+        id: nextTimeEntryId,
+        employeeId,
+        jobId: nextWorkType === 'non_billable' ? undefined : (nextJobIds[0] ?? undefined),
+        jobIds: nextWorkType === 'non_billable' ? [] : nextJobIds,
+        workType: nextWorkType,
+        clockIn: switchedAt,
+        breakMinutes: 0,
+        notes: '',
+        status: 'clocked_in',
+      };
+      return res.status(200).json({ ok: true, timeEntry });
+    } catch (error) {
+      const response = getClockingFailureResponse('switch-activity', error);
+      console.error('[clocking:switch-activity]', {
+        action: 'switch-activity',
+        name: error?.name,
+        message: error?.message,
+        code: error?.code,
+        Code: error?.Code,
+        httpStatusCode: error?.$metadata?.httpStatusCode,
+        cancellationReasons: Array.isArray(error?.CancellationReasons)
+          ? error.CancellationReasons.map((reason) => ({
               Code: reason?.Code ?? reason?.code,
               Message: typeof reason?.Message === 'string' ? reason.Message : undefined,
             }))

@@ -1,4 +1,4 @@
-import { DeleteCommand, GetCommand, PutCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, tableName } from './db.js';
 
 function nowIso() {
@@ -27,25 +27,6 @@ function idempotencySk(idempotencyKey) {
 
 function auditEventSk(eventId) {
   return `AUDIT#${eventId}`;
-}
-
-function buildClockingPayload({ action, businessId, employeeId, employeeName, userId, timeEntryId, clockInAt, clockOutAt, workType, jobIds, breakMinutes, notes, photoAttachmentUrl, source }) {
-  return {
-    action,
-    businessId,
-    employeeId,
-    employeeName,
-    userId,
-    timeEntryId,
-    clockInAt,
-    clockOutAt,
-    workType,
-    jobIds,
-    breakMinutes,
-    notes,
-    photoAttachmentUrl,
-    source,
-  };
 }
 
 export function buildClockInTransaction({
@@ -353,6 +334,158 @@ export function buildClockOutTransaction({
   };
 }
 
+export function buildSwitchActivityTransaction({
+  businessId,
+  employeeId,
+  userId,
+  previousTimeEntry,
+  nextTimeEntry,
+  switchedAt,
+  requestId,
+  idempotencyKey,
+  payloadHash,
+  source,
+  auditEventId,
+  employeeName = '',
+}) {
+  const now = switchedAt ?? nowIso();
+  const idempotencyItem = {
+    PK: businessPk(businessId),
+    SK: idempotencySk(idempotencyKey),
+    entityType: 'IDEMPOTENCY',
+    businessId,
+    requestId,
+    idempotencyKey,
+    action: 'switch_activity',
+    payloadHash,
+    status: 'completed',
+    response: {
+      id: nextTimeEntry.id,
+      employeeId,
+      jobId: Array.isArray(nextTimeEntry.jobIds) && nextTimeEntry.jobIds.length > 0 ? nextTimeEntry.jobIds[0] : undefined,
+      jobIds: Array.isArray(nextTimeEntry.jobIds) ? nextTimeEntry.jobIds : [],
+      workType: nextTimeEntry.workType,
+      clockIn: now,
+      breakMinutes: 0,
+      notes: '',
+      status: 'clocked_in',
+    },
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const nextEntryItem = {
+    PK: businessPk(businessId),
+    SK: timeEntrySk(nextTimeEntry.id),
+    entityType: 'TIME_ENTRY',
+    businessId,
+    entryId: nextTimeEntry.id,
+    employeeId,
+    employeeName,
+    jobId: Array.isArray(nextTimeEntry.jobIds) && nextTimeEntry.jobIds.length > 0 ? nextTimeEntry.jobIds[0] : undefined,
+    jobIds: Array.isArray(nextTimeEntry.jobIds) ? nextTimeEntry.jobIds : [],
+    workType: nextTimeEntry.workType,
+    clockIn: now,
+    status: 'clocked_in',
+    breakMinutes: 0,
+    notes: '',
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const auditItem = {
+    PK: businessPk(businessId),
+    SK: auditEventSk(auditEventId),
+    entityType: 'AUDIT_EVENT',
+    businessId,
+    eventId: auditEventId,
+    action: 'switch_activity',
+    actorUserId: userId,
+    actorName: employeeName || userId,
+    actorEmail: '',
+    affectedEntryCount: 2,
+    createdAt: now,
+    metadata: {
+      employeeId,
+      previousTimeEntryId: previousTimeEntry.id,
+      newTimeEntryId: nextTimeEntry.id,
+      previousWorkType: previousTimeEntry.workType,
+      newWorkType: nextTimeEntry.workType,
+      previousJobIds: Array.isArray(previousTimeEntry.jobIds) ? previousTimeEntry.jobIds : [],
+      newJobIds: Array.isArray(nextTimeEntry.jobIds) ? nextTimeEntry.jobIds : [],
+      source,
+    },
+  };
+
+  return {
+    TransactItems: [
+      {
+        Put: {
+          TableName: tableName,
+          Item: idempotencyItem,
+          ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+        },
+      },
+      {
+        Update: {
+          TableName: tableName,
+          Key: {
+            PK: businessPk(businessId),
+            SK: timeEntrySk(previousTimeEntry.id),
+          },
+          UpdateExpression: 'SET #status = :status, #clockOut = :clockOut, #updatedAt = :updatedAt',
+          ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND #status = :clockedIn',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+            '#clockOut': 'clockOut',
+            '#updatedAt': 'updatedAt',
+          },
+          ExpressionAttributeValues: {
+            ':status': 'clocked_out',
+            ':clockOut': now,
+            ':updatedAt': now,
+            ':clockedIn': 'clocked_in',
+          },
+        },
+      },
+      {
+        Put: {
+          TableName: tableName,
+          Item: nextEntryItem,
+          ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+        },
+      },
+      {
+        Update: {
+          TableName: tableName,
+          Key: {
+            PK: activeShiftPk(businessId, employeeId),
+            SK: activeShiftSk(),
+          },
+          UpdateExpression: 'SET #activeEntryId = :newEntryId, #updatedAt = :updatedAt',
+          ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND #activeEntryId = :previousEntryId',
+          ExpressionAttributeNames: {
+            '#activeEntryId': 'activeEntryId',
+            '#updatedAt': 'updatedAt',
+          },
+          ExpressionAttributeValues: {
+            ':newEntryId': nextTimeEntry.id,
+            ':previousEntryId': previousTimeEntry.id,
+            ':updatedAt': now,
+          },
+        },
+      },
+      {
+        Put: {
+          TableName: tableName,
+          Item: auditItem,
+          ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+        },
+      },
+    ],
+  };
+}
+
 export async function getActiveShiftForEmployee({ businessId, employeeId }) {
   const result = await ddb.send(
     new GetCommand({
@@ -423,6 +556,9 @@ export function getClockingFailureResponse(action, error) {
       return { status: 409, error: 'Already Clocked In', code: 'ALREADY_CLOCKED_IN' };
     }
     if (action === 'clock-out' && hasConditionalFailure) {
+      return { status: 409, error: 'No active shift found', code: 'NO_ACTIVE_SHIFT' };
+    }
+    if (action === 'switch-activity' && hasConditionalFailure) {
       return { status: 409, error: 'No active shift found', code: 'NO_ACTIVE_SHIFT' };
     }
   }

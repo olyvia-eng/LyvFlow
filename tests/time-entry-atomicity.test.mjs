@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildClockInTransaction,
   buildClockOutTransaction,
+  buildSwitchActivityTransaction,
   getClockingErrorResponse,
   getClockingFailureResponse,
   resolveClockOutActiveShift,
@@ -187,6 +188,102 @@ test('clock-out omits photo attachment updates when no photo URL is provided', (
   assert.ok(!Object.prototype.hasOwnProperty.call(update.Update.ExpressionAttributeValues, ':photoAttachmentUrl'));
 });
 
+test('switch-activity transaction atomically closes current entry, creates next entry, updates lock, and records idempotency/audit', () => {
+  const tx = buildSwitchActivityTransaction({
+    businessId: 'biz-1',
+    employeeId: 'emp-1',
+    userId: 'user-1',
+    previousTimeEntry: {
+      id: 'entry-old',
+      workType: 'job',
+      jobIds: ['job-a'],
+    },
+    nextTimeEntry: {
+      id: 'entry-new',
+      workType: 'drive_time',
+      jobIds: ['job-b'],
+    },
+    switchedAt: '2026-08-05T11:30:00.000Z',
+    requestId: 'req-switch',
+    idempotencyKey: 'switch-key',
+    payloadHash: 'switch-hash',
+    source: 'mobile',
+    auditEventId: 'audit-switch',
+    employeeName: 'Crew One',
+  });
+
+  assert.equal(tx.TransactItems.length, 5);
+  assert.equal(tx.TransactItems.filter((item) => item.Put?.Item?.entityType === 'IDEMPOTENCY').length, 1);
+  assert.equal(tx.TransactItems.filter((item) => item.Update?.Key?.SK === 'TIME#entry-old').length, 1);
+  assert.equal(tx.TransactItems.filter((item) => item.Put?.Item?.entityType === 'TIME_ENTRY').length, 1);
+  assert.equal(tx.TransactItems.filter((item) => item.Update?.Key?.SK === 'ACTIVE_SHIFT').length, 1);
+  assert.equal(tx.TransactItems.filter((item) => item.Put?.Item?.entityType === 'AUDIT_EVENT').length, 1);
+});
+
+test('switch-activity lock update condition requires current lock to match previous active entry', () => {
+  const tx = buildSwitchActivityTransaction({
+    businessId: 'biz-1',
+    employeeId: 'emp-1',
+    userId: 'user-1',
+    previousTimeEntry: {
+      id: 'entry-old',
+      workType: 'job',
+      jobIds: ['job-a'],
+    },
+    nextTimeEntry: {
+      id: 'entry-new',
+      workType: 'non_billable',
+      jobIds: [],
+    },
+    switchedAt: '2026-08-05T11:30:00.000Z',
+    requestId: 'req-switch',
+    idempotencyKey: 'switch-key',
+    payloadHash: 'switch-hash',
+    source: 'mobile',
+    auditEventId: 'audit-switch',
+  });
+
+  const lockUpdate = tx.TransactItems.find((item) => item.Update?.Key?.SK === 'ACTIVE_SHIFT');
+  assert.ok(lockUpdate);
+  assert.equal(lockUpdate.Update.ConditionExpression, 'attribute_exists(PK) AND attribute_exists(SK) AND #activeEntryId = :previousEntryId');
+  assert.equal(lockUpdate.Update.ExpressionAttributeValues[':previousEntryId'], 'entry-old');
+  assert.equal(lockUpdate.Update.ExpressionAttributeValues[':newEntryId'], 'entry-new');
+});
+
+test('switch-activity transaction does not target duplicate item keys', () => {
+  const tx = buildSwitchActivityTransaction({
+    businessId: 'biz-1',
+    employeeId: 'emp-1',
+    userId: 'user-1',
+    previousTimeEntry: {
+      id: 'entry-old',
+      workType: 'job',
+      jobIds: ['job-a'],
+    },
+    nextTimeEntry: {
+      id: 'entry-new',
+      workType: 'job',
+      jobIds: ['job-b'],
+    },
+    switchedAt: '2026-08-05T11:30:00.000Z',
+    requestId: 'req-switch',
+    idempotencyKey: 'switch-key',
+    payloadHash: 'switch-hash',
+    source: 'mobile',
+    auditEventId: 'audit-switch',
+  });
+
+  const keys = tx.TransactItems.map((item) => {
+    if (item.Put) return `${item.Put.Item.PK}|${item.Put.Item.SK}`;
+    if (item.Delete) return `${item.Delete.Key.PK}|${item.Delete.Key.SK}`;
+    if (item.Update) return `${item.Update.Key.PK}|${item.Update.Key.SK}`;
+    return null;
+  }).filter(Boolean);
+
+  const duplicates = keys.filter((key, index) => keys.indexOf(key) !== index);
+  assert.deepEqual(duplicates, []);
+});
+
 test('clocking errors are normalized into client-safe responses', () => {
   const response = getClockingErrorResponse({ statusCode: 409, code: 'ALREADY_CLOCKED_IN' });
   assert.equal(response.status, 409);
@@ -264,6 +361,16 @@ test('clock-in conditional lock failure is normalized to Already Clocked In', ()
 
   assert.equal(response.status, 409);
   assert.equal(response.error, 'Already Clocked In');
+});
+
+test('switch-activity conditional conflict is normalized to No active shift found', () => {
+  const response = getClockingFailureResponse('switch-activity', {
+    name: 'TransactionCanceledException',
+    CancellationReasons: [{ Code: 'ConditionalCheckFailed' }],
+  });
+
+  assert.equal(response.status, 409);
+  assert.equal(response.error, 'No active shift found');
 });
 
 test('unexpected ValidationException returns 500', () => {
