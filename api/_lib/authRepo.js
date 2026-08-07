@@ -839,6 +839,8 @@ export async function listCustomersForBusiness(businessId) {
 
   return (result.Items ?? []).map((item) => ({
     id: item.customerId,
+    firstName: item.firstName,
+    lastName: item.lastName,
     name: item.name,
     company: item.company,
     email: item.email,
@@ -888,6 +890,8 @@ export async function getCustomerForBusiness(businessId, customerId) {
   return result.Item
     ? {
         id: result.Item.customerId,
+        firstName: result.Item.firstName,
+        lastName: result.Item.lastName,
         name: result.Item.name,
         company: result.Item.company,
         email: result.Item.email,

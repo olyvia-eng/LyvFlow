@@ -17,6 +17,8 @@ export type CustomerStatus = 'lead' | 'prospect' | 'active' | 'inactive';
 
 export interface Customer {
   id: ID;
+  firstName?: string;
+  lastName?: string;
   name: string;
   company: string;
   email: string;

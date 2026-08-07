@@ -26,7 +26,28 @@ const normalizeProperties = (properties?: Address[], legacyAddress?: Address): A
   return [emptyProperty()];
 };
 
+const deriveNameParts = (customer: Customer): { firstName: string; lastName: string } => {
+  const firstName = customer.firstName?.trim() ?? '';
+  const lastName = customer.lastName?.trim() ?? '';
+  if (firstName || lastName) {
+    return { firstName, lastName };
+  }
+
+  const fallback = customer.name.trim();
+  if (!fallback) {
+    return { firstName: '', lastName: '' };
+  }
+
+  const parts = fallback.split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] ?? '',
+    lastName: parts.slice(1).join(' '),
+  };
+};
+
 const emptyCustomer = (): Omit<Customer, 'id' | 'createdAt' | 'updatedAt'> => ({
+  firstName: '',
+  lastName: '',
   name: '',
   company: '',
   email: '',
@@ -62,20 +83,36 @@ export default function CRMPage() {
   };
 
   const openEdit = (c: Customer) => {
+    const { firstName, lastName } = deriveNameParts(c);
     setEditing(c);
     setForm({
-      name: c.name, company: c.company, email: c.email, phone: c.phone,
+      firstName,
+      lastName,
+      name: c.name,
+      company: c.company,
+      email: c.email,
+      phone: c.phone,
       properties: normalizeProperties(c.properties, c.address), status: c.status, notes: c.notes, tags: c.tags,
     });
     setModalOpen(true);
   };
 
   const handleSave = () => {
-    if (!form.name.trim()) return;
+    const firstName = form.firstName?.trim() ?? '';
+    const lastName = form.lastName?.trim() ?? '';
+    if (!firstName || !lastName) return;
+
+    const payload = {
+      ...form,
+      firstName,
+      lastName,
+      name: `${firstName} ${lastName}`.trim(),
+    };
+
     if (editing) {
-      updateCustomer(editing.id, form);
+      updateCustomer(editing.id, payload);
     } else {
-      addCustomer(form);
+      addCustomer(payload);
     }
     setModalOpen(false);
   };
@@ -221,13 +258,14 @@ export default function CRMPage() {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Full Name *" required value={form.name} onChange={(e) => set('name', e.target.value)} />
-            <Input label="Company" value={form.company} onChange={(e) => set('company', e.target.value)} />
+            <Input label="First Name *" required value={form.firstName ?? ''} onChange={(e) => set('firstName', e.target.value)} />
+            <Input label="Last Name *" required value={form.lastName ?? ''} onChange={(e) => set('lastName', e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
+            <Input label="Company" value={form.company} onChange={(e) => set('company', e.target.value)} />
             <Input label="Email" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
-            <Input label="Phone" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
           </div>
+          <Input label="Phone" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
           <Select label="Status" value={form.status} onChange={(e) => set('status', e.target.value as CustomerStatus)}>
             {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
           </Select>
