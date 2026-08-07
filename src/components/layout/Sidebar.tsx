@@ -10,6 +10,7 @@ import {
   Sun,
   ChevronsLeft,
   Settings,
+  MessageSquare,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -20,6 +21,7 @@ import { Button, Input, Modal } from '../ui';
 import SidebarItem from './SidebarItem';
 import SidebarSection from './SidebarSection';
 import { usePinnedPages } from '../../navigation/PinnedPagesContext';
+import FeedbackModal from '../feedback/FeedbackModal';
 
 const EXPANDED_SECTIONS_STORAGE_KEY = 'oliveops.sidebar.expanded-sections.v1';
 const THEME_STORAGE_KEY = 'oliveops.theme.v1';
@@ -70,6 +72,7 @@ export default function Sidebar({
   const [profilePasswordConfirm, setProfilePasswordConfirm] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [displayName, setDisplayName] = useState(userName);
   const [displayEmail, setDisplayEmail] = useState(userEmail);
   const navigation = useMemo(() => getSidebarConfig(userRole), [userRole]);
@@ -170,6 +173,11 @@ export default function Sidebar({
   const navigateFromProfile = (path: string) => {
     setMobileOpen(false);
     navigate(path);
+  };
+
+  const openFeedbackModal = () => {
+    setMobileOpen(false);
+    setFeedbackModalOpen(true);
   };
 
   const canViewUserAccess = userRole === 'owner' || userRole === 'admin';
@@ -416,6 +424,12 @@ export default function Sidebar({
             </div>
           )}
           <button
+            onClick={openFeedbackModal}
+            className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
+          >
+            <MessageSquare size={16} /> Send Feedback
+          </button>
+          <button
             onClick={toggleTheme}
             className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
           >
@@ -541,6 +555,12 @@ export default function Sidebar({
             </div>
           )}
           <button
+            onClick={openFeedbackModal}
+            className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
+          >
+            <MessageSquare size={16} /> Send Feedback
+          </button>
+          <button
             onClick={toggleTheme}
             className="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-100 hover:bg-accent-50 dark:hover:bg-brand-600"
           >
@@ -575,6 +595,11 @@ export default function Sidebar({
           {profileError && <p className="text-sm text-accent-700">{profileError}</p>}
         </div>
       </Modal>
+
+      <FeedbackModal
+        open={feedbackModalOpen}
+        onClose={() => setFeedbackModalOpen(false)}
+      />
     </>
   );
 }

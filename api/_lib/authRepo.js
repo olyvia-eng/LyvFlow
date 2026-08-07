@@ -62,6 +62,10 @@ function materialCatalogSk(materialId) {
   return `MATERIAL#${materialId}`;
 }
 
+function feedbackSk(feedbackId) {
+  return `FEEDBACK#${feedbackId}`;
+}
+
 function receiptSk(receiptId) {
   return `RECEIPT#${receiptId}`;
 }
@@ -2197,6 +2201,131 @@ export async function deleteMaterialCatalogItemForBusiness(businessId, materialI
       Key: {
         PK: businessPk(businessId),
         SK: materialCatalogSk(materialId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listFeedbackForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'FEEDBACK#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.feedbackId,
+    businessId: item.businessId,
+    submittedByUserId: item.submittedByUserId,
+    submittedByRole: item.submittedByRole,
+    type: item.type,
+    message: item.message,
+    route: item.route,
+    userAgent: item.userAgent,
+    viewport: item.viewport,
+    deviceCategory: item.deviceCategory,
+    appVersion: item.appVersion,
+    status: item.status,
+    priority: item.priority,
+    screenshotFileId: item.screenshotFileId,
+    contactPreference: Boolean(item.contactPreference),
+    contactEmail: item.contactEmail,
+    emailNotification: item.emailNotification,
+    internalNotes: item.internalNotes,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+}
+
+export async function createFeedbackForBusiness({ businessId, feedback }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: feedbackSk(feedback.id),
+        entityType: 'FEEDBACK',
+        businessId,
+        feedbackId: feedback.id,
+        ...feedback,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getFeedbackForBusiness(businessId, feedbackId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: feedbackSk(feedbackId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.feedbackId,
+        businessId: result.Item.businessId,
+        submittedByUserId: result.Item.submittedByUserId,
+        submittedByRole: result.Item.submittedByRole,
+        type: result.Item.type,
+        message: result.Item.message,
+        route: result.Item.route,
+        userAgent: result.Item.userAgent,
+        viewport: result.Item.viewport,
+        deviceCategory: result.Item.deviceCategory,
+        appVersion: result.Item.appVersion,
+        status: result.Item.status,
+        priority: result.Item.priority,
+        screenshotFileId: result.Item.screenshotFileId,
+        contactPreference: Boolean(result.Item.contactPreference),
+        contactEmail: result.Item.contactEmail,
+        emailNotification: result.Item.emailNotification,
+        internalNotes: result.Item.internalNotes,
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateFeedbackForBusiness({ businessId, feedback }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: feedbackSk(feedback.id),
+        entityType: 'FEEDBACK',
+        businessId,
+        feedbackId: feedback.id,
+        ...feedback,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteFeedbackForBusiness(businessId, feedbackId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: feedbackSk(feedbackId),
       },
     })
   );

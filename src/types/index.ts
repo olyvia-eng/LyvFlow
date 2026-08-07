@@ -151,6 +151,31 @@ export interface MaterialCatalogItem {
   updatedAt: string;
 }
 
+export type FeedbackType = 'bug' | 'feature_request' | 'usability' | 'general';
+export type FeedbackStatus = 'new' | 'triaged' | 'in_progress' | 'resolved' | 'closed';
+export type FeedbackPriority = 'low' | 'normal' | 'high';
+
+export interface FeedbackRecord {
+  id: ID;
+  businessId: ID;
+  submittedByUserId: ID;
+  submittedByRole: string;
+  type: FeedbackType;
+  message: string;
+  route?: string;
+  userAgent?: string;
+  viewport?: { width: number; height: number };
+  deviceCategory?: 'mobile' | 'tablet' | 'desktop' | 'unknown';
+  appVersion?: string;
+  status: FeedbackStatus;
+  priority: FeedbackPriority;
+  screenshotFileId?: ID;
+  contactPreference: boolean;
+  contactEmail?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Jobs ────────────────────────────────────────────────────────────────────
 
 export type JobStatus = 'scheduled' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';

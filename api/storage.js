@@ -17,8 +17,10 @@ import {
   getEstimateForBusiness,
   getJobForBusiness,
   getEmployeeForBusiness,
+  getFeedbackForBusiness,
   getTimeEntryForBusiness,
   listFilesForBusiness,
+  updateFeedbackForBusiness,
   updateFileForBusiness,
   updateExpenseForBusiness,
   updateTimeEntryForBusiness,
@@ -37,6 +39,7 @@ const ATTACHMENT_ALLOWLIST = {
   customer: new Set(['document', 'photo', 'misc']),
   estimate: new Set(['document', 'photo', 'misc']),
   employee: new Set(['document', 'photo', 'misc']),
+  feedback: new Set(['screenshot']),
 };
 
 const COMPLETION_ALLOWED_KEYS = new Set(['action', 'fileId', 'checksum', 'etag']);
@@ -78,6 +81,10 @@ function getAttachmentFieldForCategory({ entityType, category }) {
     if (category === 'clock-in-photo') return 'clockInPhotoFileId';
     if (category === 'clock-out-photo') return 'clockOutPhotoFileId';
     return 'photoAttachmentFileId';
+  }
+
+  if (entityType === 'feedback') {
+    return category === 'screenshot' ? 'screenshotFileId' : undefined;
   }
 
   return undefined;
@@ -174,8 +181,10 @@ const defaultDeps = {
   getEstimateForBusiness,
   getJobForBusiness,
   getEmployeeForBusiness,
+  getFeedbackForBusiness,
   getTimeEntryForBusiness,
   listFilesForBusiness,
+  updateFeedbackForBusiness,
   updateFileForBusiness,
   updateExpenseForBusiness,
   updateTimeEntryForBusiness,
@@ -233,6 +242,12 @@ export function createStorageHandler(overrides = {}) {
         };
       }
       return { entity: timeEntry, allowed: canWriteEntity('time-entries', role) || canReadEntity('time-entries', role) };
+    }
+
+    if (entityType === 'feedback') {
+      const feedback = await deps.getFeedbackForBusiness(session.businessId, entityId);
+      if (!feedback) return null;
+      return { entity: feedback, allowed: canWriteEntity('feedback', session.role) || canReadEntity('feedback', session.role) };
     }
 
     if (entityType === DOCUMENT_ENTITY_TYPE) {
@@ -470,6 +485,19 @@ export function createStorageHandler(overrides = {}) {
                   id: expense.id,
                   receiptFileId: file.id,
                   receiptUrl: undefined,
+                },
+              });
+            }
+          } else if (file.entityType === 'feedback') {
+            const feedback = await deps.getFeedbackForBusiness(session.businessId, file.entityId);
+            if (feedback) {
+              await deps.updateFeedbackForBusiness({
+                businessId: session.businessId,
+                feedback: {
+                  ...feedback,
+                  id: feedback.id,
+                  screenshotFileId: file.id,
+                  updatedAt: nowIso(),
                 },
               });
             }

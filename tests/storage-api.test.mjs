@@ -51,8 +51,10 @@ function baseDeps(overrides = {}) {
     getEstimateForBusiness: async () => null,
     getJobForBusiness: async () => null,
     getEmployeeForBusiness: async () => null,
+    getFeedbackForBusiness: async () => null,
     getTimeEntryForBusiness: async () => ({ id: 'time-1', employeeId: 'emp-1', status: 'clocked_in' }),
     listFilesForBusiness: async () => [],
+    updateFeedbackForBusiness: async () => ({ ok: true }),
     updateExpenseForBusiness: async () => ({ ok: true }),
     updateTimeEntryForBusiness: async () => ({ ok: true }),
     ...overrides,
@@ -451,6 +453,104 @@ test('prepare-upload for new expense without persisted entity is forbidden', asy
   assert.equal(res.statusCode, 403);
   assert.equal(res.body.ok, false);
   assert.equal(res.body.error, 'Forbidden');
+});
+
+test('prepare-upload accepts feedback screenshot attachments for existing feedback records', async () => {
+  let pendingFile;
+  const handler = createStorageHandler(baseDeps({
+    getFeedbackForBusiness: async () => ({
+      id: 'feedback-1',
+      businessId: 'biz-1',
+      type: 'bug',
+      message: 'Issue details',
+      status: 'new',
+      priority: 'normal',
+      createdAt: '2026-08-06T10:00:00.000Z',
+      updatedAt: '2026-08-06T10:00:00.000Z',
+    }),
+    createPendingFileForBusiness: async ({ file }) => {
+      pendingFile = file;
+      return { ok: true };
+    },
+  }));
+
+  const req = {
+    method: 'POST',
+    body: {
+      action: 'prepare-upload',
+      fileName: 'feedback.png',
+      mimeType: 'image/png',
+      sizeBytes: 1024,
+      entityType: 'feedback',
+      entityId: 'feedback-1',
+      category: 'screenshot',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(pendingFile.entityType, 'feedback');
+  assert.equal(pendingFile.entityId, 'feedback-1');
+  assert.equal(pendingFile.category, 'screenshot');
+});
+
+test('complete-upload links feedback screenshot by fileId only', async () => {
+  let updatedFeedback;
+  const handler = createStorageHandler(baseDeps({
+    getFileForBusiness: async () => ({
+      id: 'file-1',
+      businessId: 'biz-1',
+      entityType: 'feedback',
+      entityId: 'feedback-1',
+      category: 'screenshot',
+      fileName: 'feedback.png',
+      originalFileName: 'feedback.png',
+      sanitizedFileName: 'feedback.png',
+      mimeType: 'image/png',
+      sizeBytes: 1024,
+      expectedContentType: 'image/png',
+      expectedFileSize: 1024,
+      objectKey: 'biz-1/file-1/feedback.png',
+      key: 'biz-1/file-1/feedback.png',
+      uploadStatus: 'pending',
+    }),
+    getFeedbackForBusiness: async () => ({
+      id: 'feedback-1',
+      businessId: 'biz-1',
+      submittedByUserId: 'user-1',
+      submittedByRole: 'admin',
+      type: 'bug',
+      message: 'Issue details',
+      status: 'new',
+      priority: 'normal',
+      createdAt: '2026-08-06T10:00:00.000Z',
+      updatedAt: '2026-08-06T10:00:00.000Z',
+    }),
+    headStoredFile: async () => ({ ok: true, contentLength: 1024, contentType: 'image/png', etag: 'etag-1' }),
+    updateFeedbackForBusiness: async ({ feedback }) => {
+      updatedFeedback = feedback;
+      return { ok: true };
+    },
+  }));
+
+  const req = {
+    method: 'POST',
+    body: {
+      action: 'complete-upload',
+      fileId: 'file-1',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(updatedFeedback.id, 'feedback-1');
+  assert.equal(updatedFeedback.screenshotFileId, 'file-1');
 });
 
 test('prepare-download accepts fileId only', async () => {
