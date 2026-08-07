@@ -21,6 +21,7 @@ import type {
   LabourBudgetPlan,
   LabourHoursSalesGoal,
   RevenueSalesGoal,
+  TimeCorrectionRequest,
   CostEntry,
   ID,
 } from '../types';
@@ -84,6 +85,7 @@ interface AppState {
   jobs: Job[];
   employees: Employee[];
   timeEntries: TimeEntry[];
+  timeCorrections: TimeCorrectionRequest[];
   clockInInFlightEmployeeIds: ID[];
   clockOutInFlightEntryIds: ID[];
   budgetItems: BudgetItem[];
@@ -148,6 +150,19 @@ interface AppState {
   addTimeEntry: (e: Omit<TimeEntry, 'id'>) => void;
   updateTimeEntry: (id: ID, data: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: ID) => void;
+  submitTimeCorrectionRequest: (payload: {
+    employeeId?: ID;
+    timeEntryId?: ID;
+    requestType: TimeCorrectionRequest['requestType'];
+    requestedClockInAt?: string;
+    requestedClockOutAt?: string;
+    requestedJobId?: ID;
+    requestedActivityType?: TimeCorrectionRequest['requestedActivityType'];
+    requestedSegments?: TimeCorrectionRequest['requestedSegments'];
+    reason: string;
+  }) => Promise<{ ok: boolean; error?: string; correction?: TimeCorrectionRequest }>;
+  approveTimeCorrectionRequest: (id: ID, reviewNote?: string) => Promise<{ ok: boolean; error?: string; correction?: TimeCorrectionRequest }>;
+  rejectTimeCorrectionRequest: (id: ID, reviewNote?: string) => Promise<{ ok: boolean; error?: string; correction?: TimeCorrectionRequest }>;
 
   // Budget
   addBudget: (budget: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'>) => Budget;
@@ -192,6 +207,7 @@ export const useStore = create<AppState>()((set, get) => ({
       jobs: [],
       employees: [],
       timeEntries: [],
+      timeCorrections: [],
       clockInInFlightEmployeeIds: [],
       clockOutInFlightEntryIds: [],
       budgetItems: [],
@@ -974,6 +990,122 @@ export const useStore = create<AppState>()((set, get) => ({
           set({ timeEntries: previous });
           emitAppToast({ tone: 'error', message: 'Time entry could not be deleted.' });
         });
+      },
+      submitTimeCorrectionRequest: async (payload) => {
+        try {
+          const response = await fetch('/api/time-corrections?action=create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+          });
+
+          const body = await response.json().catch(() => null) as {
+            ok?: boolean;
+            error?: string;
+            correction?: TimeCorrectionRequest;
+          } | null;
+
+          if (!response.ok || !body?.ok || !body.correction) {
+            return {
+              ok: false,
+              error: body?.error ?? `Could not submit correction request (HTTP ${response.status}).`,
+            };
+          }
+
+          set((state) => ({
+            timeCorrections: [...state.timeCorrections, body.correction as TimeCorrectionRequest],
+          }));
+
+          return { ok: true, correction: body.correction };
+        } catch (error: unknown) {
+          return {
+            ok: false,
+            error: errorMessage(error, 'Could not submit correction request.'),
+          };
+        }
+      },
+      approveTimeCorrectionRequest: async (id, reviewNote = '') => {
+        try {
+          const response = await fetch('/api/time-corrections?action=approve', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ id, reviewNote }),
+          });
+
+          const body = await response.json().catch(() => null) as {
+            ok?: boolean;
+            error?: string;
+            correction?: TimeCorrectionRequest;
+            createdTimeEntry?: TimeEntry;
+          } | null;
+
+          if (!response.ok || !body?.ok || !body.correction) {
+            return {
+              ok: false,
+              error: body?.error ?? `Could not approve correction request (HTTP ${response.status}).`,
+            };
+          }
+
+          set((state) => ({
+            timeCorrections: state.timeCorrections.map((item) => (
+              item.id === id ? (body.correction as TimeCorrectionRequest) : item
+            )),
+            timeEntries: body.createdTimeEntry
+              ? [...state.timeEntries, body.createdTimeEntry]
+              : state.timeEntries,
+          }));
+
+          return { ok: true, correction: body.correction };
+        } catch (error: unknown) {
+          return {
+            ok: false,
+            error: errorMessage(error, 'Could not approve correction request.'),
+          };
+        }
+      },
+      rejectTimeCorrectionRequest: async (id, reviewNote = '') => {
+        try {
+          const response = await fetch('/api/time-corrections?action=reject', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ id, reviewNote }),
+          });
+
+          const body = await response.json().catch(() => null) as {
+            ok?: boolean;
+            error?: string;
+            correction?: TimeCorrectionRequest;
+          } | null;
+
+          if (!response.ok || !body?.ok || !body.correction) {
+            return {
+              ok: false,
+              error: body?.error ?? `Could not reject correction request (HTTP ${response.status}).`,
+            };
+          }
+
+          set((state) => ({
+            timeCorrections: state.timeCorrections.map((item) => (
+              item.id === id ? (body.correction as TimeCorrectionRequest) : item
+            )),
+          }));
+
+          return { ok: true, correction: body.correction };
+        } catch (error: unknown) {
+          return {
+            ok: false,
+            error: errorMessage(error, 'Could not reject correction request.'),
+          };
+        }
       },
 
       // ── Forms ─────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2, Search, ChevronRight } from 'lucide-react';
 import { statusColor, formatCurrency, formatDate, durationHours } from '../../utils';
 import type { Job, JobStatus } from '../../types';
 import { HIGH_LABOR_VARIANCE_THRESHOLD_PCT, LOW_MARGIN_THRESHOLD_PCT } from '../../config/profitability';
+import { buildEffectiveTimeEntries } from '../../utils/timeCorrections';
 
 const STATUSES: JobStatus[] = ['scheduled', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 type RiskFilter = 'all' | 'at_risk' | 'over_hours' | 'low_margin' | 'labor_variance';
@@ -27,7 +28,7 @@ const empty = (customers: { id: string }[]): Omit<Job, 'id' | 'createdAt' | 'upd
 });
 
 export default function JobsPage() {
-  const { jobs, customers, employees, timeEntries, addJob, updateJob, deleteJob } = useStore();
+  const { jobs, customers, employees, timeEntries, timeCorrections, addJob, updateJob, deleteJob } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
@@ -41,6 +42,11 @@ export default function JobsPage() {
       ? entry.jobIds
       : (entry.jobId ? [entry.jobId] : []);
 
+  const effectiveTimeEntries = useMemo(
+    () => buildEffectiveTimeEntries(timeEntries, timeCorrections),
+    [timeEntries, timeCorrections]
+  );
+
   const jobRiskById = useMemo(() => {
     const map = new Map<string, {
       overHours: boolean;
@@ -51,7 +57,7 @@ export default function JobsPage() {
     }>();
 
     jobs.forEach((job) => {
-      const jobEntries = timeEntries.filter((entry) => entryJobIds(entry).includes(job.id));
+      const jobEntries = effectiveTimeEntries.filter((entry) => entryJobIds(entry).includes(job.id));
 
       let trackedLaborCost = 0;
       for (const entry of jobEntries) {
@@ -95,7 +101,7 @@ export default function JobsPage() {
     });
 
     return map;
-  }, [employees, jobs, timeEntries]);
+  }, [effectiveTimeEntries, employees, jobs]);
 
   const filtered = jobs.filter((j) => {
     const c = customers.find((c) => c.id === j.customerId);

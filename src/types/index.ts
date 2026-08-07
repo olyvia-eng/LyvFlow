@@ -330,6 +330,52 @@ export interface Employee {
 export type ClockStatus = 'clocked_in' | 'clocked_out';
 export type TimeEntryWorkType = 'job' | 'drive_time' | 'non_billable';
 
+export type TimeCorrectionRequestType =
+  | 'forgot_clock_in'
+  | 'forgot_clock_out'
+  | 'wrong_time'
+  | 'wrong_job'
+  | 'wrong_activity'
+  | 'split_activity'
+  | 'other';
+
+export type TimeCorrectionRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface TimeCorrectionSegmentRequest {
+  id: ID;
+  startAt: string;
+  endAt: string;
+  requestedJobId?: ID;
+  requestedActivityType: TimeEntryWorkType;
+  notes?: string;
+}
+
+export interface TimeCorrectionRequest {
+  id: ID;
+  employeeId: ID;
+  timeEntryId?: ID;
+  requestType: TimeCorrectionRequestType;
+  status: TimeCorrectionRequestStatus;
+  requestedClockInAt?: string;
+  requestedClockOutAt?: string;
+  requestedJobId?: ID;
+  requestedActivityType?: TimeEntryWorkType;
+  requestedSegments?: TimeCorrectionSegmentRequest[];
+  reason: string;
+  submittedByUserId: ID;
+  submittedAt: string;
+  reviewedByUserId?: ID;
+  reviewedAt?: string;
+  reviewNote?: string;
+  createdAt: string;
+  updatedAt: string;
+  originalClockInAt?: string;
+  originalClockOutAt?: string;
+  originalJobId?: ID;
+  originalJobIds?: ID[];
+  originalActivityType?: TimeEntryWorkType;
+}
+
 export interface TimeEntry {
   id: ID;
   employeeId: ID;

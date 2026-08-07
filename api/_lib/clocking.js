@@ -5,6 +5,24 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+export const DEFAULT_FORGOTTEN_CLOCK_OUT_THRESHOLD_HOURS = 12;
+
+export function isPossiblyForgottenClockOut({
+  clockInAt,
+  now = nowIso(),
+  thresholdHours = DEFAULT_FORGOTTEN_CLOCK_OUT_THRESHOLD_HOURS,
+}) {
+  if (typeof clockInAt !== 'string' || !clockInAt.trim()) return false;
+
+  const clockInMs = Date.parse(clockInAt);
+  const nowMs = Date.parse(now);
+  if (Number.isNaN(clockInMs) || Number.isNaN(nowMs)) return false;
+  if (nowMs <= clockInMs) return false;
+
+  const elapsedHours = (nowMs - clockInMs) / (1000 * 60 * 60);
+  return elapsedHours >= thresholdHours;
+}
+
 function businessPk(businessId) {
   return `BUSINESS#${businessId}`;
 }

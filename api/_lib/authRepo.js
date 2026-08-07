@@ -134,6 +134,10 @@ function timeEntrySk(entryId) {
   return `TIME#${entryId}`;
 }
 
+function timeCorrectionSk(correctionId) {
+  return `TIME_CORRECTION#${correctionId}`;
+}
+
 function auditEventSk(eventId) {
   return `AUDIT#${eventId}`;
 }
@@ -3505,6 +3509,277 @@ export async function deleteTimeEntryForBusiness(businessId, entryId) {
   );
 
   return { ok: true };
+}
+
+function mapTimeCorrectionRecordFromItem(item) {
+  return {
+    id: item.correctionId,
+    employeeId: item.employeeId,
+    timeEntryId: item.timeEntryId,
+    requestType: item.requestType,
+    status: item.status,
+    requestedClockInAt: item.requestedClockInAt,
+    requestedClockOutAt: item.requestedClockOutAt,
+    requestedJobId: item.requestedJobId,
+    requestedActivityType: item.requestedActivityType,
+    requestedSegments: Array.isArray(item.requestedSegments) ? item.requestedSegments : undefined,
+    reason: item.reason,
+    submittedByUserId: item.submittedByUserId,
+    submittedAt: item.submittedAt,
+    reviewedByUserId: item.reviewedByUserId,
+    reviewedAt: item.reviewedAt,
+    reviewNote: item.reviewNote,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    originalClockInAt: item.originalClockInAt,
+    originalClockOutAt: item.originalClockOutAt,
+    originalJobId: item.originalJobId,
+    originalJobIds: Array.isArray(item.originalJobIds) ? item.originalJobIds : undefined,
+    originalActivityType: item.originalActivityType,
+  };
+}
+
+export async function listTimeCorrectionsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'TIME_CORRECTION#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map(mapTimeCorrectionRecordFromItem);
+}
+
+export async function listApprovedTimeCorrectionsForBusiness(businessId) {
+  const items = await listTimeCorrectionsForBusiness(businessId);
+  return items.filter((item) => item.status === 'approved');
+}
+
+export async function getTimeCorrectionForBusiness(businessId, correctionId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: timeCorrectionSk(correctionId),
+      },
+    })
+  );
+
+  return result.Item ? mapTimeCorrectionRecordFromItem(result.Item) : null;
+}
+
+export async function createTimeCorrectionForBusiness({ businessId, correction }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: timeCorrectionSk(correction.id),
+        entityType: 'TIME_CORRECTION',
+        businessId,
+        correctionId: correction.id,
+        ...correction,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function updateTimeCorrectionForBusiness({ businessId, correction }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: timeCorrectionSk(correction.id),
+        entityType: 'TIME_CORRECTION',
+        businessId,
+        correctionId: correction.id,
+        ...correction,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function approveTimeCorrectionForBusiness({
+  businessId,
+  correction,
+  reviewerUserId,
+  reviewerName,
+  reviewerEmail,
+  reviewNote,
+  reviewedAt,
+  createdTimeEntry,
+}) {
+  const eventId = `${reviewerUserId}:${correction.id}:${reviewedAt}`;
+  const transactItems = [
+    {
+      Update: {
+        TableName: tableName,
+        Key: {
+          PK: businessPk(businessId),
+          SK: timeCorrectionSk(correction.id),
+        },
+        UpdateExpression: 'SET #status = :approved, #reviewedByUserId = :reviewedByUserId, #reviewedAt = :reviewedAt, #reviewNote = :reviewNote, #updatedAt = :updatedAt',
+        ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND #status = :pending',
+        ExpressionAttributeNames: {
+          '#status': 'status',
+          '#reviewedByUserId': 'reviewedByUserId',
+          '#reviewedAt': 'reviewedAt',
+          '#reviewNote': 'reviewNote',
+          '#updatedAt': 'updatedAt',
+        },
+        ExpressionAttributeValues: {
+          ':pending': 'pending',
+          ':approved': 'approved',
+          ':reviewedByUserId': reviewerUserId,
+          ':reviewedAt': reviewedAt,
+          ':reviewNote': reviewNote ?? '',
+          ':updatedAt': reviewedAt,
+        },
+      },
+    },
+    {
+      Put: {
+        TableName: tableName,
+        Item: {
+          PK: businessPk(businessId),
+          SK: auditEventSk(eventId),
+          entityType: 'AUDIT_EVENT',
+          businessId,
+          eventId,
+          action: 'time_correction_approved',
+          actorUserId: reviewerUserId,
+          actorName: reviewerName,
+          actorEmail: reviewerEmail ?? '',
+          affectedEntryCount: createdTimeEntry ? 2 : 1,
+          createdAt: reviewedAt,
+          metadata: {
+            correctionId: correction.id,
+            requestType: correction.requestType,
+            timeEntryId: correction.timeEntryId,
+            createdTimeEntryId: createdTimeEntry?.id,
+          },
+        },
+        ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+      },
+    },
+  ];
+
+  if (createdTimeEntry) {
+    transactItems.push({
+      Put: {
+        TableName: tableName,
+        Item: {
+          PK: businessPk(businessId),
+          SK: timeEntrySk(createdTimeEntry.id),
+          entityType: 'TIME_ENTRY',
+          businessId,
+          entryId: createdTimeEntry.id,
+          ...createdTimeEntry,
+        },
+        ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+      },
+    });
+  }
+
+  try {
+    await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
+    return { ok: true, eventId };
+  } catch (error) {
+    if (error?.name === 'TransactionCanceledException') {
+      return { ok: false, code: 'CONFLICT' };
+    }
+    throw error;
+  }
+}
+
+export async function rejectTimeCorrectionForBusiness({
+  businessId,
+  correction,
+  reviewerUserId,
+  reviewerName,
+  reviewerEmail,
+  reviewNote,
+  reviewedAt,
+}) {
+  const eventId = `${reviewerUserId}:${correction.id}:${reviewedAt}`;
+
+  try {
+    await ddb.send(
+      new TransactWriteCommand({
+        TransactItems: [
+          {
+            Update: {
+              TableName: tableName,
+              Key: {
+                PK: businessPk(businessId),
+                SK: timeCorrectionSk(correction.id),
+              },
+              UpdateExpression: 'SET #status = :rejected, #reviewedByUserId = :reviewedByUserId, #reviewedAt = :reviewedAt, #reviewNote = :reviewNote, #updatedAt = :updatedAt',
+              ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND #status = :pending',
+              ExpressionAttributeNames: {
+                '#status': 'status',
+                '#reviewedByUserId': 'reviewedByUserId',
+                '#reviewedAt': 'reviewedAt',
+                '#reviewNote': 'reviewNote',
+                '#updatedAt': 'updatedAt',
+              },
+              ExpressionAttributeValues: {
+                ':pending': 'pending',
+                ':rejected': 'rejected',
+                ':reviewedByUserId': reviewerUserId,
+                ':reviewedAt': reviewedAt,
+                ':reviewNote': reviewNote ?? '',
+                ':updatedAt': reviewedAt,
+              },
+            },
+          },
+          {
+            Put: {
+              TableName: tableName,
+              Item: {
+                PK: businessPk(businessId),
+                SK: auditEventSk(eventId),
+                entityType: 'AUDIT_EVENT',
+                businessId,
+                eventId,
+                action: 'time_correction_rejected',
+                actorUserId: reviewerUserId,
+                actorName: reviewerName,
+                actorEmail: reviewerEmail ?? '',
+                affectedEntryCount: 1,
+                createdAt: reviewedAt,
+                metadata: {
+                  correctionId: correction.id,
+                  requestType: correction.requestType,
+                  timeEntryId: correction.timeEntryId,
+                },
+              },
+              ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+            },
+          },
+        ],
+      })
+    );
+
+    return { ok: true, eventId };
+  } catch (error) {
+    if (error?.name === 'TransactionCanceledException') {
+      return { ok: false, code: 'CONFLICT' };
+    }
+    throw error;
+  }
 }
 
 export async function listAuditEventsForBusiness(businessId) {

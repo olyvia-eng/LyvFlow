@@ -20,6 +20,7 @@ const ENTITY_READ_ROLES = {
   'material-catalog-items': ['owner', 'admin', 'foreman'],
   feedback: ['owner', 'admin', 'foreman', 'crew_member'],
   'time-entries': ['owner', 'admin', 'foreman', 'crew_member'],
+  'time-corrections': ['owner', 'admin', 'crew_member'],
   'audit-events': ['owner', 'admin'],
 };
 
@@ -44,7 +45,8 @@ const ENTITY_WRITE_ROLES = {
   'equipment-assets': ['owner', 'admin', 'foreman'],
   'material-catalog-items': ['owner', 'admin', 'foreman'],
   feedback: ['owner', 'admin', 'foreman', 'crew_member'],
-  'time-entries': ['owner', 'admin', 'foreman', 'crew_member'],
+  'time-entries': ['owner', 'admin', 'foreman'],
+  'time-corrections': ['owner', 'admin', 'crew_member'],
   'audit-events': ['owner', 'admin'],
 };
 
@@ -67,6 +69,12 @@ export function canWriteEntity(entity, role) {
 export function authorizeRecordAccess(session, entity, record) {
   if (!session || !record) return false;
   const role = normalizeRole(session.role);
+
+  if (entity === 'time-corrections') {
+    if (role === 'owner' || role === 'admin') return true;
+    if (!session.employeeId) return false;
+    return record.employeeId === session.employeeId;
+  }
 
   if (role === 'owner' || role === 'admin') return true;
   if (role === 'foreman') return true;
@@ -102,6 +110,12 @@ export function canClockForEmployee(session, employeeId) {
 export function filterRecordsForSession(session, entity, records) {
   if (!Array.isArray(records)) return [];
   const role = normalizeRole(session.role);
+
+  if (entity === 'time-corrections') {
+    if (role === 'owner' || role === 'admin') return records;
+    if (!session.employeeId) return [];
+    return records.filter((record) => record.employeeId === session.employeeId);
+  }
 
   if (role === 'owner' || role === 'admin' || role === 'foreman') return records;
 

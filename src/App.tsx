@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { Budget, BudgetItem, BudgetRate, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, FormField, FormRecord, FormResponse, FormSubmission, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, MaterialCatalogItem, RevenueSalesGoal, TimeEntry } from './types';
+import type { Budget, BudgetItem, BudgetRate, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, FormField, FormRecord, FormResponse, FormSubmission, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, MaterialCatalogItem, RevenueSalesGoal, TimeCorrectionRequest, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -97,6 +97,7 @@ export default function App() {
         revenueSalesGoals?: RevenueSalesGoal[];
         employees?: Employee[];
         timeEntries?: TimeEntry[];
+        timeCorrections?: TimeCorrectionRequest[];
       }>(response);
 
       if (!response.ok || !payload?.ok) {
@@ -126,6 +127,7 @@ export default function App() {
         revenueSalesGoals: payload.revenueSalesGoals ?? [],
         employees: payload.employees ?? [],
         timeEntries: payload.timeEntries ?? [],
+        timeCorrections: payload.timeCorrections ?? [],
       }));
       setBusinessDataError('');
     } catch {
@@ -230,6 +232,7 @@ export default function App() {
       jobs: [],
       employees: [],
       timeEntries: [],
+      timeCorrections: [],
       budgetItems: [],
       labourBudgetPlans: [],
       labourHoursSalesGoals: [],

@@ -8,6 +8,7 @@ import { HIGH_LABOR_VARIANCE_THRESHOLD_PCT, LOW_MARGIN_THRESHOLD_PCT } from '../
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { CostEntry, LineItemCategory, JobStatus } from '../../types';
 import { classifyTrackedHoursByWorkType } from './profitability';
+import { buildEffectiveTimeEntries } from '../../utils/timeCorrections';
 
 const CATEGORIES: LineItemCategory[] = ['material', 'equipment', 'labour', 'subcontractor'];
 
@@ -20,7 +21,7 @@ const normalizeEntryJobIds = (entry: { jobIds?: string[]; jobId?: string }): str
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { jobs, customers, employees, timeEntries, updateJob, addCostEntry, deleteTimeEntry } = useStore();
+  const { jobs, customers, employees, timeEntries, timeCorrections, updateJob, addCostEntry, deleteTimeEntry } = useStore();
 
   const job = jobs.find((j) => j.id === id);
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
@@ -32,11 +33,16 @@ export default function JobDetailPage() {
   const customer = customers.find((c) => c.id === job?.customerId);
   const assignedEmployees = employees.filter((e) => job?.assignedEmployeeIds.includes(e.id));
 
+  const effectiveTimeEntries = useMemo(
+    () => buildEffectiveTimeEntries(timeEntries, timeCorrections),
+    [timeEntries, timeCorrections]
+  );
+
   const jobTimeEntries = useMemo(() => {
     if (!job || !id) return [];
 
-    return timeEntries.filter((entry) => normalizeEntryJobIds(entry).includes(id));
-  }, [job, timeEntries, id]);
+    return effectiveTimeEntries.filter((entry) => normalizeEntryJobIds(entry).includes(id));
+  }, [effectiveTimeEntries, job, id]);
 
   useEffect(() => {
     let cancelled = false;

@@ -5,7 +5,8 @@ import { useStore } from '../../store';
 import { Button, Card, Input, Modal, Select } from '../../components/ui';
 import { durationHours, formatDateTime } from '../../utils';
 import { uploadFileToStorage } from '../../utils/fileUpload';
-import type { FormRecord, TimeEntryWorkType } from '../../types';
+import type { FormRecord, TimeCorrectionRequestType, TimeEntryWorkType } from '../../types';
+import { emitAppToast } from '../../toast';
 
 interface EmployeePortalPageProps {
   sessionEmployeeEmail?: string;
@@ -13,7 +14,18 @@ interface EmployeePortalPageProps {
 }
 
 export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: EmployeePortalPageProps) {
-  const { employees, jobs, timeEntries, forms, formSubmissions, clockIn, clockOut, addFormSubmission } = useStore();
+  const {
+    employees,
+    jobs,
+    timeEntries,
+    timeCorrections,
+    forms,
+    formSubmissions,
+    clockIn,
+    clockOut,
+    addFormSubmission,
+    submitTimeCorrectionRequest,
+  } = useStore();
 
   const [clockType, setClockType] = useState<TimeEntryWorkType>('job');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
@@ -28,6 +40,15 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const [requiredFormsModalOpen, setRequiredFormsModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<'clock_in' | 'clock_out' | null>(null);
   const [requiredFormsQueue, setRequiredFormsQueue] = useState<FormRecord[]>([]);
+  const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
+  const [requestType, setRequestType] = useState<TimeCorrectionRequestType>('wrong_time');
+  const [targetTimeEntryId, setTargetTimeEntryId] = useState('');
+  const [requestedClockInAt, setRequestedClockInAt] = useState('');
+  const [requestedClockOutAt, setRequestedClockOutAt] = useState('');
+  const [requestedJobId, setRequestedJobId] = useState('');
+  const [requestedActivityType, setRequestedActivityType] = useState<TimeEntryWorkType>('job');
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [submittingCorrection, setSubmittingCorrection] = useState(false);
 
   const sessionEmployee = useMemo(() => {
     if (!sessionEmployeeEmail) return null;
@@ -52,6 +73,22 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const activeJobs = jobs.filter(
     (job) => job.status === 'in_progress' || job.status === 'scheduled'
   );
+
+  const myHistoricalEntries = useMemo(() => {
+    if (!employee) return [];
+    return timeEntries
+      .filter((entry) => entry.employeeId === employee.id)
+      .slice()
+      .sort((a, b) => Date.parse(b.clockIn) - Date.parse(a.clockIn));
+  }, [employee, timeEntries]);
+
+  const myCorrectionRequests = useMemo(() => {
+    if (!employee) return [];
+    return timeCorrections
+      .filter((request) => request.employeeId === employee.id)
+      .slice()
+      .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
+  }, [employee, timeCorrections]);
 
   const handleLogout = () => {
     if (sessionEmployeeEmail && onLogout) {
@@ -226,6 +263,38 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const handleClockIn = () => startRequiredFormsGate('clock_in');
   const handleClockOut = () => startRequiredFormsGate('clock_out');
 
+  const submitCorrection = async () => {
+    if (!employee || !correctionReason.trim()) return;
+    setSubmittingCorrection(true);
+
+    const payload = {
+      employeeId: employee.id,
+      timeEntryId: targetTimeEntryId || undefined,
+      requestType,
+      requestedClockInAt: requestedClockInAt ? new Date(requestedClockInAt).toISOString() : undefined,
+      requestedClockOutAt: requestedClockOutAt ? new Date(requestedClockOutAt).toISOString() : undefined,
+      requestedJobId: requestedJobId || undefined,
+      requestedActivityType,
+      reason: correctionReason.trim(),
+    };
+
+    const result = await submitTimeCorrectionRequest(payload);
+    setSubmittingCorrection(false);
+    if (!result.ok) {
+      emitAppToast({ tone: 'error', message: result.error ?? 'Could not submit correction request.' });
+      return;
+    }
+
+    emitAppToast({ tone: 'success', message: 'Time correction request submitted.' });
+    setCorrectionModalOpen(false);
+    setTargetTimeEntryId('');
+    setRequestedClockInAt('');
+    setRequestedClockOutAt('');
+    setRequestedJobId('');
+    setRequestedActivityType('job');
+    setCorrectionReason('');
+  };
+
   const activeEntryJobTitle = useMemo(() => {
     if (!activeEntry) return '—';
     if (activeEntry.workType === 'drive_time') return 'Drive Time';
@@ -381,6 +450,25 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
               <Button variant="secondary" onClick={handleLogout} className="w-full justify-center">
                 Log Out
               </Button>
+
+              <div className="rounded-lg border border-gray-200 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-gray-900">Time Corrections</p>
+                  <Button size="sm" onClick={() => setCorrectionModalOpen(true)}>Request Correction</Button>
+                </div>
+                {myCorrectionRequests.length === 0 ? (
+                  <p className="mt-2 text-xs text-gray-500">No correction requests submitted yet.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {myCorrectionRequests.slice(0, 5).map((request) => (
+                      <li key={request.id} className="rounded border border-gray-100 px-2 py-1 text-xs text-gray-600">
+                        <p className="font-medium text-gray-800">{request.requestType.replaceAll('_', ' ')} · {request.status}</p>
+                        <p>{formatDateTime(request.submittedAt)} · {request.reason}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
         </Card>
@@ -419,6 +507,68 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
               </div>
             ))
           )}
+        </div>
+      </Modal>
+
+      <Modal
+        open={correctionModalOpen}
+        onClose={() => setCorrectionModalOpen(false)}
+        title="Request Time Correction"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setCorrectionModalOpen(false)}>Cancel</Button>
+            <Button onClick={() => void submitCorrection()} disabled={submittingCorrection || !correctionReason.trim()}>
+              {submittingCorrection ? 'Submitting...' : 'Submit Request'}
+            </Button>
+          </>
+        )}
+      >
+        <div className="space-y-3">
+          <Select value={requestType} onChange={(event) => setRequestType(event.target.value as TimeCorrectionRequestType)}>
+            <option value="forgot_clock_in">Forgot Clock In</option>
+            <option value="forgot_clock_out">Forgot Clock Out</option>
+            <option value="wrong_time">Wrong Time</option>
+            <option value="wrong_job">Wrong Job</option>
+            <option value="wrong_activity">Wrong Activity</option>
+            <option value="split_activity">Split Activity</option>
+            <option value="other">Other</option>
+          </Select>
+          <Select value={targetTimeEntryId} onChange={(event) => setTargetTimeEntryId(event.target.value)}>
+            <option value="">No existing entry selected</option>
+            {myHistoricalEntries.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {formatDateTime(entry.clockIn)} - {entry.clockOut ? formatDateTime(entry.clockOut) : 'Active'}
+              </option>
+            ))}
+          </Select>
+          <Input
+            label="Requested Clock In"
+            type="datetime-local"
+            value={requestedClockInAt}
+            onChange={(event) => setRequestedClockInAt(event.target.value)}
+          />
+          <Input
+            label="Requested Clock Out"
+            type="datetime-local"
+            value={requestedClockOutAt}
+            onChange={(event) => setRequestedClockOutAt(event.target.value)}
+          />
+          <Select value={requestedActivityType} onChange={(event) => setRequestedActivityType(event.target.value as TimeEntryWorkType)}>
+            <option value="job">Job Work</option>
+            <option value="drive_time">Drive Time</option>
+            <option value="non_billable">Non-Billable</option>
+          </Select>
+          <Select value={requestedJobId} onChange={(event) => setRequestedJobId(event.target.value)}>
+            <option value="">Requested Job (optional)</option>
+            {activeJobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
+          </Select>
+          <Input
+            label="Reason"
+            required
+            value={correctionReason}
+            onChange={(event) => setCorrectionReason(event.target.value)}
+            placeholder="Explain what should be corrected"
+          />
         </div>
       </Modal>
     </div>

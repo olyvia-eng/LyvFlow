@@ -358,7 +358,7 @@ const ENTITY_CONFIG = {
   },
   'time-entries': {
     readRoles: null,
-    writeRoles: null,
+    writeRoles: ['owner', 'admin', 'foreman'],
     list: listTimeEntriesForBusiness,
     get: getTimeEntryForBusiness,
     create: createTimeEntryForBusiness,

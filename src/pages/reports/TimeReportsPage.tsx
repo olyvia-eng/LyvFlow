@@ -1,12 +1,13 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { endOfWeek, format, startOfMonth, startOfWeek, subWeeks } from 'date-fns';
 import { useStore } from '../../store';
 import { Card, PageHeader, StatCard, Button, Select, Input } from '../../components/ui';
 import { durationHours, formatDateTime, generateId, nowISO } from '../../utils';
 import { resolveAttachmentUrl } from '../../utils/fileUpload';
 import type { BusinessUserRole } from '../../auth/types';
-import type { AuditEvent, TimeEntry, TimeEntryWorkType } from '../../types';
+import type { AuditEvent, TimeCorrectionRequest, TimeEntry, TimeEntryWorkType } from '../../types';
 import { emitAppToast } from '../../toast';
+import { buildEffectiveTimeEntries } from '../../utils/timeCorrections';
 
 interface TimeReportsPageProps {
   currentUserRole: BusinessUserRole;
@@ -73,7 +74,15 @@ export default function TimeReportsPage({
   currentUserName,
   currentUserEmail,
 }: TimeReportsPageProps) {
-  const { timeEntries, jobs, employees, updateTimeEntry } = useStore();
+  const {
+    timeEntries,
+    timeCorrections,
+    jobs,
+    employees,
+    updateTimeEntry,
+    approveTimeCorrectionRequest,
+    rejectTimeCorrectionRequest,
+  } = useStore();
   const [startDate, setStartDate] = useState(format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [payrollPeriodPreset, setPayrollPeriodPreset] = useState<PayrollPeriodPreset>('this_month');
@@ -85,21 +94,34 @@ export default function TimeReportsPage({
   const [backfillAuditEvents, setBackfillAuditEvents] = useState<AuditEvent[]>([]);
   const [loadingBackfillAudits, setLoadingBackfillAudits] = useState(false);
   const [expandedAuditEventId, setExpandedAuditEventId] = useState<string | null>(null);
+  const [reviewingCorrectionId, setReviewingCorrectionId] = useState<string | null>(null);
+  const [correctionStatusFilter, setCorrectionStatusFilter] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const detailSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const effectiveTimeEntries = useMemo(
+    () => buildEffectiveTimeEntries(timeEntries, timeCorrections),
+    [timeEntries, timeCorrections]
+  );
 
   const employeeSearchValue = employeeSearch.trim().toLowerCase();
   const jobsSorted = useMemo(() => [...jobs].sort((a, b) => a.title.localeCompare(b.title)), [jobs]);
   const isJobFocused = jobFilter !== 'all';
 
-  const getEmployeeName = (employeeId: string) => employees.find((employee) => employee.id === employeeId)?.name ?? 'Unknown';
-  const getJobTitle = (jobId: string) => jobs.find((job) => job.id === jobId)?.title ?? 'Unknown job';
+  const getEmployeeName = useCallback(
+    (employeeId: string) => employees.find((employee) => employee.id === employeeId)?.name ?? 'Unknown',
+    [employees]
+  );
+  const getJobTitle = useCallback(
+    (jobId: string) => jobs.find((job) => job.id === jobId)?.title ?? 'Unknown job',
+    [jobs]
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     const resolveUrls = async () => {
-      const candidates = timeEntries.filter((entry) => Boolean(entry.clockOutPhotoFileId || entry.photoAttachmentFileId || entry.photoAttachmentUrl));
+      const candidates = effectiveTimeEntries.filter((entry) => Boolean(entry.clockOutPhotoFileId || entry.photoAttachmentFileId || entry.photoAttachmentUrl));
       const pairs = await Promise.all(
         candidates.map(async (entry) => {
           const url = await resolveAttachmentUrl({
@@ -119,7 +141,7 @@ export default function TimeReportsPage({
     return () => {
       cancelled = true;
     };
-  }, [timeEntries]);
+  }, [effectiveTimeEntries]);
 
   const applyPayrollPreset = (preset: PayrollPeriodPreset) => {
     setPayrollPeriodPreset(preset);
@@ -189,7 +211,7 @@ export default function TimeReportsPage({
     const start = new Date(`${startDate}T00:00:00`);
     const end = new Date(`${endDate}T23:59:59.999`);
 
-    return [...timeEntries]
+    return [...effectiveTimeEntries]
       .filter((entry) => {
         const clockInDate = new Date(entry.clockIn);
         if (Number.isNaN(clockInDate.getTime())) return false;
@@ -215,11 +237,11 @@ export default function TimeReportsPage({
         return true;
       })
       .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-  }, [employeeSearchValue, endDate, getEmployeeName, jobFilter, selectedEmployeeId, startDate, timeEntries, workTypeFilter]);
+  }, [effectiveTimeEntries, employeeSearchValue, endDate, getEmployeeName, jobFilter, selectedEmployeeId, startDate, workTypeFilter]);
 
   const recentEntries = useMemo(
-    () => [...timeEntries].sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime()).slice(0, 20),
-    [timeEntries]
+    () => [...effectiveTimeEntries].sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime()).slice(0, 20),
+    [effectiveTimeEntries]
   );
 
   const totalsByType = useMemo(() => {
@@ -285,6 +307,44 @@ export default function TimeReportsPage({
       }),
     [timeEntries]
   );
+
+  const correctionRows = useMemo(() => {
+    return timeCorrections
+      .filter((item) => item.status === correctionStatusFilter)
+      .slice()
+      .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
+  }, [correctionStatusFilter, timeCorrections]);
+
+  const handleApproveCorrection = async (correctionId: string) => {
+    if (reviewingCorrectionId) return;
+    setReviewingCorrectionId(correctionId);
+    const result = await approveTimeCorrectionRequest(correctionId);
+    setReviewingCorrectionId(null);
+
+    if (!result.ok) {
+      emitAppToast({ tone: 'error', message: result.error ?? 'Could not approve correction request.' });
+      return;
+    }
+
+    emitAppToast({ tone: 'success', message: 'Correction request approved.' });
+  };
+
+  const handleRejectCorrection = async (correctionId: string) => {
+    if (reviewingCorrectionId) return;
+    const reviewNote = typeof window !== 'undefined'
+      ? (window.prompt('Optional rejection note') ?? '').trim()
+      : '';
+    setReviewingCorrectionId(correctionId);
+    const result = await rejectTimeCorrectionRequest(correctionId, reviewNote);
+    setReviewingCorrectionId(null);
+
+    if (!result.ok) {
+      emitAppToast({ tone: 'error', message: result.error ?? 'Could not reject correction request.' });
+      return;
+    }
+
+    emitAppToast({ tone: 'success', message: 'Correction request rejected.' });
+  };
 
   const backfillLegacyEntries = async () => {
     setBackfillRunning(true);
@@ -376,7 +436,7 @@ export default function TimeReportsPage({
         ...totals,
       }))
       .sort((a, b) => b.total - a.total);
-  }, [filteredEntries]);
+  }, [filteredEntries, getEmployeeName]);
 
   const handleExportSummaryCsv = () => {
     const payrollPeriodLabel =
@@ -541,6 +601,87 @@ export default function TimeReportsPage({
           </div>
         </div>
       </Card>
+
+      {(currentUserRole === 'admin' || currentUserRole === 'owner') && (
+        <Card className="overflow-hidden mb-6">
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="font-semibold text-gray-800">Time Correction Requests</h2>
+              <p className="text-xs text-gray-500 mt-1">Only approved corrections affect payroll and job costing.</p>
+            </div>
+            <div className="w-44">
+              <Select
+                value={correctionStatusFilter}
+                onChange={(event) => setCorrectionStatusFilter(event.target.value as 'pending' | 'approved' | 'rejected')}
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </Select>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-left text-xs">
+                  <th className="px-4 py-2 font-medium">Employee</th>
+                  <th className="py-2 font-medium">Type</th>
+                  <th className="py-2 font-medium">Original</th>
+                  <th className="py-2 font-medium">Requested</th>
+                  <th className="py-2 font-medium">Reason</th>
+                  <th className="py-2 font-medium">Submitted</th>
+                  <th className="px-4 py-2 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {correctionRows.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-4 text-gray-400">No requests in this status.</td></tr>
+                ) : correctionRows.map((item: TimeCorrectionRequest) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-2 font-medium text-gray-800">{getEmployeeName(item.employeeId)}</td>
+                    <td className="py-2 text-gray-600 capitalize">{item.requestType.replaceAll('_', ' ')}</td>
+                    <td className="py-2 text-xs text-gray-500">
+                      {item.originalClockInAt ? formatDateTime(item.originalClockInAt) : '—'}
+                      {' - '}
+                      {item.originalClockOutAt ? formatDateTime(item.originalClockOutAt) : '—'}
+                    </td>
+                    <td className="py-2 text-xs text-gray-500">
+                      {item.requestedClockInAt ? formatDateTime(item.requestedClockInAt) : '—'}
+                      {' - '}
+                      {item.requestedClockOutAt ? formatDateTime(item.requestedClockOutAt) : '—'}
+                    </td>
+                    <td className="py-2 text-gray-600 max-w-xs truncate">{item.reason || '—'}</td>
+                    <td className="py-2 text-xs text-gray-500">{formatDateTime(item.submittedAt)}</td>
+                    <td className="px-4 py-2 text-right">
+                      {item.status === 'pending' ? (
+                        <div className="inline-flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => void handleApproveCorrection(item.id)}
+                            disabled={reviewingCorrectionId === item.id}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => void handleRejectCorrection(item.id)}
+                            disabled={reviewingCorrectionId === item.id}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-500">{item.status}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <Card className="overflow-hidden mb-6">
         <div className="p-4 border-b border-gray-100">

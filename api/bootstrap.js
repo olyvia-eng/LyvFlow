@@ -18,10 +18,12 @@ import {
   listInvoicesForBusiness,
   listJobsForBusiness,
   listTemplatesForBusiness,
+  listTimeCorrectionsForBusiness,
+  getTimeEntryForBusiness,
   listTimeEntriesForBusiness,
   getEmployeeForBusiness,
 } from './_lib/authRepo.js';
-import { getActiveShiftForEmployee } from './_lib/clocking.js';
+import { DEFAULT_FORGOTTEN_CLOCK_OUT_THRESHOLD_HOURS, getActiveShiftForEmployee, isPossiblyForgottenClockOut } from './_lib/clocking.js';
 import { requireSession } from './_lib/session.js';
 import { filterRecordsForSession } from './_lib/authorization.js';
 
@@ -41,8 +43,17 @@ export default async function handler(req, res) {
     const activeShift = typeof session.employeeId === 'string'
       ? await getActiveShiftForEmployee({ businessId: session.businessId, employeeId: session.employeeId })
       : null;
+    const activeTimeEntry = activeShift?.activeEntryId
+      ? await getTimeEntryForBusiness(session.businessId, activeShift.activeEntryId)
+      : null;
+    const possibleForgottenClockOut = activeTimeEntry?.clockIn
+      ? isPossiblyForgottenClockOut({
+          clockInAt: activeTimeEntry.clockIn,
+          thresholdHours: DEFAULT_FORGOTTEN_CLOCK_OUT_THRESHOLD_HOURS,
+        })
+      : false;
 
-    const [forms, formFields, formSubmissions, formResponses, budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, materialCatalogItems, templates, budgetItems, budgetRates, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
+    const [forms, formFields, formSubmissions, formResponses, budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, materialCatalogItems, templates, budgetItems, budgetRates, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries, timeCorrections] = await Promise.all([
       listFormsForBusiness(session.businessId),
       listFormFieldsForBusiness(session.businessId),
       listFormSubmissionsForBusiness(session.businessId),
@@ -63,6 +74,7 @@ export default async function handler(req, res) {
       listRevenueSalesGoalsForBusiness(session.businessId),
       listEmployeesForBusiness(session.businessId),
       listTimeEntriesForBusiness(session.businessId),
+      listTimeCorrectionsForBusiness(session.businessId),
     ]);
 
     return res.status(200).json({
@@ -90,7 +102,12 @@ export default async function handler(req, res) {
       revenueSalesGoals: filterRecordsForSession(session, 'revenue-sales-goals', revenueSalesGoals),
       employees: filterRecordsForSession(session, 'employees', employees),
       timeEntries: filterRecordsForSession(session, 'time-entries', timeEntries),
+      timeCorrections: filterRecordsForSession(session, 'time-corrections', timeCorrections),
       currentActiveEntryId: activeShift?.activeEntryId ?? null,
+      activeShiftWarnings: {
+        possibleForgottenClockOut,
+        thresholdHours: DEFAULT_FORGOTTEN_CLOCK_OUT_THRESHOLD_HOURS,
+      },
     });
   } catch {
     return res.status(500).json({ ok: false, error: 'Could not load business data' });
