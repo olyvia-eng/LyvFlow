@@ -48,6 +48,25 @@ test('clock-in uses a conditional put for the active-shift lock and no condition
   assert.equal(tx.TransactItems.filter((item) => item.Put?.Item?.entityType === 'ACTIVE_SHIFT').length, 1);
 });
 
+test('clock-in lock requires active-shift key to not exist (single active shift guarantee)', () => {
+  const tx = buildClockInTransaction({
+    businessId: 'biz-1',
+    employeeId: 'emp-1',
+    userId: 'user-1',
+    timeEntryId: 'entry-1',
+    clockInAt: '2026-08-05T10:00:00.000Z',
+    requestId: 'req-1',
+    idempotencyKey: 'key-1',
+    payloadHash: 'hash-1',
+    source: 'web',
+    auditEventId: 'audit-1',
+  });
+
+  const lockPut = tx.TransactItems.find((item) => item.Put?.Item?.entityType === 'ACTIVE_SHIFT');
+  assert.ok(lockPut);
+  assert.equal(lockPut.Put.ConditionExpression, 'attribute_not_exists(PK) AND attribute_not_exists(SK)');
+});
+
 test('clock-out transaction updates the time entry, deletes the lock and records an audit event', () => {
   const tx = buildClockOutTransaction({
     businessId: 'biz-1',
@@ -235,6 +254,16 @@ test('ConditionalCheckFailed is recognized', () => {
 
   assert.equal(response.status, 409);
   assert.equal(response.error, 'No active shift found');
+});
+
+test('clock-in conditional lock failure is normalized to Already Clocked In', () => {
+  const response = getClockingFailureResponse('clock-in', {
+    name: 'TransactionCanceledException',
+    CancellationReasons: [{ Code: 'ConditionalCheckFailed' }],
+  });
+
+  assert.equal(response.status, 409);
+  assert.equal(response.error, 'Already Clocked In');
 });
 
 test('unexpected ValidationException returns 500', () => {
