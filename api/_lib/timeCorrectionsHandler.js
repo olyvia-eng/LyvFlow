@@ -1,4 +1,4 @@
-import { requireSession } from './_lib/session.js';
+import { requireSession } from './session.js';
 import {
   approveTimeCorrectionForBusiness,
   createTimeCorrectionForBusiness,
@@ -10,7 +10,7 @@ import {
   listTimeCorrectionsForBusiness,
   listTimeEntriesForBusiness,
   rejectTimeCorrectionForBusiness,
-} from './_lib/authRepo.js';
+} from './authRepo.js';
 import {
   buildEffectiveTimeEntries,
   getCorrectionTargetTimestamp,
@@ -18,7 +18,7 @@ import {
   MAX_EMPLOYEE_CORRECTION_AGE_DAYS,
   normalizeTimeCorrectionRequest,
   validateTimeCorrectionRequestPayload,
-} from './_lib/timeCorrections.js';
+} from './timeCorrections.js';
 
 function nowIso() {
   return new Date().toISOString();

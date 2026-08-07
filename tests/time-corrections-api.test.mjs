@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createTimeCorrectionsHandler } from '../api/time-corrections.js';
+import { createTimeCorrectionsHandler } from '../api/_lib/timeCorrectionsHandler.js';
 
 function createMockRes() {
   return {

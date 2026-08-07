@@ -1,5 +1,6 @@
 import { requireSession } from './_lib/session.js';
 import { createHash } from 'node:crypto';
+import createTimeCorrectionsHandler from './_lib/timeCorrectionsHandler.js';
 import {
   buildClockInTransaction,
   buildClockOutTransaction,
@@ -82,6 +83,11 @@ function summarizeTransaction(tx) {
 }
 
 export default async function handler(req, res) {
+  const action = typeof req.query.action === 'string' ? req.query.action : '';
+  if (['list', 'create', 'approve', 'reject', 'effective-time-entries'].includes(action)) {
+    return createTimeCorrectionsHandler(req, res);
+  }
+
   const session = await requireSession(req, res, ['owner', 'admin', 'crew_member']);
   if (!session) return;
 
@@ -89,8 +95,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  const action = req.query.action;
-  if (action === 'clock-in') {
+  const clockingAction = req.query.action;
+  if (clockingAction === 'clock-in') {
     const validation = ensureClockingEmployee(session, req.body?.employeeId);
     if (!validation.ok) {
       return res.status(validation.status).json({ ok: false, error: validation.error });
@@ -184,7 +190,7 @@ export default async function handler(req, res) {
     }
   }
 
-  if (action === 'clock-out') {
+  if (clockingAction === 'clock-out') {
     const entryId = getTimeEntryIdFromRequest(req.body);
     if (!entryId) {
       return res.status(400).json({ ok: false, error: 'Entry id is required.' });
@@ -342,7 +348,7 @@ export default async function handler(req, res) {
     }
   }
 
-  if (action === 'switch-activity') {
+  if (clockingAction === 'switch-activity') {
     const employeeId = typeof session.employeeId === 'string' && session.employeeId.trim()
       ? session.employeeId.trim()
       : null;

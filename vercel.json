@@ -3,6 +3,10 @@
   "devCommand": "npm run dev:vite",
   "routes": [
     {
+      "src": "/api/time-corrections",
+      "dest": "/api/clocking"
+    },
+    {
       "handle": "filesystem"
     },
     {
