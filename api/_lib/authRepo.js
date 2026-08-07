@@ -58,6 +58,10 @@ function equipmentSk(equipmentId) {
   return `EQUIPMENT#${equipmentId}`;
 }
 
+function materialCatalogSk(materialId) {
+  return `MATERIAL#${materialId}`;
+}
+
 function receiptSk(receiptId) {
   return `RECEIPT#${receiptId}`;
 }
@@ -2094,6 +2098,105 @@ export async function deleteEquipmentAssetForBusiness(businessId, equipmentId) {
       Key: {
         PK: businessPk(businessId),
         SK: equipmentSk(equipmentId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function listMaterialCatalogItemsForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'MATERIAL#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.materialId,
+    name: item.name,
+    unit: item.unit,
+    defaultUnitCost: Number(item.defaultUnitCost ?? 0),
+    notes: item.notes,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+}
+
+export async function createMaterialCatalogItemForBusiness({ businessId, materialCatalogItem }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: materialCatalogSk(materialCatalogItem.id),
+        entityType: 'MATERIAL_CATALOG_ITEM',
+        businessId,
+        materialId: materialCatalogItem.id,
+        ...materialCatalogItem,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getMaterialCatalogItemForBusiness(businessId, materialId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: materialCatalogSk(materialId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.materialId,
+        name: result.Item.name,
+        unit: result.Item.unit,
+        defaultUnitCost: Number(result.Item.defaultUnitCost ?? 0),
+        notes: result.Item.notes,
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateMaterialCatalogItemForBusiness({ businessId, materialCatalogItem }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: materialCatalogSk(materialCatalogItem.id),
+        entityType: 'MATERIAL_CATALOG_ITEM',
+        businessId,
+        materialId: materialCatalogItem.id,
+        ...materialCatalogItem,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteMaterialCatalogItemForBusiness(businessId, materialId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: materialCatalogSk(materialId),
       },
     })
   );

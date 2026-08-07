@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { Budget, BudgetItem, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, FormField, FormRecord, FormResponse, FormSubmission, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, RevenueSalesGoal, TimeEntry } from './types';
+import type { Budget, BudgetItem, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, FormField, FormRecord, FormResponse, FormSubmission, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, MaterialCatalogItem, RevenueSalesGoal, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -88,6 +88,7 @@ export default function App() {
         invoices?: Invoice[];
         expenses?: Expense[];
         equipmentAssets?: EquipmentAsset[];
+        materialCatalogItems?: MaterialCatalogItem[];
         templates?: EstimateTemplate[];
         budgetItems?: BudgetItem[];
         labourBudgetPlans?: LabourBudgetPlan[];
@@ -115,6 +116,7 @@ export default function App() {
         invoices: payload.invoices ?? [],
         expenses: payload.expenses ?? [],
         equipmentAssets: payload.equipmentAssets ?? [],
+        materialCatalogItems: payload.materialCatalogItems ?? [],
         templates: payload.templates ?? [],
         budgetItems: payload.budgetItems ?? [],
         labourBudgetPlans: payload.labourBudgetPlans ?? [],
@@ -219,6 +221,7 @@ export default function App() {
       estimates: [],
       expenses: [],
       equipmentAssets: [],
+      materialCatalogItems: [],
       invoices: [],
       templates: [],
       jobs: [],
@@ -559,7 +562,6 @@ export default function App() {
                   />
                 }
               />
-              <Route path="data-center/settings" element={<MaterialsEquipmentCatalogPage />} />
               <Route path="estimates" element={<EstimatesPage />} />
               <Route path="estimates/templates" element={<TemplatesPage />} />
               <Route path="jobs" element={<JobsPage />} />

@@ -15,6 +15,7 @@ import type {
   Employee,
   TimeEntry,
   TimeEntryWorkType,
+  MaterialCatalogItem,
   BudgetItem,
   LabourBudgetPlan,
   LabourHoursSalesGoal,
@@ -77,6 +78,7 @@ interface AppState {
   templates: EstimateTemplate[];
   expenses: Expense[];
   equipmentAssets: EquipmentAsset[];
+  materialCatalogItems: MaterialCatalogItem[];
   invoices: Invoice[];
   jobs: Job[];
   employees: Employee[];
@@ -123,6 +125,9 @@ interface AppState {
   addEquipmentAsset: (e: Omit<EquipmentAsset, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateEquipmentAsset: (id: ID, data: Partial<EquipmentAsset>) => void;
   deleteEquipmentAsset: (id: ID) => void;
+  addMaterialCatalogItem: (item: Omit<MaterialCatalogItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateMaterialCatalogItem: (id: ID, data: Partial<MaterialCatalogItem>) => void;
+  deleteMaterialCatalogItem: (id: ID) => void;
 
   // Jobs
   addJob: (j: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -177,6 +182,7 @@ export const useStore = create<AppState>()((set, get) => ({
       templates: [],
       expenses: [],
       equipmentAssets: [],
+      materialCatalogItems: [],
       invoices: [],
       jobs: [],
       employees: [],
@@ -590,6 +596,58 @@ export const useStore = create<AppState>()((set, get) => ({
         })).catch((error: unknown) => {
           set({ equipmentAssets: previous });
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Equipment asset could not be deleted.') });
+        });
+      },
+
+      // ── Material Catalog ─────────────────────────────────────────────────
+      addMaterialCatalogItem: (item) => {
+        const previous = get().materialCatalogItems;
+        const materialCatalogItem = { ...item, id: generateId(), createdAt: nowISO(), updatedAt: nowISO() };
+        set((s) => ({ materialCatalogItems: [materialCatalogItem, ...s.materialCatalogItems] }));
+
+        void ensureOk(fetch(dataUrl('material-catalog-items'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: materialCatalogItem }),
+        })).catch((error: unknown) => {
+          set({ materialCatalogItems: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Material catalog item could not be saved.') });
+        });
+      },
+      updateMaterialCatalogItem: (id, data) => {
+        const previous = get().materialCatalogItems;
+        const updatedAt = nowISO();
+        set((s) => ({
+          materialCatalogItems: s.materialCatalogItems.map((item) =>
+            item.id === id ? { ...item, ...data, updatedAt } : item
+          ),
+        }));
+
+        void ensureOk(fetch(dataUrl('material-catalog-items', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch((error: unknown) => {
+          set({ materialCatalogItems: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Material catalog changes could not be saved.') });
+        });
+      },
+      deleteMaterialCatalogItem: (id) => {
+        const previous = get().materialCatalogItems;
+        set((s) => ({ materialCatalogItems: s.materialCatalogItems.filter((item) => item.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('material-catalog-items', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch((error: unknown) => {
+          set({ materialCatalogItems: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Material catalog item could not be deleted.') });
         });
       },
 

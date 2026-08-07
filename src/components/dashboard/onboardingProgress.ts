@@ -66,7 +66,7 @@ export function buildDashboardOnboardingItems({
       id: 'company-info',
       label: 'Company information completed',
       complete: typeof businessName === 'string' && businessName.trim().length > 0,
-      to: '/data-center/settings',
+      to: '/materials/catalog',
     },
     {
       id: 'first-employee',

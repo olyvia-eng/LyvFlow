@@ -5,6 +5,7 @@ import {
   createCustomerForBusiness,
   createEmployeeForBusiness,
   createEquipmentAssetForBusiness,
+  createMaterialCatalogItemForBusiness,
   createEstimateForBusiness,
   createExpenseForBusiness,
   createFormFieldForBusiness,
@@ -25,6 +26,7 @@ import {
   deleteCustomerForBusiness,
   deleteEmployeeForBusiness,
   deleteEquipmentAssetForBusiness,
+  deleteMaterialCatalogItemForBusiness,
   deleteEstimateForBusiness,
   deleteExpenseForBusiness,
   deleteFormFieldForBusiness,
@@ -44,6 +46,7 @@ import {
   getCustomerForBusiness,
   getEmployeeForBusiness,
   getEquipmentAssetForBusiness,
+  getMaterialCatalogItemForBusiness,
   getEstimateForBusiness,
   getExpenseForBusiness,
   getFormFieldForBusiness,
@@ -63,6 +66,7 @@ import {
   listCustomersForBusiness,
   listEmployeesForBusiness,
   listEquipmentAssetsForBusiness,
+  listMaterialCatalogItemsForBusiness,
   listEstimatesForBusiness,
   listExpensesForBusiness,
   listFormFieldsForBusiness,
@@ -82,6 +86,7 @@ import {
   updateCustomerForBusiness,
   updateEmployeeForBusiness,
   updateEquipmentAssetForBusiness,
+  updateMaterialCatalogItemForBusiness,
   updateEstimateForBusiness,
   updateExpenseForBusiness,
   updateFormFieldForBusiness,
@@ -319,6 +324,19 @@ const ENTITY_CONFIG = {
     idParam: 'equipmentId',
     createArgKey: 'equipmentAsset',
     updateArgKey: 'equipmentAsset',
+  },
+  'material-catalog-items': {
+    readRoles: null,
+    writeRoles: ['owner', 'admin'],
+    list: listMaterialCatalogItemsForBusiness,
+    get: getMaterialCatalogItemForBusiness,
+    create: createMaterialCatalogItemForBusiness,
+    update: updateMaterialCatalogItemForBusiness,
+    remove: deleteMaterialCatalogItemForBusiness,
+    payloadKey: 'materialCatalogItem',
+    idParam: 'materialId',
+    createArgKey: 'materialCatalogItem',
+    updateArgKey: 'materialCatalogItem',
   },
   'time-entries': {
     readRoles: null,
@@ -593,6 +611,17 @@ function validateEquipmentAssetRecord(record) {
   return null;
 }
 
+function validateMaterialCatalogItemRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Material id is required.';
+  if (!isNonEmptyString(record.name)) return 'Material name is required.';
+  if (!isNonEmptyString(record.unit)) return 'Material unit is required.';
+  if (typeof record.defaultUnitCost !== 'number' || Number.isNaN(record.defaultUnitCost) || record.defaultUnitCost < 0) {
+    return 'Material default unit cost must be zero or greater.';
+  }
+  if (typeof record.notes !== 'string') return 'Material notes must be a string.';
+  return null;
+}
+
 function validateBudgetRecord(record) {
   if (!isNonEmptyString(record.id)) return 'Budget id is required.';
   if (!isNonEmptyString(record.name)) return 'Budget name is required.';
@@ -761,6 +790,13 @@ export default async function handler(req, res) {
       }
     }
 
+    if (entity === 'material-catalog-items') {
+      const validationError = validateMaterialCatalogItemRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
     if (entity === 'budgets') {
       const validationError = validateBudgetRecord(record);
       if (validationError) {
@@ -876,6 +912,13 @@ export default async function handler(req, res) {
 
       if (entity === 'equipment-assets') {
         const validationError = validateEquipmentAssetRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
+      if (entity === 'material-catalog-items') {
+        const validationError = validateMaterialCatalogItemRecord(next);
         if (validationError) {
           return res.status(400).json({ ok: false, error: validationError });
         }

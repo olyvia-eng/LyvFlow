@@ -30,28 +30,49 @@ const emptyForm = (): EquipmentFormState => ({
 type MaterialCatalogRow = {
   key: string;
   name: string;
+  catalogMentions: number;
   estimateMentions: number;
   jobCostMentions: number;
   expenseMentions: number;
   referencedJobs: number;
   totalPlannedOrSpent: number;
   avgUnitCost: number;
+  unit: string;
+  notes: string;
+  defaultUnitCostTotal: number;
 };
 
 type MaterialSort = 'highest_value' | 'most_referenced' | 'name';
+
+interface MaterialFormState {
+  name: string;
+  unit: string;
+  defaultUnitCost: number;
+  notes: string;
+}
+
+const emptyMaterialForm = (): MaterialFormState => ({
+  name: '',
+  unit: 'unit',
+  defaultUnitCost: 0,
+  notes: '',
+});
 
 const toMaterialKey = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
 
 export default function EquipmentCatalogPage() {
   const equipmentAssets = useStore((state) => state.equipmentAssets);
+  const materialCatalogItems = useStore((state) => state.materialCatalogItems);
   const estimates = useStore((state) => state.estimates);
   const expenses = useStore((state) => state.expenses);
   const jobs = useStore((state) => state.jobs);
   const addEquipmentAsset = useStore((state) => state.addEquipmentAsset);
+  const addMaterialCatalogItem = useStore((state) => state.addMaterialCatalogItem);
   const updateEquipmentAsset = useStore((state) => state.updateEquipmentAsset);
   const deleteEquipmentAsset = useStore((state) => state.deleteEquipmentAsset);
 
   const [form, setForm] = useState<EquipmentFormState>(emptyForm());
+  const [materialForm, setMaterialForm] = useState<MaterialFormState>(emptyMaterialForm());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [materialQuery, setMaterialQuery] = useState('');
   const [materialSort, setMaterialSort] = useState<MaterialSort>('highest_value');
@@ -73,17 +94,33 @@ export default function EquipmentCatalogPage() {
       const created: MaterialCatalogRow = {
         key,
         name: cleanName,
+        catalogMentions: 0,
         estimateMentions: 0,
         jobCostMentions: 0,
         expenseMentions: 0,
         referencedJobs: 0,
         totalPlannedOrSpent: 0,
         avgUnitCost: 0,
+        unit: 'unit',
+        notes: '',
+        defaultUnitCostTotal: 0,
       };
       rows.set(key, created);
       trackedJobIds.set(key, new Set<string>());
       return created;
     };
+
+    for (const material of materialCatalogItems) {
+      const row = ensureRow(material.name);
+      row.catalogMentions += 1;
+      row.defaultUnitCostTotal += Number(material.defaultUnitCost || 0);
+      if (!row.notes && material.notes.trim()) {
+        row.notes = material.notes.trim();
+      }
+      if (material.unit.trim()) {
+        row.unit = material.unit.trim();
+      }
+    }
 
     for (const estimate of estimates) {
       for (const item of estimate.lineItems) {
@@ -115,17 +152,19 @@ export default function EquipmentCatalogPage() {
     }
 
     const result = Array.from(rows.values()).map((row) => {
-      const mentions = row.estimateMentions + row.expenseMentions + row.jobCostMentions;
+      const mentions = row.catalogMentions + row.estimateMentions + row.expenseMentions + row.jobCostMentions;
       const referencedJobs = trackedJobIds.get(row.key)?.size ?? 0;
       return {
         ...row,
         referencedJobs,
-        avgUnitCost: mentions > 0 ? row.totalPlannedOrSpent / mentions : 0,
+        avgUnitCost: mentions > 0
+          ? (row.totalPlannedOrSpent + row.defaultUnitCostTotal) / mentions
+          : 0,
       };
     });
 
     return result.sort((a, b) => b.totalPlannedOrSpent - a.totalPlannedOrSpent || a.name.localeCompare(b.name));
-  }, [estimates, expenses, jobs]);
+  }, [estimates, expenses, jobs, materialCatalogItems]);
 
   const materialSummary = useMemo(() => {
     const totalValue = materialRows.reduce((sum, row) => sum + row.totalPlannedOrSpent, 0);
@@ -167,6 +206,20 @@ export default function EquipmentCatalogPage() {
   const resetForm = () => {
     setForm(emptyForm());
     setEditingId(null);
+  };
+
+  const handleMaterialSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!materialForm.name.trim()) return;
+
+    addMaterialCatalogItem({
+      name: materialForm.name.trim(),
+      unit: materialForm.unit.trim() || 'unit',
+      defaultUnitCost: Number(materialForm.defaultUnitCost || 0),
+      notes: materialForm.notes.trim(),
+    });
+
+    setMaterialForm(emptyMaterialForm());
   };
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -230,13 +283,46 @@ export default function EquipmentCatalogPage() {
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Materials Catalog</h2>
-            <p className="text-sm text-gray-500">Built from estimate line items, job costs, and material expenses.</p>
+            <p className="text-sm text-gray-500">Built from manual catalog entries, estimate line items, job costs, and material expenses.</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-500">Tracked materials</p>
             <p className="text-base font-semibold text-gray-900">{materialRows.length}</p>
           </div>
         </div>
+
+        <form onSubmit={handleMaterialSubmit} className="grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_120px_160px_minmax(0,1fr)_auto] mb-4">
+          <Input
+            label="Material Name"
+            required
+            value={materialForm.name}
+            onChange={(event) => setMaterialForm((current) => ({ ...current, name: event.target.value }))}
+            placeholder="3/4 inch crushed gravel"
+          />
+          <Input
+            label="Unit"
+            value={materialForm.unit}
+            onChange={(event) => setMaterialForm((current) => ({ ...current, unit: event.target.value }))}
+            placeholder="yard"
+          />
+          <Input
+            label="Default Unit Cost"
+            type="number"
+            min="0"
+            step="0.01"
+            value={materialForm.defaultUnitCost}
+            onChange={(event) => setMaterialForm((current) => ({ ...current, defaultUnitCost: Number(event.target.value || 0) }))}
+          />
+          <TextArea
+            label="Notes"
+            value={materialForm.notes}
+            onChange={(event) => setMaterialForm((current) => ({ ...current, notes: event.target.value }))}
+            placeholder="Preferred supplier or spec notes"
+          />
+          <div className="flex items-end">
+            <Button type="submit" className="w-full justify-center">Add Material</Button>
+          </div>
+        </form>
 
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px] mb-4">
           <Input
@@ -292,11 +378,14 @@ export default function EquipmentCatalogPage() {
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <Badge label={`Catalog ${row.catalogMentions}`} className="bg-brand-200 text-brand-800" />
                   <Badge label={`Estimates ${row.estimateMentions}`} className="bg-brand-50 text-brand-700" />
                   <Badge label={`Job Costs ${row.jobCostMentions}`} className="bg-accent-50 text-accent-700" />
                   <Badge label={`Expenses ${row.expenseMentions}`} className="bg-gray-100 text-gray-700" />
                   <Badge label={`Avg ${formatCurrency(row.avgUnitCost)}`} className="bg-brand-100 text-brand-700" />
+                  <Badge label={`Unit ${row.unit || 'unit'}`} className="bg-gray-100 text-gray-700" />
                 </div>
+                {row.notes ? <p className="mt-3 text-sm text-gray-600">{row.notes}</p> : null}
               </div>
             ))}
           </div>

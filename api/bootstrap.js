@@ -11,6 +11,7 @@ import {
   listCustomersForBusiness,
   listEmployeesForBusiness,
   listEquipmentAssetsForBusiness,
+  listMaterialCatalogItemsForBusiness,
   listEstimatesForBusiness,
   listExpensesForBusiness,
   listInvoicesForBusiness,
@@ -31,7 +32,7 @@ export default async function handler(req, res) {
   if (!session) return;
 
   try {
-    const [forms, formFields, formSubmissions, formResponses, budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
+    const [forms, formFields, formSubmissions, formResponses, budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, materialCatalogItems, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
       listFormsForBusiness(session.businessId),
       listFormFieldsForBusiness(session.businessId),
       listFormSubmissionsForBusiness(session.businessId),
@@ -43,6 +44,7 @@ export default async function handler(req, res) {
       listInvoicesForBusiness(session.businessId),
       listExpensesForBusiness(session.businessId),
       listEquipmentAssetsForBusiness(session.businessId),
+      listMaterialCatalogItemsForBusiness(session.businessId),
       listTemplatesForBusiness(session.businessId),
       listBudgetItemsForBusiness(session.businessId),
       listLabourBudgetPlansForBusiness(session.businessId),
@@ -65,6 +67,7 @@ export default async function handler(req, res) {
       invoices: filterRecordsForSession(session, 'invoices', invoices),
       expenses: filterRecordsForSession(session, 'expenses', expenses),
       equipmentAssets: filterRecordsForSession(session, 'equipment-assets', equipmentAssets),
+      materialCatalogItems: filterRecordsForSession(session, 'material-catalog-items', materialCatalogItems),
       templates: filterRecordsForSession(session, 'templates', templates),
       budgetItems: filterRecordsForSession(session, 'budget', budgetItems),
       labourBudgetPlans: filterRecordsForSession(session, 'labour-budget-plans', labourBudgetPlans),

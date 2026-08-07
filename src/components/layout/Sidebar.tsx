@@ -36,7 +36,7 @@ const ACTION_ROUTE_MAP: Record<string, string> = {
   'placeholder-documents': '/data-center/documents',
   'placeholder-forms': '/operations/forms',
   'placeholder-photos': '/data-center/photos',
-  'placeholder-settings': '/data-center/settings',
+  'placeholder-settings': '/materials/catalog',
 };
 
 interface SidebarProps {
@@ -397,19 +397,13 @@ export default function Sidebar({
                 onClick={() => navigateFromProfile('/materials/catalog')}
                 className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
               >
-                Materials & Equipment Catalog
+                Catalog
               </button>
               <button
                 onClick={() => navigateFromProfile('/estimates/templates')}
                 className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
               >
                 Estimate Templates
-              </button>
-              <button
-                onClick={() => navigateFromProfile('/data-center/settings')}
-                className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
-              >
-                General Settings
               </button>
               {canViewUserAccess && (
                 <button
@@ -528,19 +522,13 @@ export default function Sidebar({
                 onClick={() => navigateFromProfile('/materials/catalog')}
                 className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
               >
-                Material Catalog
+                Catalog
               </button>
               <button
                 onClick={() => navigateFromProfile('/estimates/templates')}
                 className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
               >
                 Estimate Templates
-              </button>
-              <button
-                onClick={() => navigateFromProfile('/data-center/settings')}
-                className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
-              >
-                General Settings
               </button>
               {canViewUserAccess && (
                 <button

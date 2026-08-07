@@ -141,6 +141,16 @@ export interface EquipmentAsset {
   updatedAt: string;
 }
 
+export interface MaterialCatalogItem {
+  id: ID;
+  name: string;
+  unit: string;
+  defaultUnitCost: number;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Jobs ────────────────────────────────────────────────────────────────────
 
 export type JobStatus = 'scheduled' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';

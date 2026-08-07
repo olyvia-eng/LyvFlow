@@ -16,6 +16,7 @@ const ENTITY_READ_ROLES = {
   'revenue-sales-goals': ['owner', 'admin', 'foreman'],
   employees: ['owner', 'admin', 'foreman', 'crew_member'],
   'equipment-assets': ['owner', 'admin', 'foreman'],
+  'material-catalog-items': ['owner', 'admin', 'foreman'],
   'time-entries': ['owner', 'admin', 'foreman', 'crew_member'],
   'audit-events': ['owner', 'admin'],
 };
@@ -38,6 +39,7 @@ const ENTITY_WRITE_ROLES = {
   'revenue-sales-goals': ['owner', 'admin'],
   employees: ['owner', 'admin', 'foreman'],
   'equipment-assets': ['owner', 'admin', 'foreman'],
+  'material-catalog-items': ['owner', 'admin', 'foreman'],
   'time-entries': ['owner', 'admin', 'foreman', 'crew_member'],
   'audit-events': ['owner', 'admin'],
 };
