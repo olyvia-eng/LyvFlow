@@ -47,17 +47,46 @@ export interface LineItem {
   total: number;
 }
 
+export interface EstimateLineItem {
+  id: ID;
+  category: LineItemCategory;
+  sourceBudgetId?: ID;
+  sourceRateId?: ID;
+  sourceCategory?: LineItemCategory;
+  itemName: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  markupPercent: number;
+  sellPrice: number;
+  total: number;
+  // Legacy compatibility with older estimate records and UI paths.
+  markup?: number;
+}
+
+export interface EstimateWorkArea {
+  id: ID;
+  name: string;
+  description: string;
+  sortOrder: number;
+  lineItems: EstimateLineItem[];
+}
+
 export type EstimateStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'converted';
 
 export interface Estimate {
   id: ID;
   customerId: ID;
+  pricingBudgetId: ID;
+  propertyLabel?: string;
+  propertyAddressSnapshot?: string;
   proposalNumber?: string;
   title: string;
   description: string;
-  workAreas?: string[];
+  workAreas?: EstimateWorkArea[] | string[];
   status: EstimateStatus;
-  lineItems: LineItem[];
+  lineItems: LineItem[] | EstimateLineItem[];
   taxRate: number; // percentage
   notes: string;
   validUntil: string;
@@ -71,7 +100,8 @@ export interface EstimateTemplate {
   id: ID;
   name: string;
   description: string;
-  lineItems: Omit<LineItem, 'id'>[];
+  workAreas?: EstimateWorkArea[];
+  lineItems: Omit<LineItem, 'id'>[] | Omit<EstimateLineItem, 'id'>[];
   taxRate: number;
   notes: string;
   createdAt: string;
@@ -416,6 +446,22 @@ export interface BudgetItem {
   budgeted: number;
   actual: number;
   period: string; // YYYY-MM
+}
+
+export interface BudgetRate {
+  id: ID;
+  budgetId: ID;
+  category: LineItemCategory;
+  itemName: string;
+  description: string;
+  unit: string;
+  unitCost: number;
+  defaultMarkupPercent: number;
+  defaultSellPrice: number;
+  active: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type LabourCompType = 'hourly' | 'salaried';

@@ -5,21 +5,28 @@ import { Plus, Pencil, Trash2, Search, Send, RefreshCw, FileText, FileDown, Mail
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { emitAppToast } from '../../toast';
-import { statusColor, formatCurrency, formatDate, calcEstimateSubtotal, calcEstimateTax, calcEstimateTotal, generateId } from '../../utils';
-import type { Estimate, EstimateStatus, LineItem } from '../../types';
+import { statusColor, formatCurrency, formatDate, generateId } from '../../utils';
+import { computeEstimateSubtotal, computeEstimateTax, computeEstimateTotal, computeWorkAreaSubtotal, flattenWorkAreaLineItems, normalizeEstimateWorkAreas, normalizeTemplateWorkAreas } from '../../utils/estimateModel';
+import type { Estimate, EstimateLineItem, EstimateStatus, EstimateWorkArea } from '../../types';
 import EstimateLineItemEditor from './EstimateLineItemEditor';
 import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
 
 const STATUSES: EstimateStatus[] = ['draft', 'sent', 'accepted', 'declined', 'converted'];
 
-const emptyEstimate = (): Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'> => ({
+type EstimateFormState = Omit<Estimate, 'id' | 'createdAt' | 'updatedAt' | 'lineItems' | 'workAreas'> & {
+  workAreas: EstimateWorkArea[];
+};
+
+const emptyEstimate = (): EstimateFormState => ({
   customerId: '',
+  pricingBudgetId: '',
+  propertyLabel: '',
+  propertyAddressSnapshot: '',
   proposalNumber: '',
   title: '',
   description: '',
   workAreas: [],
   status: 'draft',
-  lineItems: [],
   taxRate: 13,
   notes: '',
   validUntil: '',
@@ -56,9 +63,11 @@ const sanitizeFileNamePart = (value: string): string => {
 
 const createProposalDocument = (estimate: Estimate, customerName: string, customerCompany?: string) => {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-  const subtotal = calcEstimateSubtotal(estimate.lineItems);
-  const tax = calcEstimateTax(subtotal, estimate.taxRate);
-  const total = calcEstimateTotal(subtotal, tax);
+  const workAreas = normalizeEstimateWorkAreas(estimate);
+  const lineItems = flattenWorkAreaLineItems(workAreas);
+  const subtotal = computeEstimateSubtotal(workAreas);
+  const tax = computeEstimateTax(subtotal, estimate.taxRate);
+  const total = computeEstimateTotal(subtotal, tax);
   const generatedAt = new Date().toLocaleString();
 
   doc.setFontSize(18);
@@ -88,13 +97,13 @@ const createProposalDocument = (estimate: Estimate, customerName: string, custom
   autoTable(doc, {
     startY: 176,
     head: [['Category', 'Description', 'Qty', 'Unit', 'Unit Cost', 'Markup', 'Line Total']],
-    body: estimate.lineItems.map((line) => [
+    body: lineItems.map((line) => [
       line.category,
       line.description,
       String(line.quantity),
       line.unit,
       formatCurrency(line.unitCost),
-      `${line.markup}%`,
+      `${line.markupPercent ?? line.markup ?? 0}%`,
       formatCurrency(line.total),
     ]),
     styles: { fontSize: 9 },
@@ -115,6 +124,14 @@ const createProposalDocument = (estimate: Estimate, customerName: string, custom
     headStyles: { fillColor: [134, 143, 122] },
   });
 
+  autoTable(doc, {
+    startY: ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? tableBottomY) + 16,
+    head: [['Work Area', 'Subtotal']],
+    body: workAreas.map((area) => [area.name, formatCurrency(computeWorkAreaSubtotal(area))]),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [180, 186, 169] },
+  });
+
   if (estimate.notes?.trim()) {
     const notesStartY = ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? tableBottomY) + 20;
     doc.setFontSize(11);
@@ -128,7 +145,7 @@ const createProposalDocument = (estimate: Estimate, customerName: string, custom
 };
 
 export default function EstimatesPage() {
-  const { estimates, customers, templates, addEstimate, updateEstimate, deleteEstimate, sendEstimate, convertEstimateToJob } = useStore();
+  const { estimates, customers, templates, budgets, budgetRates, addEstimate, updateEstimate, deleteEstimate, sendEstimate, convertEstimateToJob } = useStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<EstimateStatus | 'all'>('all');
   const [modalOpen, setModalOpen] = useState(false);
@@ -153,25 +170,49 @@ export default function EstimatesPage() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ ...emptyEstimate(), proposalNumber: nextProposalNumber(estimates) });
+    setForm({
+      ...emptyEstimate(),
+      proposalNumber: nextProposalNumber(estimates),
+      pricingBudgetId: budgets.find((budget) => budget.status === 'active')?.id ?? budgets[0]?.id ?? '',
+    });
     setModalOpen(true);
   };
 
   const openEdit = (e: Estimate) => {
+    const workAreas = normalizeEstimateWorkAreas(e);
     setEditing(e);
     setForm({
-      customerId: e.customerId, proposalNumber: e.proposalNumber ?? '', title: e.title, description: e.description,
-      workAreas: [...(e.workAreas ?? [])],
-      status: e.status, lineItems: e.lineItems.map((li) => ({ ...li })),
-      taxRate: e.taxRate, notes: e.notes, validUntil: e.validUntil,
+      customerId: e.customerId,
+      pricingBudgetId: e.pricingBudgetId ?? budgets.find((budget) => budget.status === 'active')?.id ?? budgets[0]?.id ?? '',
+      propertyLabel: e.propertyLabel ?? '',
+      propertyAddressSnapshot: e.propertyAddressSnapshot ?? '',
+      proposalNumber: e.proposalNumber ?? '',
+      title: e.title,
+      description: e.description,
+      workAreas,
+      status: e.status,
+      taxRate: e.taxRate,
+      notes: e.notes,
+      validUntil: e.validUntil ? e.validUntil.slice(0, 10) : '',
+      templateId: e.templateId,
     });
     setModalOpen(true);
   };
 
   const handleSave = () => {
-    if (!form.title.trim() || !form.customerId) return;
+    if (!form.title.trim() || !form.customerId || !form.pricingBudgetId || !form.validUntil) return;
     const proposalNumber = form.proposalNumber?.trim() || nextProposalNumber(estimates);
-    const payload = { ...form, proposalNumber };
+    const normalizedWorkAreas = form.workAreas.map((area, index) => ({
+      ...area,
+      name: area.name.trim() || `Work Area ${index + 1}`,
+      sortOrder: index,
+    }));
+    const payload: Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'> = {
+      ...form,
+      proposalNumber,
+      workAreas: normalizedWorkAreas,
+      lineItems: flattenWorkAreaLineItems(normalizedWorkAreas),
+    };
     if (editing) {
       updateEstimate(editing.id, payload);
     } else {
@@ -183,17 +224,56 @@ export default function EstimatesPage() {
   const applyTemplate = (templateId: string) => {
     const tpl = templates.find((t) => t.id === templateId);
     if (!tpl) return;
-    const lineItems: LineItem[] = tpl.lineItems.map((li) => ({ ...li, id: generateId() }));
-    setForm((f) => ({ ...f, lineItems, taxRate: tpl.taxRate, notes: tpl.notes, templateId }));
+    const templateWorkAreas = normalizeTemplateWorkAreas(tpl).map((area, areaIndex) => ({
+      ...area,
+      id: generateId(),
+      sortOrder: areaIndex,
+      lineItems: area.lineItems.map((lineItem) => ({ ...lineItem, id: generateId() })),
+    }));
+    setForm((f) => ({ ...f, workAreas: templateWorkAreas, taxRate: tpl.taxRate, notes: tpl.notes, templateId }));
     setShowTemplates(false);
   };
 
   const set = (key: keyof typeof form, value: unknown) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  const subtotal = calcEstimateSubtotal(form.lineItems);
-  const tax = calcEstimateTax(subtotal, form.taxRate);
-  const total = calcEstimateTotal(subtotal, tax);
+  const addWorkArea = () => {
+    setForm((previous) => ({
+      ...previous,
+      workAreas: [
+        ...previous.workAreas,
+        {
+          id: generateId(),
+          name: `Work Area ${previous.workAreas.length + 1}`,
+          description: '',
+          sortOrder: previous.workAreas.length,
+          lineItems: [],
+        },
+      ],
+    }));
+  };
+
+  const updateWorkArea = (workAreaId: string, data: Partial<EstimateWorkArea>) => {
+    setForm((previous) => ({
+      ...previous,
+      workAreas: previous.workAreas.map((workArea) => (
+        workArea.id === workAreaId ? { ...workArea, ...data } : workArea
+      )),
+    }));
+  };
+
+  const deleteWorkArea = (workAreaId: string) => {
+    setForm((previous) => ({
+      ...previous,
+      workAreas: previous.workAreas
+        .filter((workArea) => workArea.id !== workAreaId)
+        .map((workArea, index) => ({ ...workArea, sortOrder: index })),
+    }));
+  };
+
+  const subtotal = computeEstimateSubtotal(form.workAreas);
+  const tax = computeEstimateTax(subtotal, form.taxRate);
+  const total = computeEstimateTotal(subtotal, tax);
 
   const createProposalPdf = (estimate: Estimate) => {
     const customer = customers.find((value) => value.id === estimate.customerId);
@@ -218,8 +298,9 @@ export default function EstimatesPage() {
 
     createProposalPdf(estimate);
 
-    const subtotalValue = calcEstimateSubtotal(estimate.lineItems);
-    const totalValue = calcEstimateTotal(subtotalValue, calcEstimateTax(subtotalValue, estimate.taxRate));
+    const estimateWorkAreas = normalizeEstimateWorkAreas(estimate);
+    const subtotalValue = computeEstimateSubtotal(estimateWorkAreas);
+    const totalValue = computeEstimateTotal(subtotalValue, computeEstimateTax(subtotalValue, estimate.taxRate));
     const proposalRef = estimate.proposalNumber?.trim();
     const subject = encodeURIComponent(proposalRef ? `Proposal ${proposalRef}: ${estimate.title}` : `Proposal: ${estimate.title}`);
     const body = encodeURIComponent(
@@ -293,13 +374,14 @@ export default function EstimatesPage() {
             <tbody className="divide-y divide-gray-100">
               {filtered.map((est) => {
                 const customer = customers.find((c) => c.id === est.customerId);
-                const sub = calcEstimateSubtotal(est.lineItems);
-                const ttl = calcEstimateTotal(sub, calcEstimateTax(sub, est.taxRate));
+                const estimateWorkAreas = normalizeEstimateWorkAreas(est);
+                const sub = computeEstimateSubtotal(estimateWorkAreas);
+                const ttl = computeEstimateTotal(sub, computeEstimateTax(sub, est.taxRate));
                 return (
                   <tr key={est.id} className="hover:bg-gray-50">
                     <td className="py-3 font-medium text-gray-900">{est.title}</td>
                     <td className="py-3 text-gray-600">{customer?.name ?? '—'}</td>
-                    <td className="py-3 text-gray-600">{est.workAreas?.length ? est.workAreas.join(', ') : '—'}</td>
+                    <td className="py-3 text-gray-600">{estimateWorkAreas.length ? estimateWorkAreas.map((area) => area.name).join(', ') : '—'}</td>
                     <td className="py-3">
                       <Badge label={est.status} className={statusColor[est.status]} />
                     </td>
@@ -379,6 +461,31 @@ export default function EstimatesPage() {
               <option value="">— Select customer —</option>
               {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>)}
             </Select>
+            <Select
+              label="Pricing Budget *"
+              required
+              value={form.pricingBudgetId}
+              onChange={(e) => set('pricingBudgetId', e.target.value)}
+            >
+              <option value="">— Select budget —</option>
+              {budgets.map((budget) => <option key={budget.id} value={budget.id}>{budget.name}</option>)}
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Property Label"
+              value={form.propertyLabel ?? ''}
+              onChange={(e) => set('propertyLabel', e.target.value)}
+              placeholder="e.g. Smith Residence"
+            />
+            <Input
+              label="Property Address Snapshot"
+              value={form.propertyAddressSnapshot ?? ''}
+              onChange={(e) => set('propertyAddressSnapshot', e.target.value)}
+              placeholder="e.g. 123 Main St, City"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Input
               label="Proposal Number"
               value={form.proposalNumber ?? ''}
@@ -390,20 +497,43 @@ export default function EstimatesPage() {
             <Input label="Title *" required value={form.title} onChange={(e) => set('title', e.target.value)} />
           </div>
           <TextArea label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} />
-          <TextArea
-            label="Work Areas"
-            value={(form.workAreas ?? []).join('\n')}
-            onChange={(e) => set('workAreas', e.target.value.split('\n').map((line) => line.trim()).filter(Boolean))}
-            placeholder="Front yard\nBack patio\nGarden beds"
-          />
 
-          {/* Line items */}
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Line Items</p>
-            <EstimateLineItemEditor
-              items={form.lineItems}
-              onChange={(items) => set('lineItems', items)}
-            />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-gray-700">Work Areas</p>
+              <Button variant="secondary" size="sm" onClick={addWorkArea}><Plus size={14} /> Add Work Area</Button>
+            </div>
+            {form.workAreas.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">No work areas yet. Add one to begin.</p>
+            ) : form.workAreas
+              .slice()
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((area) => (
+                <div key={area.id} className="rounded-lg border border-gray-200 p-3 bg-white space-y-2">
+                  <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+                    <Input
+                      label="Area Name"
+                      value={area.name}
+                      onChange={(e) => updateWorkArea(area.id, { name: e.target.value })}
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => deleteWorkArea(area.id)}><Trash2 size={13} /></Button>
+                  </div>
+                  <TextArea
+                    label="Area Description"
+                    value={area.description}
+                    onChange={(e) => updateWorkArea(area.id, { description: e.target.value })}
+                  />
+                  <EstimateLineItemEditor
+                    items={area.lineItems}
+                    pricingBudgetId={form.pricingBudgetId}
+                    budgetRates={budgetRates}
+                    onChange={(lineItems: EstimateLineItem[]) => updateWorkArea(area.id, { lineItems })}
+                  />
+                  <div className="flex justify-end text-xs text-gray-600">
+                    Area Subtotal: <span className="ml-1 font-semibold">{formatCurrency(computeWorkAreaSubtotal(area))}</span>
+                  </div>
+                </div>
+              ))}
           </div>
 
           {/* Totals */}
@@ -433,7 +563,7 @@ export default function EstimatesPage() {
               label="Valid Until"
               type="date"
               value={form.validUntil ? form.validUntil.slice(0, 10) : ''}
-              onChange={(e) => set('validUntil', e.target.value ? new Date(e.target.value).toISOString() : '')}
+              onChange={(e) => set('validUntil', e.target.value)}
             />
             <Select
               label="Status"
@@ -483,7 +613,7 @@ export default function EstimatesPage() {
               <p><span className="font-medium text-gray-900">Estimate:</span> {proposalEstimate.title}</p>
               <p><span className="font-medium text-gray-900">Customer:</span> {proposalCustomer?.name ?? 'Unknown Customer'}</p>
               <p><span className="font-medium text-gray-900">Valid Until:</span> {proposalEstimate.validUntil ? formatDate(proposalEstimate.validUntil) : 'Not specified'}</p>
-              <p><span className="font-medium text-gray-900">Total:</span> {formatCurrency(calcEstimateTotal(calcEstimateSubtotal(proposalEstimate.lineItems), calcEstimateTax(calcEstimateSubtotal(proposalEstimate.lineItems), proposalEstimate.taxRate)))}</p>
+              <p><span className="font-medium text-gray-900">Total:</span> {formatCurrency(computeEstimateTotal(computeEstimateSubtotal(normalizeEstimateWorkAreas(proposalEstimate)), computeEstimateTax(computeEstimateSubtotal(normalizeEstimateWorkAreas(proposalEstimate)), proposalEstimate.taxRate)))}</p>
             </div>
             <p className="text-xs text-gray-500">Send to Client opens your email app with a draft message. Attach the downloaded PDF before sending.</p>
           </div>

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import bootstrapHandler from '../api/bootstrap.js';
 import dataHandler from '../api/data.js';
 import clockingHandler, { canRecordDriveTime } from '../api/clocking.js';
 import { ddb } from '../api/_lib/db.js';
@@ -1338,6 +1339,198 @@ test('switch activity preserves one active entry invariant and exact boundary ti
   assert.equal(oldEntry.clockOut, newEntry.clockIn);
   assert.equal(activeEntries.length, 1);
   assert.equal(lock.activeEntryId, newEntry.entryId);
+});
+
+test('bootstrap returns authoritative currentActiveEntryId for session employee', async (t) => {
+  await setupSwitchContext({
+    t,
+    businessId: 'biz-bootstrap-active',
+    userId: 'user-bootstrap-active',
+    employeeId: 'emp-bootstrap-active',
+    email: 'bootstrap-active@example.com',
+    paidDriveTimeEnabled: true,
+    activeEntryId: 'entry-bootstrap-active',
+    activeWorkType: 'job',
+    activeJobIds: ['job-bootstrap'],
+    token: 'token-bootstrap-active',
+  });
+
+  const req = {
+    method: 'GET',
+    headers: { authorization: 'Bearer token-bootstrap-active' },
+  };
+  const res = createMockRes();
+
+  await bootstrapHandler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.currentActiveEntryId, 'entry-bootstrap-active');
+});
+
+test('bootstrap returns null currentActiveEntryId when no active shift lock exists', async (t) => {
+  const store = installDdbMock(t);
+  seedBusinessUser(store, {
+    businessId: 'biz-bootstrap-none',
+    userId: 'user-bootstrap-none',
+    role: 'crew_member',
+    email: 'bootstrap-none@example.com',
+  });
+
+  await createEmployeeForBusiness({
+    businessId: 'biz-bootstrap-none',
+    employee: {
+      id: 'emp-bootstrap-none',
+      name: 'Bootstrap None',
+      email: 'bootstrap-none@example.com',
+      phone: '',
+      role: 'crew_member',
+      hourlyRate: 24,
+      compensationType: 'hourly',
+      labourType: 'field_producing',
+      active: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      paidDriveTimeEnabled: false,
+    },
+  });
+
+  await createBearerTokenForUser({
+    businessId: 'biz-bootstrap-none',
+    userId: 'user-bootstrap-none',
+    role: 'crew_member',
+    email: 'bootstrap-none@example.com',
+    employeeId: 'emp-bootstrap-none',
+    token: 'token-bootstrap-none',
+  });
+
+  const req = {
+    method: 'GET',
+    headers: { authorization: 'Bearer token-bootstrap-none' },
+  };
+  const res = createMockRes();
+
+  await bootstrapHandler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.currentActiveEntryId, null);
+});
+
+test('data endpoint rejects creating active/open time entries outside clocking actions', async (t) => {
+  const store = installDdbMock(t);
+  seedBusinessUser(store, {
+    businessId: 'biz-data-post-guard',
+    userId: 'user-data-post-guard',
+    role: 'admin',
+    email: 'datapost@example.com',
+  });
+
+  await createBearerTokenForUser({
+    businessId: 'biz-data-post-guard',
+    userId: 'user-data-post-guard',
+    role: 'admin',
+    email: 'datapost@example.com',
+    employeeId: 'emp-data-post-guard',
+    token: 'token-data-post-guard',
+  });
+
+  const req = {
+    method: 'POST',
+    query: { entity: 'time-entries' },
+    headers: { authorization: 'Bearer token-data-post-guard' },
+    body: {
+      data: {
+        id: 'entry-post-guard',
+        employeeId: 'emp-data-post-guard',
+        status: 'clocked_in',
+        clockIn: '2026-08-07T09:00:00.000Z',
+        workType: 'job',
+        jobIds: [],
+      },
+    },
+  };
+  const res = createMockRes();
+
+  await dataHandler(req, res);
+
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error, 'Use clocking actions for active shift changes.');
+});
+
+test('data endpoint rejects opening/activating entries via patch outside clocking actions', async (t) => {
+  const store = installDdbMock(t);
+  seedBusinessUser(store, {
+    businessId: 'biz-data-patch-guard',
+    userId: 'user-data-patch-guard',
+    role: 'admin',
+    email: 'datapatch@example.com',
+  });
+
+  await createBearerTokenForUser({
+    businessId: 'biz-data-patch-guard',
+    userId: 'user-data-patch-guard',
+    role: 'admin',
+    email: 'datapatch@example.com',
+    employeeId: 'emp-data-patch-guard',
+    token: 'token-data-patch-guard',
+  });
+
+  store.set(
+    mapKey('BUSINESS#biz-data-patch-guard', 'TIME#entry-active-existing'),
+    {
+      PK: 'BUSINESS#biz-data-patch-guard',
+      SK: 'TIME#entry-active-existing',
+      entityType: 'TIME_ENTRY',
+      businessId: 'biz-data-patch-guard',
+      entryId: 'entry-active-existing',
+      employeeId: 'emp-data-patch-guard',
+      workType: 'job',
+      jobIds: [],
+      clockIn: '2026-08-07T09:00:00.000Z',
+      status: 'clocked_in',
+    }
+  );
+
+  const activePatchReq = {
+    method: 'PATCH',
+    query: { entity: 'time-entries', id: 'entry-active-existing' },
+    headers: { authorization: 'Bearer token-data-patch-guard' },
+    body: { data: { notes: 'Should be blocked' } },
+  };
+  const activePatchRes = createMockRes();
+
+  await dataHandler(activePatchReq, activePatchRes);
+
+  assert.equal(activePatchRes.statusCode, 409);
+  assert.equal(activePatchRes.body.error, 'Use clocking actions for active shift changes.');
+
+  store.set(
+    mapKey('BUSINESS#biz-data-patch-guard', 'TIME#entry-closed-existing'),
+    {
+      PK: 'BUSINESS#biz-data-patch-guard',
+      SK: 'TIME#entry-closed-existing',
+      entityType: 'TIME_ENTRY',
+      businessId: 'biz-data-patch-guard',
+      entryId: 'entry-closed-existing',
+      employeeId: 'emp-data-patch-guard',
+      workType: 'job',
+      jobIds: [],
+      clockIn: '2026-08-07T08:00:00.000Z',
+      clockOut: '2026-08-07T09:00:00.000Z',
+      status: 'clocked_out',
+    }
+  );
+
+  const reopenReq = {
+    method: 'PATCH',
+    query: { entity: 'time-entries', id: 'entry-closed-existing' },
+    headers: { authorization: 'Bearer token-data-patch-guard' },
+    body: { data: { status: 'clocked_in', clockOut: '' } },
+  };
+  const reopenRes = createMockRes();
+
+  await dataHandler(reopenReq, reopenRes);
+
+  assert.equal(reopenRes.statusCode, 409);
+  assert.equal(reopenRes.body.error, 'Use clocking actions for active shift changes.');
 });
 
 test('drive-time eligibility helper keeps non-drive work types allowed', () => {

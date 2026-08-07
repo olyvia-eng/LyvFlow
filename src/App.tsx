@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import type { BusinessUserSummary, SessionUser } from './auth/types';
 import { useStore } from './store';
-import type { Budget, BudgetItem, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, FormField, FormRecord, FormResponse, FormSubmission, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, MaterialCatalogItem, RevenueSalesGoal, TimeEntry } from './types';
+import type { Budget, BudgetItem, BudgetRate, Customer, Employee, EquipmentAsset, Estimate, EstimateTemplate, Expense, FormField, FormRecord, FormResponse, FormSubmission, Invoice, Job, LabourBudgetPlan, LabourHoursSalesGoal, MaterialCatalogItem, RevenueSalesGoal, TimeEntry } from './types';
 import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -91,6 +91,7 @@ export default function App() {
         materialCatalogItems?: MaterialCatalogItem[];
         templates?: EstimateTemplate[];
         budgetItems?: BudgetItem[];
+        budgetRates?: BudgetRate[];
         labourBudgetPlans?: LabourBudgetPlan[];
         labourHoursSalesGoals?: LabourHoursSalesGoal[];
         revenueSalesGoals?: RevenueSalesGoal[];
@@ -119,6 +120,7 @@ export default function App() {
         materialCatalogItems: payload.materialCatalogItems ?? [],
         templates: payload.templates ?? [],
         budgetItems: payload.budgetItems ?? [],
+        budgetRates: payload.budgetRates ?? [],
         labourBudgetPlans: payload.labourBudgetPlans ?? [],
         labourHoursSalesGoals: payload.labourHoursSalesGoals ?? [],
         revenueSalesGoals: payload.revenueSalesGoals ?? [],
@@ -217,6 +219,7 @@ export default function App() {
       formSubmissions: [],
       formResponses: [],
       budgets: [],
+      budgetRates: [],
       customers: [],
       estimates: [],
       expenses: [],

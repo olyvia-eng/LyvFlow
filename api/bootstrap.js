@@ -8,6 +8,7 @@ import {
   listLabourHoursSalesGoalsForBusiness,
   listLabourBudgetPlansForBusiness,
   listBudgetItemsForBusiness,
+  listBudgetRatesForBusiness,
   listCustomersForBusiness,
   listEmployeesForBusiness,
   listEquipmentAssetsForBusiness,
@@ -20,6 +21,7 @@ import {
   listTimeEntriesForBusiness,
   getEmployeeForBusiness,
 } from './_lib/authRepo.js';
+import { getActiveShiftForEmployee } from './_lib/clocking.js';
 import { requireSession } from './_lib/session.js';
 import { filterRecordsForSession } from './_lib/authorization.js';
 
@@ -36,8 +38,11 @@ export default async function handler(req, res) {
     const sessionEmployee = typeof session.employeeId === 'string'
       ? await getEmployeeForBusiness(session.businessId, session.employeeId)
       : null;
+    const activeShift = typeof session.employeeId === 'string'
+      ? await getActiveShiftForEmployee({ businessId: session.businessId, employeeId: session.employeeId })
+      : null;
 
-    const [forms, formFields, formSubmissions, formResponses, budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, materialCatalogItems, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
+    const [forms, formFields, formSubmissions, formResponses, budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, materialCatalogItems, templates, budgetItems, budgetRates, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
       listFormsForBusiness(session.businessId),
       listFormFieldsForBusiness(session.businessId),
       listFormSubmissionsForBusiness(session.businessId),
@@ -52,6 +57,7 @@ export default async function handler(req, res) {
       listMaterialCatalogItemsForBusiness(session.businessId),
       listTemplatesForBusiness(session.businessId),
       listBudgetItemsForBusiness(session.businessId),
+      listBudgetRatesForBusiness(session.businessId),
       listLabourBudgetPlansForBusiness(session.businessId),
       listLabourHoursSalesGoalsForBusiness(session.businessId),
       listRevenueSalesGoalsForBusiness(session.businessId),
@@ -78,11 +84,13 @@ export default async function handler(req, res) {
       materialCatalogItems: filterRecordsForSession(session, 'material-catalog-items', materialCatalogItems),
       templates: filterRecordsForSession(session, 'templates', templates),
       budgetItems: filterRecordsForSession(session, 'budget', budgetItems),
+      budgetRates: filterRecordsForSession(session, 'budget-rates', budgetRates),
       labourBudgetPlans: filterRecordsForSession(session, 'labour-budget-plans', labourBudgetPlans),
       labourHoursSalesGoals: filterRecordsForSession(session, 'labour-hours-sales-goals', labourHoursSalesGoals),
       revenueSalesGoals: filterRecordsForSession(session, 'revenue-sales-goals', revenueSalesGoals),
       employees: filterRecordsForSession(session, 'employees', employees),
       timeEntries: filterRecordsForSession(session, 'time-entries', timeEntries),
+      currentActiveEntryId: activeShift?.activeEntryId ?? null,
     });
   } catch {
     return res.status(500).json({ ok: false, error: 'Could not load business data' });

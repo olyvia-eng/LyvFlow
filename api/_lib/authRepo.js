@@ -102,6 +102,10 @@ function budgetMetaSk(budgetId) {
   return `BUDGET_META#${budgetId}`;
 }
 
+function budgetRateSk(rateId) {
+  return `BUDGET_RATE#${rateId}`;
+}
+
 function labourBudgetPlanSk(labourBudgetPlanId) {
   return `LABOUR_BUDGET#${labourBudgetPlanId}`;
 }
@@ -896,15 +900,7 @@ export async function listTemplatesForBusiness(businessId) {
     })
   );
 
-  return (result.Items ?? []).map((item) => ({
-    id: item.templateId,
-    name: item.name,
-    description: item.description,
-    lineItems: item.lineItems ?? [],
-    taxRate: item.taxRate,
-    notes: item.notes,
-    createdAt: item.createdAt,
-  }));
+  return (result.Items ?? []).map(mapTemplateRecordFromItem);
 }
 
 export async function createTemplateForBusiness({ businessId, template }) {
@@ -937,17 +933,7 @@ export async function getTemplateForBusiness(businessId, templateId) {
     })
   );
 
-  return result.Item
-    ? {
-        id: result.Item.templateId,
-        name: result.Item.name,
-        description: result.Item.description,
-        lineItems: result.Item.lineItems ?? [],
-        taxRate: result.Item.taxRate,
-        notes: result.Item.notes,
-        createdAt: result.Item.createdAt,
-      }
-    : null;
+  return result.Item ? mapTemplateRecordFromItem(result.Item) : null;
 }
 
 export async function updateTemplateForBusiness({ businessId, template }) {
@@ -1231,22 +1217,7 @@ export async function listEstimatesForBusiness(businessId) {
     })
   );
 
-  return (result.Items ?? []).map((item) => ({
-    id: item.estimateId,
-    customerId: item.customerId,
-    proposalNumber: item.proposalNumber,
-    title: item.title,
-    description: item.description,
-    status: item.status,
-    lineItems: item.lineItems ?? [],
-    taxRate: item.taxRate,
-    notes: item.notes,
-    validUntil: item.validUntil,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
-    sentAt: item.sentAt,
-    templateId: item.templateId,
-  }));
+  return (result.Items ?? []).map(mapEstimateRecordFromItem);
 }
 
 export async function createEstimateForBusiness({ businessId, estimate }) {
@@ -1279,24 +1250,7 @@ export async function getEstimateForBusiness(businessId, estimateId) {
     })
   );
 
-  return result.Item
-    ? {
-        id: result.Item.estimateId,
-        customerId: result.Item.customerId,
-        proposalNumber: result.Item.proposalNumber,
-        title: result.Item.title,
-        description: result.Item.description,
-        status: result.Item.status,
-        lineItems: result.Item.lineItems ?? [],
-        taxRate: result.Item.taxRate,
-        notes: result.Item.notes,
-        validUntil: result.Item.validUntil,
-        createdAt: result.Item.createdAt,
-        updatedAt: result.Item.updatedAt,
-        sentAt: result.Item.sentAt,
-        templateId: result.Item.templateId,
-      }
-    : null;
+  return result.Item ? mapEstimateRecordFromItem(result.Item) : null;
 }
 
 export async function updateEstimateForBusiness({ businessId, estimate }) {
@@ -2634,6 +2588,153 @@ export async function listBudgetItemsForBusiness(businessId) {
   }));
 }
 
+export async function listBudgetRatesForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'BUDGET_RATE#',
+      },
+    })
+  );
+
+  return (result.Items ?? []).map((item) => ({
+    id: item.rateId,
+    budgetId: item.budgetId,
+    category: item.category,
+    itemName: item.itemName,
+    description: item.description ?? '',
+    unit: item.unit,
+    unitCost: item.unitCost,
+    defaultMarkupPercent: item.defaultMarkupPercent,
+    defaultSellPrice: item.defaultSellPrice,
+    active: item.active !== false,
+    sortOrder: item.sortOrder ?? 0,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+}
+
+export async function createBudgetRateForBusiness({ businessId, budgetRate }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: budgetRateSk(budgetRate.id),
+        entityType: 'BUDGET_RATE',
+        businessId,
+        rateId: budgetRate.id,
+        ...budgetRate,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getBudgetRateForBusiness(businessId, rateId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: budgetRateSk(rateId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.rateId,
+        budgetId: result.Item.budgetId,
+        category: result.Item.category,
+        itemName: result.Item.itemName,
+        description: result.Item.description ?? '',
+        unit: result.Item.unit,
+        unitCost: result.Item.unitCost,
+        defaultMarkupPercent: result.Item.defaultMarkupPercent,
+        defaultSellPrice: result.Item.defaultSellPrice,
+        active: result.Item.active !== false,
+        sortOrder: result.Item.sortOrder ?? 0,
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateBudgetRateForBusiness({ businessId, budgetRate }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: budgetRateSk(budgetRate.id),
+        entityType: 'BUDGET_RATE',
+        businessId,
+        rateId: budgetRate.id,
+        ...budgetRate,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteBudgetRateForBusiness(businessId, rateId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: budgetRateSk(rateId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
+function mapEstimateRecordFromItem(item) {
+  return {
+    id: item.estimateId,
+    customerId: item.customerId,
+    proposalNumber: item.proposalNumber,
+    title: item.title,
+    description: item.description,
+    workAreas: Array.isArray(item.workAreas) ? item.workAreas : undefined,
+    pricingBudgetId: item.pricingBudgetId,
+    propertyLabel: item.propertyLabel,
+    propertyAddressSnapshot: item.propertyAddressSnapshot,
+    status: item.status,
+    lineItems: item.lineItems ?? [],
+    taxRate: item.taxRate,
+    notes: item.notes,
+    validUntil: item.validUntil,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    sentAt: item.sentAt,
+    templateId: item.templateId,
+  };
+}
+
+function mapTemplateRecordFromItem(item) {
+  return {
+    id: item.templateId,
+    name: item.name,
+    description: item.description,
+    workAreas: Array.isArray(item.workAreas) ? item.workAreas : undefined,
+    lineItems: item.lineItems ?? [],
+    taxRate: item.taxRate,
+    notes: item.notes,
+    createdAt: item.createdAt,
+  };
+}
+
 export async function createBudgetItemForBusiness({ businessId, budgetItem }) {
   await ddb.send(
     new PutCommand({
@@ -3176,6 +3277,7 @@ export async function listTimeEntriesForBusiness(businessId) {
       : (item.jobId ? [item.jobId] : []),
     workType: item.workType ?? 'job',
     clockIn: item.clockIn,
+    clockOut: item.clockOut,
     breakMinutes: item.breakMinutes ?? 0,
     notes: item.notes ?? '',
     photoAttachmentUrl: item.photoAttachmentUrl ?? undefined,

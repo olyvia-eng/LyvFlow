@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   Budget,
+  BudgetRate,
   FormField,
   FormRecord,
   FormResponse,
@@ -23,6 +24,7 @@ import type {
   CostEntry,
   ID,
 } from '../types';
+import { flattenWorkAreaLineItems, normalizeEstimateWorkAreas } from '../utils/estimateModel';
 import {
   generateId,
   nowISO,
@@ -86,6 +88,7 @@ interface AppState {
   clockInInFlightEmployeeIds: ID[];
   clockOutInFlightEntryIds: ID[];
   budgetItems: BudgetItem[];
+  budgetRates: BudgetRate[];
   labourBudgetPlans: LabourBudgetPlan[];
   labourHoursSalesGoals: LabourHoursSalesGoal[];
   revenueSalesGoals: RevenueSalesGoal[];
@@ -154,6 +157,9 @@ interface AppState {
   addBudgetItem: (item: Omit<BudgetItem, 'id'>) => void;
   updateBudgetItem: (id: ID, data: Partial<BudgetItem>) => void;
   deleteBudgetItem: (id: ID) => void;
+  addBudgetRate: (rate: Omit<BudgetRate, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateBudgetRate: (id: ID, data: Partial<BudgetRate>) => void;
+  deleteBudgetRate: (id: ID) => void;
   upsertLabourBudgetPlan: (plan: LabourBudgetPlan) => void;
   deleteLabourBudgetPlan: (id: ID) => void;
   upsertLabourHoursSalesGoal: (goal: LabourHoursSalesGoal) => void;
@@ -190,6 +196,7 @@ export const useStore = create<AppState>()((set, get) => ({
       clockInInFlightEmployeeIds: [],
       clockOutInFlightEntryIds: [],
       budgetItems: [],
+      budgetRates: [],
       labourBudgetPlans: [],
       labourHoursSalesGoals: [],
       revenueSalesGoals: [],
@@ -331,7 +338,9 @@ export const useStore = create<AppState>()((set, get) => ({
         const previousJobs = get().jobs;
         const est = estimates.find((e) => e.id === estimateId);
         if (!est) return;
-        const subtotal = est.lineItems.reduce((s, li) => s + li.total, 0);
+        const workAreas = normalizeEstimateWorkAreas(est);
+        const flatLineItems = flattenWorkAreaLineItems(workAreas);
+        const subtotal = flatLineItems.reduce((s, li) => s + li.total, 0);
         const tax = subtotal * (est.taxRate / 100);
         const contractValue = subtotal + tax;
         const newJob: Job = {
@@ -340,10 +349,10 @@ export const useStore = create<AppState>()((set, get) => ({
           customerId: est.customerId,
           title: est.title,
           description: est.description,
-          workAreas: [...(est.workAreas ?? [])],
+          workAreas: workAreas.map((area) => area.name),
           status: 'scheduled',
           startDate: nowISO(),
-          estimatedHours: est.lineItems
+          estimatedHours: flatLineItems
             .filter((li) => li.category === 'labour')
             .reduce((s, li) => s + li.quantity, 0),
           actualHours: 0,
@@ -1287,6 +1296,61 @@ export const useStore = create<AppState>()((set, get) => ({
         })).catch(() => {
           set({ budgetItems: previous });
           emitAppToast({ tone: 'error', message: 'Budget item could not be deleted.' });
+        });
+      },
+      addBudgetRate: (rateInput) => {
+        const previous = get().budgetRates;
+        const budgetRate = {
+          ...rateInput,
+          id: generateId(),
+          createdAt: nowISO(),
+          updatedAt: nowISO(),
+        };
+        set((s) => ({ budgetRates: [...s.budgetRates, budgetRate] }));
+
+        void ensureOk(fetch(dataUrl('budget-rates'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: budgetRate }),
+        })).catch((error: unknown) => {
+          set({ budgetRates: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Budget rate could not be saved.') });
+        });
+      },
+      updateBudgetRate: (id, data) => {
+        const previous = get().budgetRates;
+        const updatedAt = nowISO();
+        set((s) => ({
+          budgetRates: s.budgetRates.map((rate) => (
+            rate.id === id ? { ...rate, ...data, updatedAt } : rate
+          )),
+        }));
+
+        void ensureOk(fetch(dataUrl('budget-rates', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch((error: unknown) => {
+          set({ budgetRates: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Budget rate changes could not be saved.') });
+        });
+      },
+      deleteBudgetRate: (id) => {
+        const previous = get().budgetRates;
+        set((s) => ({ budgetRates: s.budgetRates.filter((rate) => rate.id !== id) }));
+
+        void ensureOk(fetch(dataUrl('budget-rates', id), {
+          method: 'DELETE',
+          credentials: 'include',
+        })).catch((error: unknown) => {
+          set({ budgetRates: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Budget rate could not be deleted.') });
         });
       },
       upsertLabourBudgetPlan: (plan) => {

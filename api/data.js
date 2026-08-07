@@ -1,6 +1,7 @@
 import {
   createBudgetForBusiness,
   createBudgetItemForBusiness,
+  createBudgetRateForBusiness,
   createAuditEventForBusiness,
   createCustomerForBusiness,
   createEmployeeForBusiness,
@@ -22,6 +23,7 @@ import {
   deleteAuthUserForBusinessByEmail,
   deleteBudgetForBusiness,
   deleteBudgetItemForBusiness,
+  deleteBudgetRateForBusiness,
   deleteAuditEventForBusiness,
   deleteCustomerForBusiness,
   deleteEmployeeForBusiness,
@@ -42,6 +44,7 @@ import {
   deleteTimeEntryForBusiness,
   getBudgetForBusiness,
   getBudgetItemForBusiness,
+  getBudgetRateForBusiness,
   getAuditEventForBusiness,
   getCustomerForBusiness,
   getEmployeeForBusiness,
@@ -62,6 +65,7 @@ import {
   getTimeEntryForBusiness,
   listBudgetsForBusiness,
   listBudgetItemsForBusiness,
+  listBudgetRatesForBusiness,
   listAuditEventsForBusiness,
   listCustomersForBusiness,
   listEmployeesForBusiness,
@@ -82,6 +86,7 @@ import {
   listTimeEntriesForBusiness,
   updateBudgetForBusiness,
   updateBudgetItemForBusiness,
+  updateBudgetRateForBusiness,
   updateAuditEventForBusiness,
   updateCustomerForBusiness,
   updateEmployeeForBusiness,
@@ -260,6 +265,19 @@ const ENTITY_CONFIG = {
     createArgKey: 'budgetItem',
     updateArgKey: 'budgetItem',
   },
+  'budget-rates': {
+    readRoles: null,
+    writeRoles: ['owner', 'admin'],
+    list: listBudgetRatesForBusiness,
+    get: getBudgetRateForBusiness,
+    create: createBudgetRateForBusiness,
+    update: updateBudgetRateForBusiness,
+    remove: deleteBudgetRateForBusiness,
+    payloadKey: 'budgetRate',
+    idParam: 'budgetRateId',
+    createArgKey: 'budgetRate',
+    updateArgKey: 'budgetRate',
+  },
   'labour-budget-plans': {
     readRoles: null,
     writeRoles: ['owner', 'admin'],
@@ -378,6 +396,9 @@ const EQUIPMENT_COST_TYPES = new Set(['financed', 'leased', 'owned']);
 const BUDGET_TYPES = new Set(['operating', 'capital', 'project', 'forecast', 'custom']);
 const BUDGET_DIVISIONS = new Set(['company_wide', 'earthworks', 'septic', 'landscaping', 'other']);
 const BUDGET_STATUSES = new Set(['draft', 'active', 'archived']);
+const ESTIMATE_STATUSES = new Set(['draft', 'sent', 'accepted', 'declined', 'converted']);
+const ESTIMATE_LINE_ITEM_CATEGORIES = new Set(['material', 'equipment', 'labour', 'subcontractor']);
+const BUDGET_RATE_CATEGORIES = new Set(['material', 'equipment', 'labour', 'subcontractor']);
 const FORM_CATEGORIES = new Set(['safety', 'vehicle', 'equipment', 'job_site', 'hr', 'operations', 'maintenance', 'custom']);
 const FORM_STATUSES = new Set(['active', 'draft', 'archived']);
 const FORM_ASSIGNMENTS = new Set(['everyone', 'role', 'employee', 'division', 'job', 'equipment']);
@@ -417,6 +438,15 @@ const YEAR_REGEX = /^\d{4}$/;
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isTimeEntryOpenLike(entry) {
+  if (entry?.status === 'clocked_in') return true;
+  return !isNonEmptyString(entry?.clockOut);
 }
 
 function isValidDateOnly(value) {
@@ -634,6 +664,108 @@ function validateBudgetRecord(record) {
   return null;
 }
 
+function validateEstimateLineItem(item) {
+  if (!isNonEmptyString(item?.id)) return 'Line item id is required.';
+  if (!ESTIMATE_LINE_ITEM_CATEGORIES.has(item?.category)) return 'Line item category is invalid.';
+  if (!isNonEmptyString(item?.unit)) return 'Line item unit is required.';
+  if (!isFiniteNumber(item?.quantity) || item.quantity < 0) return 'Line item quantity must be zero or greater.';
+  if (!isFiniteNumber(item?.unitCost) || item.unitCost < 0) return 'Line item unit cost must be zero or greater.';
+  if (!isFiniteNumber(item?.total) || item.total < 0) return 'Line item total must be zero or greater.';
+  if (item.markup !== undefined && (!isFiniteNumber(item.markup) || item.markup < 0)) {
+    return 'Line item markup must be zero or greater.';
+  }
+  if (item.markupPercent !== undefined && (!isFiniteNumber(item.markupPercent) || item.markupPercent < 0)) {
+    return 'Line item markup percent must be zero or greater.';
+  }
+  return null;
+}
+
+function validateEstimateRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Estimate id is required.';
+  if (!isNonEmptyString(record.customerId)) return 'Estimate customer is required.';
+  if (!isNonEmptyString(record.title)) return 'Estimate title is required.';
+  if (record.pricingBudgetId !== undefined && record.pricingBudgetId !== null && !isNonEmptyString(record.pricingBudgetId)) {
+    return 'Estimate pricing budget is invalid.';
+  }
+  if (!ESTIMATE_STATUSES.has(record.status)) return 'Estimate status is invalid.';
+  if (!isFiniteNumber(record.taxRate) || record.taxRate < 0 || record.taxRate > 100) {
+    return 'Estimate tax rate must be between 0 and 100.';
+  }
+  if (typeof record.description !== 'string') return 'Estimate description must be a string.';
+  if (typeof record.notes !== 'string') return 'Estimate notes must be a string.';
+  const validUntilDate = typeof record.validUntil === 'string' ? record.validUntil.slice(0, 10) : '';
+  if (!isNonEmptyString(validUntilDate) || !isValidDateOnly(validUntilDate)) {
+    return 'Estimate valid-until date must use YYYY-MM-DD format.';
+  }
+
+  if (record.propertyLabel !== undefined && record.propertyLabel !== null && typeof record.propertyLabel !== 'string') {
+    return 'Estimate property label is invalid.';
+  }
+  if (
+    record.propertyAddressSnapshot !== undefined
+    && record.propertyAddressSnapshot !== null
+    && typeof record.propertyAddressSnapshot !== 'string'
+  ) {
+    return 'Estimate property address snapshot is invalid.';
+  }
+
+  if (record.workAreas !== undefined && record.workAreas !== null) {
+    if (!Array.isArray(record.workAreas)) return 'Estimate work areas must be an array.';
+    for (const area of record.workAreas) {
+      if (typeof area === 'string') continue;
+      if (!area || typeof area !== 'object') return 'Estimate work area is invalid.';
+      if (!isNonEmptyString(area.id)) return 'Estimate work area id is required.';
+      if (!isNonEmptyString(area.name)) return 'Estimate work area name is required.';
+      if (area.description !== undefined && area.description !== null && typeof area.description !== 'string') {
+        return 'Estimate work area description is invalid.';
+      }
+      if (area.sortOrder !== undefined && area.sortOrder !== null && (!isFiniteNumber(area.sortOrder) || area.sortOrder < 0)) {
+        return 'Estimate work area sort order is invalid.';
+      }
+      if (!Array.isArray(area.lineItems)) return 'Estimate work area line items must be an array.';
+      for (const lineItem of area.lineItems) {
+        const lineItemError = validateEstimateLineItem(lineItem);
+        if (lineItemError) return lineItemError;
+      }
+    }
+  }
+
+  if (record.lineItems !== undefined && record.lineItems !== null) {
+    if (!Array.isArray(record.lineItems)) return 'Estimate line items must be an array.';
+    for (const lineItem of record.lineItems) {
+      const lineItemError = validateEstimateLineItem(lineItem);
+      if (lineItemError) return lineItemError;
+    }
+  }
+
+  return null;
+}
+
+function validateBudgetRateRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Budget rate id is required.';
+  if (!isNonEmptyString(record.budgetId)) return 'Budget rate budget id is required.';
+  if (!BUDGET_RATE_CATEGORIES.has(record.category)) return 'Budget rate category is invalid.';
+  if (!isNonEmptyString(record.itemName)) return 'Budget rate item name is required.';
+  if (!isNonEmptyString(record.unit)) return 'Budget rate unit is required.';
+  if (!isFiniteNumber(record.unitCost) || record.unitCost < 0) return 'Budget rate unit cost must be zero or greater.';
+  if (!isFiniteNumber(record.defaultMarkupPercent) || record.defaultMarkupPercent < 0) {
+    return 'Budget rate default markup percent must be zero or greater.';
+  }
+  if (!isFiniteNumber(record.defaultSellPrice) || record.defaultSellPrice < 0) {
+    return 'Budget rate default sell price must be zero or greater.';
+  }
+  if (record.description !== undefined && record.description !== null && typeof record.description !== 'string') {
+    return 'Budget rate description is invalid.';
+  }
+  if (record.active !== undefined && typeof record.active !== 'boolean') {
+    return 'Budget rate active flag is invalid.';
+  }
+  if (record.sortOrder !== undefined && (!isFiniteNumber(record.sortOrder) || record.sortOrder < 0)) {
+    return 'Budget rate sort order is invalid.';
+  }
+  return null;
+}
+
 function validateFormRecord(record) {
   if (!isNonEmptyString(record.id)) return 'Form id is required.';
   if (!isNonEmptyString(record.name)) return 'Form name is required.';
@@ -766,6 +898,11 @@ export default async function handler(req, res) {
     }
 
     if (entity === 'estimates') {
+      const validationError = validateEstimateRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+
       const conflict = await findProposalNumberConflict({
         businessId: session.businessId,
         proposalNumber: record.proposalNumber,
@@ -804,6 +941,13 @@ export default async function handler(req, res) {
       }
     }
 
+    if (entity === 'budget-rates') {
+      const validationError = validateBudgetRateRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
     if (entity === 'forms') {
       const validationError = validateFormRecord(record);
       if (validationError) {
@@ -833,19 +977,11 @@ export default async function handler(req, res) {
     }
 
     if (entity === 'time-entries' && record.status === 'clocked_in') {
-      const targetEmployee = await getEmployeeByIdOrNull(session.businessId, record.employeeId);
-      if (!targetEmployee) {
-        return res.status(400).json({ ok: false, error: 'Time entry employee is invalid.' });
-      }
+      return res.status(409).json({ ok: false, error: 'Use clocking actions for active shift changes.' });
+    }
 
-      const guard = await enforceRequiredForms({
-        session,
-        res,
-        trigger: 'before_clock_in',
-        targetEmployeeId: targetEmployee.id,
-        contextJobIds: pickEntryJobIds(record),
-      });
-      if (!guard.ok) return;
+    if (entity === 'time-entries' && isTimeEntryOpenLike(record)) {
+      return res.status(409).json({ ok: false, error: 'Use clocking actions for active shift changes.' });
     }
 
     try {
@@ -892,6 +1028,11 @@ export default async function handler(req, res) {
       }
 
       if (entity === 'estimates') {
+        const validationError = validateEstimateRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+
         const conflict = await findProposalNumberConflict({
           businessId: session.businessId,
           proposalNumber: next.proposalNumber,
@@ -931,6 +1072,13 @@ export default async function handler(req, res) {
         }
       }
 
+      if (entity === 'budget-rates') {
+        const validationError = validateBudgetRateRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
       if (entity === 'forms') {
         const validationError = validateFormRecord(next);
         if (validationError) {
@@ -957,6 +1105,13 @@ export default async function handler(req, res) {
         if (validationError) {
           return res.status(400).json({ ok: false, error: validationError });
         }
+      }
+
+      if (
+        entity === 'time-entries'
+        && (existing.status === 'clocked_in' || next.status === 'clocked_in')
+      ) {
+        return res.status(409).json({ ok: false, error: 'Use clocking actions for active shift changes.' });
       }
 
       if (

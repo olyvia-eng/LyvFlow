@@ -2,15 +2,20 @@ import { useState } from 'react';
 import { useStore } from '../../store';
 import { PageHeader, Button, Card, Modal, Input, TextArea, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { formatDate } from '../../utils';
+import { formatDate, generateId } from '../../utils';
 import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
-import type { EstimateTemplate } from '../../types';
+import { flattenWorkAreaLineItems, normalizeTemplateWorkAreas } from '../../utils/estimateModel';
+import type { EstimateLineItem, EstimateTemplate, EstimateWorkArea } from '../../types';
 import EstimateLineItemEditor from './EstimateLineItemEditor';
 
-const empty = (): Omit<EstimateTemplate, 'id' | 'createdAt'> => ({
+type TemplateFormState = Omit<EstimateTemplate, 'id' | 'createdAt' | 'lineItems'> & {
+  workAreas: EstimateWorkArea[];
+};
+
+const empty = (): TemplateFormState => ({
   name: '',
   description: '',
-  lineItems: [],
+  workAreas: [],
   taxRate: 13,
   notes: '',
 });
@@ -24,20 +29,42 @@ export default function TemplatesPage() {
 
   const openNew = () => { setEditing(null); setForm(empty()); setModalOpen(true); };
   const openEdit = (t: EstimateTemplate) => {
+    const workAreas = normalizeTemplateWorkAreas(t);
     setEditing(t);
-    setForm({ name: t.name, description: t.description, lineItems: t.lineItems.map((li) => ({ ...li })), taxRate: t.taxRate, notes: t.notes });
+    setForm({ name: t.name, description: t.description, workAreas, taxRate: t.taxRate, notes: t.notes });
     setModalOpen(true);
   };
 
   const handleSave = () => {
     if (!form.name.trim()) return;
-    if (editing) updateTemplate(editing.id, form);
-    else addTemplate(form);
+    const payload = {
+      ...form,
+      workAreas: form.workAreas,
+      lineItems: flattenWorkAreaLineItems(form.workAreas),
+    };
+    if (editing) updateTemplate(editing.id, payload);
+    else addTemplate(payload);
     setModalOpen(false);
   };
 
   const set = (key: keyof typeof form, value: unknown) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const addWorkArea = () => {
+    setForm((previous) => ({
+      ...previous,
+      workAreas: [
+        ...previous.workAreas,
+        {
+          id: generateId(),
+          name: `Work Area ${previous.workAreas.length + 1}`,
+          description: '',
+          sortOrder: previous.workAreas.length,
+          lineItems: [],
+        },
+      ],
+    }));
+  };
 
   return (
     <div>
@@ -55,7 +82,7 @@ export default function TemplatesPage() {
             <Card key={t.id} className="p-4">
               <p className="font-semibold text-gray-900">{t.name}</p>
               <p className="text-sm text-gray-500 mt-1 line-clamp-2">{t.description}</p>
-              <p className="text-xs text-gray-400 mt-2">{t.lineItems.length} line items · Created {formatDate(t.createdAt)}</p>
+              <p className="text-xs text-gray-400 mt-2">{normalizeTemplateWorkAreas(t).length} work areas · Created {formatDate(t.createdAt)}</p>
               <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
                 <Button variant="secondary" size="sm" onClick={() => openEdit(t)}><Pencil size={13} /> Edit</Button>
                 <Button variant="danger" size="sm" onClick={() => setConfirmDelete(t.id)}><Trash2 size={13} /> Delete</Button>
@@ -75,8 +102,30 @@ export default function TemplatesPage() {
           <Input label="Template Name *" required value={form.name} onChange={(e) => set('name', e.target.value)} />
           <TextArea label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} />
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Default Line Items</p>
-            <EstimateLineItemEditor items={form.lineItems as import('../../types').LineItem[]} onChange={(items) => set('lineItems', items)} />
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-gray-700">Work Areas</p>
+              <Button variant="secondary" size="sm" onClick={addWorkArea}><Plus size={14} /> Add Work Area</Button>
+            </div>
+            {form.workAreas.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">No work areas yet.</p>
+            ) : form.workAreas.map((workArea) => (
+              <div key={workArea.id} className="rounded-lg border border-gray-200 p-3 bg-white mb-3 space-y-2">
+                <Input
+                  label="Area Name"
+                  value={workArea.name}
+                  onChange={(e) => set('workAreas', form.workAreas.map((value) => value.id === workArea.id ? { ...value, name: e.target.value } : value))}
+                />
+                <TextArea
+                  label="Area Description"
+                  value={workArea.description}
+                  onChange={(e) => set('workAreas', form.workAreas.map((value) => value.id === workArea.id ? { ...value, description: e.target.value } : value))}
+                />
+                <EstimateLineItemEditor
+                  items={workArea.lineItems}
+                  onChange={(items: EstimateLineItem[]) => set('workAreas', form.workAreas.map((value) => value.id === workArea.id ? { ...value, lineItems: items } : value))}
+                />
+              </div>
+            ))}
           </div>
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-gray-700">Default Tax Rate (%)</label>
