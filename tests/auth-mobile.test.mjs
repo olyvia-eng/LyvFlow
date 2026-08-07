@@ -41,6 +41,7 @@ test('POST /api/auth?action=mobile-login returns bearer token payload', async ()
       persistedSession = payload;
       return { ok: true };
     },
+    getEmployeeForBusiness: async () => ({ id: 'emp-1', paidDriveTimeEnabled: true }),
   });
 
   const req = {
@@ -59,6 +60,7 @@ test('POST /api/auth?action=mobile-login returns bearer token payload', async ()
   assert.equal(res.body.tokenType, 'Bearer');
   assert.equal(res.body.expiresIn, 604800);
   assert.deepEqual(res.body.user, demoUser);
+  assert.deepEqual(res.body.capabilities, { paidDriveTime: true });
   assert.equal(persistedSession.user.businessId, 'biz-1');
   assert.equal(persistedSession.user.id, 'user-1');
 });
@@ -123,6 +125,7 @@ test('POST /api/auth?action=mobile-login rejects inactive users', async () => {
 test('GET /api/auth?action=session accepts bearer-resolved session identity', async () => {
   const handler = createAuthHandler({
     getSessionFromRequest: async () => demoUser,
+    getEmployeeForBusiness: async () => ({ id: 'emp-1', paidDriveTimeEnabled: false }),
   });
 
   const req = {
@@ -135,7 +138,45 @@ test('GET /api/auth?action=session accepts bearer-resolved session identity', as
   await handler(req, res);
 
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { ok: true, user: demoUser });
+  assert.deepEqual(res.body, { ok: true, user: demoUser, capabilities: { paidDriveTime: false } });
+});
+
+test('GET /api/auth?action=session reports paidDriveTime capability true when enabled', async () => {
+  const handler = createAuthHandler({
+    getSessionFromRequest: async () => demoUser,
+    getEmployeeForBusiness: async () => ({ id: 'emp-1', paidDriveTimeEnabled: true }),
+  });
+
+  const req = {
+    method: 'GET',
+    query: { action: 'session' },
+    headers: { authorization: 'Bearer oliveops_mobile_test_token' },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.capabilities, { paidDriveTime: true });
+});
+
+test('GET /api/auth?action=session reports paidDriveTime capability false when disabled', async () => {
+  const handler = createAuthHandler({
+    getSessionFromRequest: async () => demoUser,
+    getEmployeeForBusiness: async () => ({ id: 'emp-1', paidDriveTimeEnabled: false }),
+  });
+
+  const req = {
+    method: 'GET',
+    query: { action: 'session' },
+    headers: { authorization: 'Bearer oliveops_mobile_test_token' },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.capabilities, { paidDriveTime: false });
 });
 
 test('GET /api/auth?action=session rejects invalid bearer token', async () => {

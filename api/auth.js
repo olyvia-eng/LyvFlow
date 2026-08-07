@@ -8,6 +8,7 @@ import {
 } from './_lib/session.js';
 import {
   createMobileSessionForUser,
+  getEmployeeForBusiness,
   revokeMobileSessionByAccessToken,
 } from './_lib/authRepo.js';
 import { randomBytes } from 'node:crypto';
@@ -23,12 +24,29 @@ const defaultDeps = {
   getSessionFromRequest,
   getBearerTokenFromRequest,
   createMobileSessionForUser,
+  getEmployeeForBusiness,
   revokeMobileSessionByAccessToken,
   buildSessionCookie,
   buildClearedSessionCookie,
   createMobileAccessToken,
   mobileAccessTokenTtlSeconds: MOBILE_ACCESS_TOKEN_TTL_SECONDS,
 };
+
+async function resolveCapabilitiesForUser(user, getEmployeeForBusinessFn) {
+  const employeeId = typeof user?.employeeId === 'string' ? user.employeeId : '';
+  if (!employeeId || typeof user?.businessId !== 'string') {
+    return { paidDriveTime: false };
+  }
+
+  try {
+    const employee = await getEmployeeForBusinessFn(user.businessId, employeeId);
+    return {
+      paidDriveTime: employee?.paidDriveTimeEnabled === true,
+    };
+  } catch {
+    return { paidDriveTime: false };
+  }
+}
 
 export function createAuthHandler(overrides = {}) {
   const deps = { ...defaultDeps, ...overrides };
@@ -47,7 +65,9 @@ export function createAuthHandler(overrides = {}) {
         return res.status(401).json({ ok: false, error: 'Unauthorized' });
       }
 
-      return res.status(200).json({ ok: true, user: session });
+      const capabilities = await resolveCapabilitiesForUser(session, deps.getEmployeeForBusiness);
+
+      return res.status(200).json({ ok: true, user: session, capabilities });
     }
 
     if (action === 'logout') {
@@ -118,12 +138,15 @@ export function createAuthHandler(overrides = {}) {
           expiresInSeconds: deps.mobileAccessTokenTtlSeconds,
         });
 
+        const capabilities = await resolveCapabilitiesForUser(result.user, deps.getEmployeeForBusiness);
+
         return res.status(200).json({
           ok: true,
           accessToken,
           tokenType: 'Bearer',
           expiresIn: deps.mobileAccessTokenTtlSeconds,
           user: result.user,
+          capabilities,
         });
       } catch {
         return res.status(500).json({ ok: false, error: 'Mobile login failed' });

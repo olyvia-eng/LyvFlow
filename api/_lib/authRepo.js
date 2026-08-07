@@ -228,6 +228,7 @@ export function buildCreateUserEmployeePayload({ businessId, name, email, passwo
     hourlyRate: 0,
     compensationType: 'hourly',
     labourType: 'field_producing',
+    paidDriveTimeEnabled: false,
     active: true,
     createdAt,
   };
@@ -245,6 +246,7 @@ export function buildCreateUserEmployeePayload({ businessId, name, email, passwo
       hourlyRate: 0,
       compensationType: 'hourly',
       labourType: 'field_producing',
+      paidDriveTimeEnabled: false,
       active: true,
       createdAt,
     },
@@ -3057,6 +3059,7 @@ export async function listEmployeesForBusiness(businessId) {
     hourlyRate: item.hourlyRate,
     compensationType: item.compensationType ?? 'hourly',
     labourType: item.labourType ?? 'field_producing',
+    paidDriveTimeEnabled: item.paidDriveTimeEnabled === true,
     active: item.active,
     createdAt: item.createdAt,
   }));
@@ -3112,6 +3115,7 @@ export async function getEmployeeForBusiness(businessId, employeeId) {
         hourlyRate: result.Item.hourlyRate,
         compensationType: result.Item.compensationType ?? 'hourly',
         labourType: result.Item.labourType ?? 'field_producing',
+        paidDriveTimeEnabled: result.Item.paidDriveTimeEnabled === true,
         active: result.Item.active,
         createdAt: result.Item.createdAt,
       }

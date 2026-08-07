@@ -18,6 +18,7 @@ import {
   listJobsForBusiness,
   listTemplatesForBusiness,
   listTimeEntriesForBusiness,
+  getEmployeeForBusiness,
 } from './_lib/authRepo.js';
 import { requireSession } from './_lib/session.js';
 import { filterRecordsForSession } from './_lib/authorization.js';
@@ -32,6 +33,10 @@ export default async function handler(req, res) {
   if (!session) return;
 
   try {
+    const sessionEmployee = typeof session.employeeId === 'string'
+      ? await getEmployeeForBusiness(session.businessId, session.employeeId)
+      : null;
+
     const [forms, formFields, formSubmissions, formResponses, budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, materialCatalogItems, templates, budgetItems, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries] = await Promise.all([
       listFormsForBusiness(session.businessId),
       listFormFieldsForBusiness(session.businessId),
@@ -56,6 +61,9 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
+      capabilities: {
+        paidDriveTime: sessionEmployee?.paidDriveTimeEnabled === true,
+      },
       forms: filterRecordsForSession(session, 'forms', forms),
       formFields: filterRecordsForSession(session, 'form-fields', formFields),
       formSubmissions: filterRecordsForSession(session, 'form-submissions', formSubmissions),

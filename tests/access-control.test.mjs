@@ -13,6 +13,12 @@ test('owner and admin roles retain broad access', () => {
   assert.equal(canWriteEntity('time-entries', 'admin'), true);
 });
 
+test('only owner and admin can write employee settings', () => {
+  assert.equal(canWriteEntity('employees', 'owner'), true);
+  assert.equal(canWriteEntity('employees', 'admin'), true);
+  assert.equal(canWriteEntity('employees', 'crew_member'), false);
+});
+
 test('crew members can only see their own time entries and submissions', () => {
   const session = { role: 'crew_member', employeeId: 'emp-1', businessId: 'biz-1' };
   const records = [

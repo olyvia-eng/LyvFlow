@@ -23,6 +23,11 @@ function payloadHash(payload) {
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
 
+export function canRecordDriveTime(workType, employee) {
+  if (workType !== 'drive_time') return true;
+  return employee?.paidDriveTimeEnabled === true;
+}
+
 function ensureClockingEmployee(session, employeeId) {
   if (typeof employeeId !== 'string' || employeeId.trim().length === 0) {
     return { ok: false, status: 400, error: 'Employee is required.' };
@@ -76,6 +81,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Employee is invalid.' });
     }
 
+    const requestedWorkType = req.body?.workType ?? 'job';
+    if (!canRecordDriveTime(requestedWorkType, employee)) {
+      return res.status(403).json({ ok: false, error: 'Drive time is not enabled for this employee.' });
+    }
+
     const requestId = typeof req.body?.requestId === 'string' && req.body.requestId.trim()
       ? req.body.requestId.trim()
       : `${session.id}:${nowIso()}`;
@@ -85,7 +95,7 @@ export default async function handler(req, res) {
     const payload = {
       action: 'clock-in',
       employeeId,
-      workType: req.body?.workType ?? 'job',
+      workType: requestedWorkType,
       jobIds: Array.isArray(req.body?.jobIds) ? req.body.jobIds.filter(Boolean) : [],
       requestId,
       idempotencyKey,
@@ -117,7 +127,7 @@ export default async function handler(req, res) {
       source: 'web',
       auditEventId: `${session.id}:${clockInAt}`,
       jobIds: Array.isArray(req.body?.jobIds) ? req.body.jobIds.filter(Boolean) : [],
-      workType: req.body?.workType ?? 'job',
+      workType: requestedWorkType,
       employeeName: employee.name,
     });
 
@@ -128,7 +138,7 @@ export default async function handler(req, res) {
         employeeId,
         jobId: Array.isArray(req.body?.jobIds) && req.body.jobIds.length > 0 ? req.body.jobIds[0] : undefined,
         jobIds: Array.isArray(req.body?.jobIds) ? req.body.jobIds.filter(Boolean) : [],
-        workType: req.body?.workType ?? 'job',
+        workType: requestedWorkType,
         clockIn: clockInAt,
         breakMinutes: 0,
         notes: '',

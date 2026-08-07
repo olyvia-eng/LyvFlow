@@ -73,6 +73,7 @@ const empty = (): EmployeeForm => ({
   hourlyRate: 30,
   compensationType: 'hourly',
   labourType: 'field_producing',
+  paidDriveTimeEnabled: false,
   active: true,
 });
 
@@ -124,6 +125,7 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
       hourlyRate: e.hourlyRate,
       compensationType: e.compensationType ?? 'hourly',
       labourType: e.labourType ?? 'field_producing',
+      paidDriveTimeEnabled: e.paidDriveTimeEnabled === true,
       active: e.active,
     });
     setNewPassword('');
@@ -154,6 +156,7 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
       hourlyRate: form.hourlyRate,
       compensationType: form.compensationType,
       labourType: form.labourType,
+      paidDriveTimeEnabled: form.paidDriveTimeEnabled === true,
       active: form.active,
     };
 
@@ -522,6 +525,21 @@ export default function EmployeesPage({ onCreateEmployee }: EmployeesPageProps) 
             value={form.hourlyRate}
             onChange={(e) => set('hourlyRate', Number(e.target.value))}
           />
+          <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p className="text-sm font-medium text-gray-700">Time Tracking</p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Paid Drive Time</p>
+                <p className="text-xs text-gray-500">Allow this employee to record paid drive/travel time.</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={form.paidDriveTimeEnabled === true}
+                onChange={(e) => set('paidDriveTimeEnabled', e.target.checked)}
+                aria-label="Paid Drive Time"
+              />
+            </div>
+          </div>
           {!editing && (
             <Input
               label="Employee Login Password *"

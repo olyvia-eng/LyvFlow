@@ -7,6 +7,7 @@ import { resolveAttachmentUrl } from '../../utils/fileUpload';
 import { HIGH_LABOR_VARIANCE_THRESHOLD_PCT, LOW_MARGIN_THRESHOLD_PCT } from '../../config/profitability';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { CostEntry, LineItemCategory, JobStatus } from '../../types';
+import { classifyTrackedHoursByWorkType } from './profitability';
 
 const CATEGORIES: LineItemCategory[] = ['material', 'equipment', 'labour', 'subcontractor'];
 
@@ -93,10 +94,11 @@ export default function JobDetailPage() {
       const ids = normalizeEntryJobIds(entry);
       const divisor = ids.length > 0 ? ids.length : 1;
       const sharedHours = durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes) / divisor;
+      const classification = classifyTrackedHoursByWorkType(entry.workType, sharedHours);
 
       trackedHours += sharedHours;
-      if (entry.workType === 'non_billable') trackedNonBillableHours += sharedHours;
-      else trackedBillableHours += sharedHours;
+      trackedBillableHours += classification.billableHours;
+      trackedNonBillableHours += classification.nonBillableHours;
 
       const rate = employees.find((employee) => employee.id === entry.employeeId)?.hourlyRate ?? 0;
       trackedLaborCost += sharedHours * rate;
