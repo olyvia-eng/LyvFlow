@@ -209,10 +209,14 @@ export default function JobsPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <Badge label={job.status} className={statusColor[job.status]} />
                       {risk?.atRisk && <Badge label="At Risk" className="bg-accent-100 text-accent-700" />}
+                      {job.sourceEstimateId ? <Badge label="From Estimate" className="bg-brand-100 text-brand-700" /> : null}
                       <Link to={`/jobs/${job.id}`} className="font-semibold text-gray-900 hover:text-brand-600 truncate">
                         {job.title}
                       </Link>
                     </div>
+                    {job.jobNumber ? (
+                      <p className="text-xs text-gray-500 mb-1">Job #{job.jobNumber}</p>
+                    ) : null}
                     {risk && risk.warningBadges.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-2">
                         {risk.warningBadges.map((warning) => (

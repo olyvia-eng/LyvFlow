@@ -42,6 +42,10 @@ function jobSk(jobId) {
   return `JOB#${jobId}`;
 }
 
+function jobCounterSk(year) {
+  return `JOB_COUNTER#${year}`;
+}
+
 function estimateSk(estimateId) {
   return `ESTIMATE#${estimateId}`;
 }
@@ -1098,25 +1102,7 @@ export async function listJobsForBusiness(businessId) {
     })
   );
 
-  return (result.Items ?? []).map((item) => ({
-    id: item.jobId,
-    estimateId: item.estimateId,
-    customerId: item.customerId,
-    title: item.title,
-    description: item.description,
-    status: item.status,
-    startDate: item.startDate,
-    endDate: item.endDate,
-    estimatedHours: item.estimatedHours,
-    actualHours: item.actualHours,
-    estimatedCost: item.estimatedCost,
-    actualCosts: item.actualCosts ?? [],
-    contractValue: item.contractValue,
-    assignedEmployeeIds: item.assignedEmployeeIds ?? [],
-    notes: item.notes,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
-  }));
+  return (result.Items ?? []).map(mapJobRecordFromItem);
 }
 
 export async function createJobForBusiness({ businessId, job }) {
@@ -1149,27 +1135,7 @@ export async function getJobForBusiness(businessId, jobId) {
     })
   );
 
-  return result.Item
-    ? {
-        id: result.Item.jobId,
-        estimateId: result.Item.estimateId,
-        customerId: result.Item.customerId,
-        title: result.Item.title,
-        description: result.Item.description,
-        status: result.Item.status,
-        startDate: result.Item.startDate,
-        endDate: result.Item.endDate,
-        estimatedHours: result.Item.estimatedHours,
-        actualHours: result.Item.actualHours,
-        estimatedCost: result.Item.estimatedCost,
-        actualCosts: result.Item.actualCosts ?? [],
-        contractValue: result.Item.contractValue,
-        assignedEmployeeIds: result.Item.assignedEmployeeIds ?? [],
-        notes: result.Item.notes,
-        createdAt: result.Item.createdAt,
-        updatedAt: result.Item.updatedAt,
-      }
-    : null;
+  return result.Item ? mapJobRecordFromItem(result.Item) : null;
 }
 
 export async function updateJobForBusiness({ businessId, job }) {
@@ -1203,6 +1169,139 @@ export async function deleteJobForBusiness(businessId, jobId) {
   );
 
   return { ok: true };
+}
+
+export async function reserveNextJobNumberForBusiness({ businessId, year }) {
+  const result = await ddb.send(
+    new UpdateCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: jobCounterSk(year),
+      },
+      UpdateExpression: 'SET #entityType = :entityType, #businessId = :businessId, #year = :year, #updatedAt = :updatedAt ADD #sequence :increment',
+      ExpressionAttributeNames: {
+        '#entityType': 'entityType',
+        '#businessId': 'businessId',
+        '#year': 'year',
+        '#updatedAt': 'updatedAt',
+        '#sequence': 'sequence',
+      },
+      ExpressionAttributeValues: {
+        ':entityType': 'JOB_COUNTER',
+        ':businessId': businessId,
+        ':year': year,
+        ':updatedAt': nowIso(),
+        ':increment': 1,
+      },
+      ReturnValues: 'UPDATED_NEW',
+    })
+  );
+
+  const sequence = Number(result?.Attributes?.sequence ?? 0);
+  const normalizedSequence = Number.isFinite(sequence) && sequence > 0 ? sequence : 1;
+  return `JOB-${year}-${String(normalizedSequence).padStart(4, '0')}`;
+}
+
+export async function convertEstimateToJobForBusiness({
+  businessId,
+  estimate,
+  job,
+  actorUserId,
+  actorName,
+  actorEmail,
+  convertedAt,
+}) {
+  const eventId = `${actorUserId}:${estimate.id}:${convertedAt}`;
+  const transaction = {
+    TransactItems: [
+      {
+        Put: {
+          TableName: tableName,
+          Item: {
+            PK: businessPk(businessId),
+            SK: jobSk(job.id),
+            entityType: 'JOB',
+            businessId,
+            jobId: job.id,
+            ...job,
+          },
+          ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+        },
+      },
+      {
+        Update: {
+          TableName: tableName,
+          Key: {
+            PK: businessPk(businessId),
+            SK: estimateSk(estimate.id),
+          },
+          UpdateExpression: 'SET #status = :converted, #convertedToJobId = :jobId, #convertedAt = :convertedAt, #updatedAt = :updatedAt',
+          ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND #status = :accepted AND attribute_not_exists(#convertedToJobId)',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+            '#convertedToJobId': 'convertedToJobId',
+            '#convertedAt': 'convertedAt',
+            '#updatedAt': 'updatedAt',
+          },
+          ExpressionAttributeValues: {
+            ':accepted': 'accepted',
+            ':converted': 'converted',
+            ':jobId': job.id,
+            ':convertedAt': convertedAt,
+            ':updatedAt': convertedAt,
+          },
+        },
+      },
+      {
+        Put: {
+          TableName: tableName,
+          Item: {
+            PK: businessPk(businessId),
+            SK: auditEventSk(eventId),
+            entityType: 'AUDIT_EVENT',
+            businessId,
+            eventId,
+            action: 'estimate_converted_to_job',
+            actorUserId,
+            actorName,
+            actorEmail: actorEmail ?? '',
+            affectedEntryCount: 1,
+            createdAt: convertedAt,
+            metadata: {
+              estimateId: estimate.id,
+              proposalNumber: estimate.proposalNumber,
+              jobId: job.id,
+              jobNumber: job.jobNumber,
+            },
+          },
+          ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+        },
+      },
+    ],
+  };
+
+  try {
+    await ddb.send(new TransactWriteCommand(transaction));
+    return { ok: true };
+  } catch (error) {
+    if (error?.name === 'TransactionCanceledException') {
+      const currentEstimate = await getEstimateForBusiness(businessId, estimate.id);
+      if (currentEstimate?.convertedToJobId) {
+        return {
+          ok: false,
+          code: 'ALREADY_CONVERTED',
+          convertedToJobId: currentEstimate.convertedToJobId,
+        };
+      }
+
+      return {
+        ok: false,
+        code: 'CONVERSION_CONFLICT',
+      };
+    }
+    throw error;
+  }
 }
 
 export async function listEstimatesForBusiness(businessId) {
@@ -2703,6 +2802,8 @@ function mapEstimateRecordFromItem(item) {
   return {
     id: item.estimateId,
     customerId: item.customerId,
+    convertedToJobId: item.convertedToJobId,
+    convertedAt: item.convertedAt,
     proposalNumber: item.proposalNumber,
     title: item.title,
     description: item.description,
@@ -2719,6 +2820,39 @@ function mapEstimateRecordFromItem(item) {
     updatedAt: item.updatedAt,
     sentAt: item.sentAt,
     templateId: item.templateId,
+  };
+}
+
+function mapJobRecordFromItem(item) {
+  return {
+    id: item.jobId,
+    jobNumber: item.jobNumber,
+    estimateId: item.estimateId,
+    sourceEstimateId: item.sourceEstimateId,
+    convertedFromEstimateAt: item.convertedFromEstimateAt,
+    convertedByUserId: item.convertedByUserId,
+    convertedByUserName: item.convertedByUserName,
+    customerId: item.customerId,
+    pricingBudgetId: item.pricingBudgetId,
+    propertyLabel: item.propertyLabel,
+    propertyAddressSnapshot: item.propertyAddressSnapshot,
+    title: item.title,
+    description: item.description,
+    workAreas: Array.isArray(item.workAreas) ? item.workAreas : [],
+    operationalWorkAreas: Array.isArray(item.operationalWorkAreas) ? item.operationalWorkAreas : undefined,
+    originalEstimateSnapshot: item.originalEstimateSnapshot,
+    status: item.status,
+    startDate: item.startDate,
+    endDate: item.endDate,
+    estimatedHours: item.estimatedHours,
+    actualHours: item.actualHours,
+    estimatedCost: item.estimatedCost,
+    actualCosts: item.actualCosts ?? [],
+    contractValue: item.contractValue,
+    assignedEmployeeIds: item.assignedEmployeeIds ?? [],
+    notes: item.notes,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
   };
 }
 

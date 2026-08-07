@@ -201,6 +201,43 @@ export default function JobDetailPage() {
         </div>
       </div>
 
+      {(job.jobNumber || job.sourceEstimateId || job.originalEstimateSnapshot) && (
+        <Card className="p-4 mb-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-gray-900">Source & Baseline</h2>
+              <p className="text-sm text-gray-500">Reference details captured at conversion time.</p>
+            </div>
+            {job.jobNumber ? <Badge label={`Job ${job.jobNumber}`} className="bg-brand-100 text-brand-700" /> : null}
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <p className="text-gray-600">Source Estimate: <span className="font-medium text-gray-900">{job.sourceEstimateId ?? 'Manual Job'}</span></p>
+            <p className="text-gray-600">Converted At: <span className="font-medium text-gray-900">{job.convertedFromEstimateAt ? formatDateTime(job.convertedFromEstimateAt) : 'N/A'}</span></p>
+            <p className="text-gray-600">Property: <span className="font-medium text-gray-900">{job.propertyLabel ?? 'N/A'}</span></p>
+            <p className="text-gray-600">Address Snapshot: <span className="font-medium text-gray-900">{job.propertyAddressSnapshot ?? 'N/A'}</span></p>
+          </div>
+          {job.originalEstimateSnapshot?.workAreas?.length ? (
+            <div className="mt-4 space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">Original Estimate Work Areas</h3>
+              <div className="space-y-2">
+                {job.originalEstimateSnapshot.workAreas
+                  .slice()
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
+                  .map((workArea) => (
+                    <div key={workArea.id} className="rounded-lg border border-gray-200 p-3 bg-gray-50">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900">{workArea.name}</p>
+                        <p className="text-xs text-gray-500">Estimated Revenue {formatCurrency(workArea.estimatedRevenue)}</p>
+                      </div>
+                      {workArea.description ? <p className="mt-1 text-xs text-gray-600">{workArea.description}</p> : null}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ) : null}
+        </Card>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <Card className="p-4">

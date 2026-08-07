@@ -24,7 +24,6 @@ import type {
   CostEntry,
   ID,
 } from '../types';
-import { flattenWorkAreaLineItems, normalizeEstimateWorkAreas } from '../utils/estimateModel';
 import {
   generateId,
   nowISO,
@@ -107,7 +106,7 @@ interface AppState {
   updateEstimate: (id: ID, data: Partial<Estimate>) => void;
   deleteEstimate: (id: ID) => void;
   sendEstimate: (id: ID) => void;
-  convertEstimateToJob: (estimateId: ID) => void;
+  convertEstimateToJob: (estimateId: ID, options?: { title?: string; startDate?: string; endDate?: string }) => Promise<{ ok: boolean; jobId?: ID; error?: string }>;
 
   // Templates
   addTemplate: (t: Omit<EstimateTemplate, 'id' | 'createdAt'>) => void;
@@ -332,68 +331,69 @@ export const useStore = create<AppState>()((set, get) => ({
           emitAppToast({ tone: 'error', message: 'Estimate status could not be updated.' });
         });
       },
-      convertEstimateToJob: (estimateId) => {
-        const { estimates } = get();
-        const previousEstimates = estimates;
-        const previousJobs = get().jobs;
-        const est = estimates.find((e) => e.id === estimateId);
-        if (!est) return;
-        const workAreas = normalizeEstimateWorkAreas(est);
-        const flatLineItems = flattenWorkAreaLineItems(workAreas);
-        const subtotal = flatLineItems.reduce((s, li) => s + li.total, 0);
-        const tax = subtotal * (est.taxRate / 100);
-        const contractValue = subtotal + tax;
-        const newJob: Job = {
-          id: generateId(),
-          estimateId,
-          customerId: est.customerId,
-          title: est.title,
-          description: est.description,
-          workAreas: workAreas.map((area) => area.name),
-          status: 'scheduled',
-          startDate: nowISO(),
-          estimatedHours: flatLineItems
-            .filter((li) => li.category === 'labour')
-            .reduce((s, li) => s + li.quantity, 0),
-          actualHours: 0,
-          estimatedCost: subtotal,
-          actualCosts: [],
-          contractValue,
-          assignedEmployeeIds: [],
-          notes: est.notes,
-          createdAt: nowISO(),
-          updatedAt: nowISO(),
-        };
-        set((s) => ({
-          jobs: [...s.jobs, newJob],
-          estimates: s.estimates.map((e) =>
-            e.id === estimateId
-              ? { ...e, status: 'converted', updatedAt: nowISO() }
-              : e
-          ),
-        }));
-
-        void Promise.all([
-          ensureOk(fetch(dataUrl('jobs'), {
+      convertEstimateToJob: async (estimateId, options) => {
+        try {
+          const response = await fetch('/api/estimates?action=convert-to-job', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             credentials: 'include',
-            body: JSON.stringify({ data: newJob }),
-          })),
-          ensureOk(fetch(dataUrl('estimates', estimateId), {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({ data: { status: 'converted', updatedAt: nowISO() } }),
-          })),
-        ]).catch(() => {
-          set({ estimates: previousEstimates, jobs: previousJobs });
-          emitAppToast({ tone: 'error', message: 'Estimate could not be converted to a job.' });
-        });
+            body: JSON.stringify({
+              estimateId,
+              title: options?.title,
+              startDate: options?.startDate,
+              endDate: options?.endDate,
+            }),
+          });
+
+          const payload = (await response.json()) as {
+            ok?: boolean;
+            error?: string;
+            convertedToJobId?: ID;
+            job?: Job;
+            estimate?: {
+              id: ID;
+              status: 'converted';
+              convertedToJobId: ID;
+              convertedAt?: string;
+              updatedAt?: string;
+            };
+          };
+
+          if (!response.ok || !payload?.ok || !payload.job || !payload.estimate) {
+            const message = typeof payload?.error === 'string' && payload.error.trim()
+              ? payload.error
+              : 'Estimate could not be converted to a job.';
+            return {
+              ok: false,
+              error: message,
+              jobId: payload?.convertedToJobId,
+            };
+          }
+
+          set((state) => ({
+            ...state,
+            jobs: [...state.jobs, payload.job as Job],
+            estimates: state.estimates.map((estimate) => {
+              if (estimate.id !== payload.estimate?.id) return estimate;
+              return {
+                ...estimate,
+                status: 'converted',
+                convertedToJobId: payload.estimate.convertedToJobId,
+                convertedAt: payload.estimate.convertedAt,
+                updatedAt: payload.estimate.updatedAt ?? estimate.updatedAt,
+              };
+            }),
+          }));
+
+          return { ok: true, jobId: payload.job.id };
+        } catch (error: unknown) {
+          return {
+            ok: false,
+            error: errorMessage(error, 'Estimate could not be converted to a job.'),
+          };
+        }
       },
 
       // ── Templates ─────────────────────────────────────────────────────────

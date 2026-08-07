@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PageHeader, Button, Badge, Modal, Input, Select, TextArea, EmptyState } from '../../components/ui';
-import { Plus, Pencil, Trash2, Search, Send, RefreshCw, FileText, FileDown, Mail } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Send, RefreshCw, FileText, FileDown, Mail, ChevronRight } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { emitAppToast } from '../../toast';
@@ -153,6 +154,7 @@ export default function EstimatesPage() {
   const [form, setForm] = useState(emptyEstimate());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmConvert, setConfirmConvert] = useState<string | null>(null);
+  const [convertingEstimateId, setConvertingEstimateId] = useState<string | null>(null);
   const [proposalEstimateId, setProposalEstimateId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
 
@@ -236,6 +238,23 @@ export default function EstimatesPage() {
 
   const set = (key: keyof typeof form, value: unknown) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const handleConvertEstimate = async (estimateId: string) => {
+    setConvertingEstimateId(estimateId);
+    const result = await convertEstimateToJob(estimateId);
+    setConvertingEstimateId(null);
+    setConfirmConvert(null);
+
+    if (!result.ok) {
+      emitAppToast({
+        tone: 'error',
+        message: result.error ?? 'Estimate could not be converted to a job.',
+      });
+      return;
+    }
+
+    emitAppToast({ tone: 'success', message: 'Estimate converted to job successfully.' });
+  };
 
   const addWorkArea = () => {
     setForm((previous) => ({
@@ -400,7 +419,14 @@ export default function EstimatesPage() {
                         <Button variant="ghost" size="sm" onClick={() => setProposalEstimateId(est.id)} title="Create Proposal PDF">
                           <FileDown size={13} />
                         </Button>
-                        {(est.status === 'accepted' || est.status === 'sent') && (
+                        {est.status === 'converted' && est.convertedToJobId && (
+                          <Link to={`/jobs/${est.convertedToJobId}`}>
+                            <Button variant="ghost" size="sm" title="Open Job">
+                              <ChevronRight size={13} />
+                            </Button>
+                          </Link>
+                        )}
+                        {est.status === 'accepted' && (
                           <Button variant="ghost" size="sm" onClick={() => setConfirmConvert(est.id)} title="Convert to Job">
                             <RefreshCw size={13} />
                           </Button>
@@ -633,7 +659,14 @@ export default function EstimatesPage() {
       <Modal open={!!confirmConvert} onClose={() => setConfirmConvert(null)} title="Convert to Job"
         footer={<>
           <Button variant="secondary" onClick={() => setConfirmConvert(null)}>Cancel</Button>
-          <Button onClick={() => { convertEstimateToJob(confirmConvert!); setConfirmConvert(null); }}>Convert</Button>
+          <Button
+            onClick={() => {
+              if (!confirmConvert || convertingEstimateId) return;
+              void handleConvertEstimate(confirmConvert);
+            }}
+          >
+            {convertingEstimateId ? 'Converting...' : 'Convert'}
+          </Button>
         </>}>
         <p className="text-gray-600">This will create a new Job from this estimate and mark the estimate as Converted.</p>
       </Modal>

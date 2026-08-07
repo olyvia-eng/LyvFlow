@@ -81,6 +81,8 @@ export interface Estimate {
   pricingBudgetId: ID;
   propertyLabel?: string;
   propertyAddressSnapshot?: string;
+  convertedToJobId?: ID;
+  convertedAt?: string;
   proposalNumber?: string;
   title: string;
   description: string;
@@ -223,13 +225,74 @@ export interface CostEntry {
   date: string;
 }
 
+export type JobWorkAreaStatus = 'not_started' | 'in_progress' | 'complete' | 'on_hold';
+
+export interface JobWorkAreaCategoryTotals {
+  labour: number;
+  equipment: number;
+  material: number;
+  subcontractor: number;
+}
+
+export interface JobWorkAreaLineItem {
+  id: ID;
+  sourceEstimateLineItemId?: ID;
+  sourceEstimateWorkAreaId?: ID;
+  category: LineItemCategory;
+  itemName: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  sellPrice: number;
+  total: number;
+}
+
+export interface JobWorkArea {
+  id: ID;
+  sourceEstimateWorkAreaId?: ID;
+  name: string;
+  description: string;
+  status: JobWorkAreaStatus;
+  sortOrder: number;
+  estimatedCost: number;
+  estimatedRevenue: number;
+  estimatedMargin: number;
+  estimatedByCategory: JobWorkAreaCategoryTotals;
+  lineItems: JobWorkAreaLineItem[];
+}
+
+export interface JobEstimateSnapshot {
+  estimateId: ID;
+  proposalNumber?: string;
+  pricingBudgetId?: ID;
+  propertyLabel?: string;
+  propertyAddressSnapshot?: string;
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  total: number;
+  notes: string;
+  workAreas: JobWorkArea[];
+}
+
 export interface Job {
   id: ID;
+  jobNumber?: string;
   estimateId?: ID;
+  sourceEstimateId?: ID;
+  convertedFromEstimateAt?: string;
+  convertedByUserId?: ID;
+  convertedByUserName?: string;
   customerId: ID;
+  pricingBudgetId?: ID;
+  propertyLabel?: string;
+  propertyAddressSnapshot?: string;
   title: string;
   description: string;
   workAreas?: string[];
+  operationalWorkAreas?: JobWorkArea[];
+  originalEstimateSnapshot?: JobEstimateSnapshot;
   status: JobStatus;
   startDate: string;
   endDate?: string;

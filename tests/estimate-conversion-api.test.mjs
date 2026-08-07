@@ -1,0 +1,173 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { createEstimatesHandler } from '../api/estimates.js';
+
+function createMockRes() {
+  return {
+    statusCode: 200,
+    headers: {},
+    body: undefined,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    setHeader(name, value) {
+      this.headers[name] = value;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+      return this;
+    },
+  };
+}
+
+function baseSession() {
+  return {
+    id: 'user-1',
+    name: 'Ops Manager',
+    email: 'ops@example.com',
+    role: 'admin',
+    businessId: 'biz-1',
+  };
+}
+
+function baseEstimate() {
+  return {
+    id: 'est-1',
+    customerId: 'customer-1',
+    title: 'Driveway Replacement',
+    description: 'Replace driveway and prep subgrade',
+    workAreas: [
+      {
+        id: 'area-1',
+        name: 'Main Driveway',
+        description: '',
+        sortOrder: 0,
+        lineItems: [
+          {
+            id: 'line-1',
+            category: 'labour',
+            description: 'Crew labor',
+            quantity: 8,
+            unit: 'hr',
+            unitCost: 50,
+            markupPercent: 20,
+            sellPrice: 60,
+            total: 480,
+          },
+        ],
+      },
+    ],
+    pricingBudgetId: 'budget-1',
+    status: 'accepted',
+    taxRate: 10,
+    notes: 'Include cleanup',
+  };
+}
+
+test('convert-to-job rejects non-POST method', async () => {
+  const handler = createEstimatesHandler();
+  const req = { method: 'GET', query: { action: 'convert-to-job' } };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 405);
+  assert.equal(res.body.ok, false);
+});
+
+test('convert-to-job requires accepted estimate', async () => {
+  const handler = createEstimatesHandler({
+    requireSession: async () => baseSession(),
+    getEstimateForBusiness: async () => ({ ...baseEstimate(), status: 'sent' }),
+  });
+
+  const req = {
+    method: 'POST',
+    query: { action: 'convert-to-job' },
+    body: { estimateId: 'est-1' },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.error, 'Only accepted estimates can be converted.');
+});
+
+test('convert-to-job returns job and estimate patch on success', async () => {
+  let reservedArgs = null;
+  let conversionPayload = null;
+
+  const handler = createEstimatesHandler({
+    requireSession: async () => baseSession(),
+    getEstimateForBusiness: async () => baseEstimate(),
+    reserveNextJobNumberForBusiness: async (args) => {
+      reservedArgs = args;
+      return 'JOB-2026-0007';
+    },
+    convertEstimateToJobForBusiness: async (payload) => {
+      conversionPayload = payload;
+      return { ok: true };
+    },
+  });
+
+  const req = {
+    method: 'POST',
+    query: { action: 'convert-to-job' },
+    body: {
+      estimateId: 'est-1',
+      title: 'Driveway Job',
+      startDate: '2026-05-02',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.job.jobNumber, 'JOB-2026-0007');
+  assert.equal(res.body.job.sourceEstimateId, 'est-1');
+  assert.equal(res.body.estimate.convertedToJobId, res.body.job.id);
+  assert.equal(res.body.estimate.status, 'converted');
+
+  assert.deepEqual(reservedArgs.businessId, 'biz-1');
+  assert.ok(/^\d{4}$/.test(reservedArgs.year));
+
+  assert.equal(conversionPayload.businessId, 'biz-1');
+  assert.equal(conversionPayload.actorUserId, 'user-1');
+  assert.equal(conversionPayload.actorName, 'Ops Manager');
+  assert.equal(conversionPayload.actorEmail, 'ops@example.com');
+  assert.equal(conversionPayload.estimate.id, 'est-1');
+  assert.equal(conversionPayload.job.jobNumber, 'JOB-2026-0007');
+});
+
+test('convert-to-job surfaces already-converted conflicts', async () => {
+  const handler = createEstimatesHandler({
+    requireSession: async () => baseSession(),
+    getEstimateForBusiness: async () => baseEstimate(),
+    reserveNextJobNumberForBusiness: async () => 'JOB-2026-0008',
+    convertEstimateToJobForBusiness: async () => ({
+      ok: false,
+      code: 'ALREADY_CONVERTED',
+      convertedToJobId: 'job-10',
+    }),
+  });
+
+  const req = {
+    method: 'POST',
+    query: { action: 'convert-to-job' },
+    body: { estimateId: 'est-1' },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.convertedToJobId, 'job-10');
+});
