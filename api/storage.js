@@ -262,7 +262,7 @@ export function createStorageHandler(overrides = {}) {
   }
 
   return async function handler(req, res) {
-    const session = deps.requireSession(req, res);
+    const session = await deps.requireSession(req, res);
     if (!session) return;
 
     if (req.method === 'POST') {

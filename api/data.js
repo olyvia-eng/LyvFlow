@@ -729,7 +729,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const session = requireSession(req, res, config.readRoles ?? undefined);
+    const session = await requireSession(req, res, config.readRoles ?? undefined);
     if (!session) return;
 
     try {
@@ -741,7 +741,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const session = requireSession(req, res, config.writeRoles ?? undefined);
+    const session = await requireSession(req, res, config.writeRoles ?? undefined);
     if (!session) return;
 
     const record = req.body?.data;
@@ -857,7 +857,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const session = requireSession(req, res, config.writeRoles ?? undefined);
+    const session = await requireSession(req, res, config.writeRoles ?? undefined);
     if (!session) return;
 
     const id = req.query.id;
@@ -1023,7 +1023,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    const session = requireSession(req, res, config.writeRoles ?? undefined);
+    const session = await requireSession(req, res, config.writeRoles ?? undefined);
     if (!session) return;
 
     const id = req.query.id;

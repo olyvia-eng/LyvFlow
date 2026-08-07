@@ -18,7 +18,7 @@ function buildEmployeeResponse(employee) {
 }
 
 export default async function handler(req, res) {
-  const session = requireSession(req, res, ['owner', 'admin', 'foreman', 'crew_member']);
+  const session = await requireSession(req, res, ['owner', 'admin', 'foreman', 'crew_member']);
   if (!session) return;
 
   const employee = await getEmployeeForBusiness(session.businessId, session.employeeId);

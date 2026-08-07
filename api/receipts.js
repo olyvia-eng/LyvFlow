@@ -19,7 +19,7 @@ function sanitizeContentType(value) {
 }
 
 export default async function handler(req, res) {
-  const session = requireSession(req, res);
+  const session = await requireSession(req, res);
   if (!session) return;
 
   if (req.method === 'POST') {

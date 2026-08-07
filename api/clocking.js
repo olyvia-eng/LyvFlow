@@ -56,7 +56,7 @@ function summarizeTransaction(tx) {
 }
 
 export default async function handler(req, res) {
-  const session = requireSession(req, res, ['owner', 'admin', 'crew_member']);
+  const session = await requireSession(req, res, ['owner', 'admin', 'crew_member']);
   if (!session) return;
 
   if (req.method !== 'POST') {

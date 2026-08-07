@@ -65,7 +65,7 @@ function mapCreateUserError(error) {
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
-    const session = requireSession(req, res, ['owner', 'admin']);
+    const session = await requireSession(req, res, ['owner', 'admin']);
     if (!session) return;
 
     try {
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const session = requireSession(req, res, ['owner', 'admin']);
+    const session = await requireSession(req, res, ['owner', 'admin']);
     if (!session) return;
 
     const { name, email, password, role } = req.body ?? {};
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const session = requireSession(req, res, ['owner', 'admin']);
+    const session = await requireSession(req, res, ['owner', 'admin']);
     if (!session) return;
 
     const userId = req.query.id;
@@ -152,7 +152,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    const session = requireSession(req, res, ['owner', 'admin']);
+    const session = await requireSession(req, res, ['owner', 'admin']);
     if (!session) return;
 
     const userId = req.query.id;

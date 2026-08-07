@@ -133,6 +133,34 @@ function auditEventSk(eventId) {
 function emailPk(email) {
   return `EMAIL#${normalizeEmail(email)}`;
 }
+
+function mobileSessionTokenPk(tokenHash) {
+  return `MOBILE_SESSION_TOKEN#${tokenHash}`;
+}
+
+function mobileSessionTokenHash(accessToken) {
+  return createHash('sha256').update(accessToken).digest('hex');
+}
+
+function buildMobileSessionFromItem(item) {
+  if (!item) return null;
+  return {
+    id: item.userId,
+    businessId: item.businessId,
+    name: item.name,
+    email: item.email,
+    role: normalizeBusinessRole(item.role),
+    businessName: item.businessName,
+    employeeId: typeof item.employeeId === 'string' ? item.employeeId : undefined,
+  };
+}
+
+function isSessionExpired(expiresAt, nowMs = Date.now()) {
+  if (typeof expiresAt !== 'string') return true;
+  const expiresAtMs = Date.parse(expiresAt);
+  if (Number.isNaN(expiresAtMs)) return true;
+  return expiresAtMs <= nowMs;
+}
 function normalizeBusinessRole(role) {
   if (role === 'employee') return 'crew_member';
   return role;
@@ -541,6 +569,134 @@ export async function getBusinessUserById(businessId, userId) {
     createdAt: result.Item.createdAt,
     passwordHash: result.Item.passwordHash,
   };
+}
+
+export async function createMobileSessionForUser({ user, accessToken, expiresInSeconds = 7 * 24 * 60 * 60 }) {
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + Math.max(1, expiresInSeconds) * 1000).toISOString();
+  const tokenHash = mobileSessionTokenHash(accessToken);
+
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: mobileSessionTokenPk(tokenHash),
+        SK: 'SESSION',
+        entityType: 'MOBILE_SESSION',
+        tokenHash,
+        businessId: user.businessId,
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        businessName: user.businessName,
+        employeeId: typeof user.employeeId === 'string' ? user.employeeId : null,
+        createdAt,
+        updatedAt: createdAt,
+        expiresAt,
+        ttl: Math.floor(Date.parse(expiresAt) / 1000),
+        revokedAt: null,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return {
+    ok: true,
+    session: {
+      user: buildMobileSessionFromItem({
+        businessId: user.businessId,
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        businessName: user.businessName,
+        employeeId: typeof user.employeeId === 'string' ? user.employeeId : undefined,
+      }),
+      expiresAt,
+    },
+  };
+}
+
+export async function resolveMobileSessionByAccessToken(accessToken) {
+  if (typeof accessToken !== 'string' || !accessToken.trim()) {
+    return { ok: false, reason: 'invalid_token' };
+  }
+
+  const tokenHash = mobileSessionTokenHash(accessToken.trim());
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: mobileSessionTokenPk(tokenHash),
+        SK: 'SESSION',
+      },
+    })
+  );
+
+  const item = result.Item;
+  if (!item) {
+    return { ok: false, reason: 'invalid_token' };
+  }
+
+  if (typeof item.revokedAt === 'string' && item.revokedAt) {
+    return { ok: false, reason: 'revoked' };
+  }
+
+  if (isSessionExpired(item.expiresAt)) {
+    return { ok: false, reason: 'expired' };
+  }
+
+  const user = buildMobileSessionFromItem(item);
+  if (!user) {
+    return { ok: false, reason: 'invalid_token' };
+  }
+
+  const currentUser = await getBusinessUserById(user.businessId, user.id);
+  if (!currentUser || currentUser.active === false) {
+    return { ok: false, reason: 'inactive_user' };
+  }
+
+  return {
+    ok: true,
+    session: {
+      user,
+      tokenHash,
+      expiresAt: item.expiresAt,
+    },
+  };
+}
+
+export async function revokeMobileSessionByAccessToken(accessToken) {
+  if (typeof accessToken !== 'string' || !accessToken.trim()) {
+    return { ok: false, revoked: false };
+  }
+
+  const tokenHash = mobileSessionTokenHash(accessToken.trim());
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: tableName,
+        Key: {
+          PK: mobileSessionTokenPk(tokenHash),
+          SK: 'SESSION',
+        },
+        UpdateExpression: 'SET revokedAt = :revokedAt, updatedAt = :updatedAt',
+        ExpressionAttributeValues: {
+          ':revokedAt': nowIso(),
+          ':updatedAt': nowIso(),
+        },
+        ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+      })
+    );
+    return { ok: true, revoked: true };
+  } catch (error) {
+    if (error?.name === 'ConditionalCheckFailedException') {
+      return { ok: true, revoked: false };
+    }
+    throw error;
+  }
 }
 
 export async function updateBusinessUser({ businessId, user }) {

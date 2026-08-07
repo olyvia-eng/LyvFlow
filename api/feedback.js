@@ -80,7 +80,7 @@ export function createFeedbackHandler(overrides = {}) {
       return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
-    const session = deps.requireSession(req, res, ['owner', 'admin', 'foreman', 'crew_member']);
+    const session = await deps.requireSession(req, res, ['owner', 'admin', 'foreman', 'crew_member']);
     if (!session) return;
 
     if (req.method === 'GET') {

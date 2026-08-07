@@ -2,8 +2,10 @@ import jwt from 'jsonwebtoken';
 import { requireEnv } from './env.js';
 import { SESSION_COOKIE, parseCookies } from './cookies.js';
 import { canReadEntity, canWriteEntity } from './authorization.js';
+import { resolveMobileSessionByAccessToken } from './authRepo.js';
 
 const jwtSecret = requireEnv('JWT_SECRET');
+export const MOBILE_ACCESS_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 export function createSessionToken(user) {
   return jwt.sign(
@@ -21,7 +23,22 @@ export function createSessionToken(user) {
   );
 }
 
-export function getSessionFromRequest(req) {
+export function getBearerTokenFromRequest(req) {
+  const rawHeader = req?.headers?.authorization;
+  const header = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+  if (typeof header !== 'string') return null;
+
+  const trimmed = header.trim();
+  if (!trimmed) return null;
+
+  const match = /^Bearer\s+(.+)$/i.exec(trimmed);
+  if (!match || typeof match[1] !== 'string') return null;
+
+  const token = match[1].trim();
+  return token || null;
+}
+
+function getSessionFromCookie(req) {
   const cookies = parseCookies(req.headers.cookie);
   const token = cookies[SESSION_COOKIE];
   if (!token) return null;
@@ -55,8 +72,25 @@ export function getSessionFromRequest(req) {
   }
 }
 
-export function requireSession(req, res, allowedRoles, entity) {
-  const session = getSessionFromRequest(req);
+export async function getSessionFromRequest(req) {
+  const bearerToken = getBearerTokenFromRequest(req);
+  if (bearerToken) {
+    try {
+      const bearerSession = await resolveMobileSessionByAccessToken(bearerToken);
+      if (!bearerSession.ok) {
+        return null;
+      }
+      return bearerSession.session.user;
+    } catch {
+      return null;
+    }
+  }
+
+  return getSessionFromCookie(req);
+}
+
+export async function requireSession(req, res, allowedRoles, entity) {
+  const session = await getSessionFromRequest(req);
   if (!session) {
     res.status(401).json({ ok: false, error: 'Unauthorized' });
     return null;
