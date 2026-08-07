@@ -3,6 +3,7 @@ import {
   generateId,
   getFeedbackForBusiness,
 } from './_lib/authRepo.js';
+import { notifySupportFeedbackWithResend } from './_lib/feedbackNotifications.js';
 import { requireSession } from './_lib/session.js';
 
 const ALLOWED_FEEDBACK_TYPES = new Set(['bug', 'feature_request', 'usability', 'general']);
@@ -67,7 +68,7 @@ const defaultDeps = {
   getFeedbackForBusiness,
   generateId,
   nowIso,
-  notifySupportFeedback: async () => ({ ok: false, reason: 'not_configured' }),
+  notifySupportFeedback: notifySupportFeedbackWithResend,
 };
 
 export function createFeedbackHandler(overrides = {}) {
@@ -160,8 +161,11 @@ export function createFeedbackHandler(overrides = {}) {
         feedback,
       });
 
+      let notificationSent = false;
+
       try {
         const notifyResult = await deps.notifySupportFeedback({ feedback, session });
+        notificationSent = Boolean(notifyResult?.ok);
         if (!notifyResult?.ok) {
           console.warn('[feedback:notify]', {
             feedbackId,
@@ -175,7 +179,7 @@ export function createFeedbackHandler(overrides = {}) {
         });
       }
 
-      return res.status(200).json({ ok: true, feedbackId });
+      return res.status(200).json({ ok: true, feedbackId, notificationSent });
     } catch {
       return res.status(500).json({ ok: false, error: 'Could not submit feedback.' });
     }

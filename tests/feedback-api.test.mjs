@@ -70,7 +70,7 @@ test('POST /api/feedback stores trusted session-scoped fields', async () => {
   await handler(req, res);
 
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { ok: true, feedbackId: 'feedback-1' });
+  assert.deepEqual(res.body, { ok: true, feedbackId: 'feedback-1', notificationSent: false });
   assert.equal(createdPayload.businessId, 'biz-1');
   assert.equal(createdPayload.feedback.businessId, 'biz-1');
   assert.equal(createdPayload.feedback.submittedByUserId, 'user-1');
@@ -118,7 +118,12 @@ test('POST /api/feedback requires message', async () => {
 });
 
 test('POST /api/feedback succeeds even when support notification fails', async () => {
+  let savedFeedbackId;
   const handler = createFeedbackHandler(baseDeps({
+    createFeedbackForBusiness: async ({ feedback }) => {
+      savedFeedbackId = feedback.id;
+      return { ok: true };
+    },
     notifySupportFeedback: async () => {
       throw new Error('mail provider unavailable');
     },
@@ -139,6 +144,94 @@ test('POST /api/feedback succeeds even when support notification fails', async (
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.ok, true);
   assert.equal(res.body.feedbackId, 'feedback-1');
+  assert.equal(res.body.notificationSent, false);
+  assert.equal(savedFeedbackId, 'feedback-1');
+});
+
+test('POST /api/feedback sets notificationSent true when notification succeeds', async () => {
+  const handler = createFeedbackHandler(baseDeps({
+    notifySupportFeedback: async () => ({ ok: true }),
+  }));
+
+  const req = {
+    method: 'POST',
+    headers: { 'user-agent': 'Mozilla/TestAgent' },
+    body: {
+      type: 'bug',
+      message: 'Everything breaks on save.',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.feedbackId, 'feedback-1');
+  assert.equal(res.body.notificationSent, true);
+});
+
+test('POST /api/feedback persists before email notification attempt', async () => {
+  const callOrder = [];
+  const handler = createFeedbackHandler(baseDeps({
+    createFeedbackForBusiness: async () => {
+      callOrder.push('save');
+      return { ok: true };
+    },
+    notifySupportFeedback: async () => {
+      callOrder.push('notify');
+      return { ok: true };
+    },
+  }));
+
+  const req = {
+    method: 'POST',
+    headers: { 'user-agent': 'Mozilla/TestAgent' },
+    body: {
+      type: 'feature_request',
+      message: 'Please add keyboard shortcuts.',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(callOrder, ['save', 'notify']);
+});
+
+test('POST /api/feedback client cannot override notification sender or recipient', async () => {
+  let notifyArgs;
+  const handler = createFeedbackHandler(baseDeps({
+    notifySupportFeedback: async (args) => {
+      notifyArgs = args;
+      return { ok: true };
+    },
+  }));
+
+  const req = {
+    method: 'POST',
+    headers: { 'user-agent': 'Mozilla/TestAgent' },
+    body: {
+      type: 'general',
+      message: 'Feedback body text.',
+      from: 'attacker@evil.test',
+      to: 'attacker-target@evil.test',
+      replyTo: 'attacker-reply@evil.test',
+      FEEDBACK_FROM_EMAIL: 'attacker-fake@evil.test',
+      FEEDBACK_NOTIFICATION_EMAIL: 'attacker-fake-target@evil.test',
+    },
+  };
+  const res = createMockRes();
+
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(notifyArgs.feedback.from, undefined);
+  assert.equal(notifyArgs.feedback.to, undefined);
+  assert.equal(notifyArgs.feedback.replyTo, undefined);
+  assert.equal(notifyArgs.feedback.FEEDBACK_FROM_EMAIL, undefined);
+  assert.equal(notifyArgs.feedback.FEEDBACK_NOTIFICATION_EMAIL, undefined);
 });
 
 test('GET /api/feedback returns business-scoped feedback record by id', async () => {
