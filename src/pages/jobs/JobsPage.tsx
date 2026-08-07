@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PageHeader, Button, Card, Badge, Modal, Input, Select, TextArea, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Search, ChevronRight } from 'lucide-react';
@@ -29,6 +29,7 @@ const empty = (customers: { id: string }[]): Omit<Job, 'id' | 'createdAt' | 'upd
 
 export default function JobsPage() {
   const { jobs, customers, employees, timeEntries, timeCorrections, addJob, updateJob, deleteJob } = useStore();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
@@ -163,7 +164,14 @@ export default function JobsPage() {
       <PageHeader
         title="Jobs"
         subtitle="Track active and completed jobs."
-        action={<Button onClick={openNew}><Plus size={16} /> New Job</Button>}
+        action={(
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={() => navigate('/estimates?status=accepted')}>
+              <ChevronRight size={16} /> Accepted Estimates
+            </Button>
+            <Button onClick={openNew}><Plus size={16} /> New Job</Button>
+          </div>
+        )}
       />
 
       {/* Filters */}

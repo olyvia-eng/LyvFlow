@@ -171,3 +171,60 @@ test('convert-to-job surfaces already-converted conflicts', async () => {
   assert.equal(res.body.ok, false);
   assert.equal(res.body.convertedToJobId, 'job-10');
 });
+
+test('convert-to-job allows only one concurrent conversion for the same estimate', async () => {
+  const convertedEstimateIds = new Set();
+  let sequence = 0;
+
+  const handler = createEstimatesHandler({
+    requireSession: async () => baseSession(),
+    getEstimateForBusiness: async () => baseEstimate(),
+    reserveNextJobNumberForBusiness: async () => {
+      sequence += 1;
+      return `JOB-2026-${String(sequence).padStart(4, '0')}`;
+    },
+    convertEstimateToJobForBusiness: async ({ estimate }) => {
+      if (convertedEstimateIds.has(estimate.id)) {
+        return {
+          ok: false,
+          code: 'ALREADY_CONVERTED',
+          convertedToJobId: 'job-existing',
+        };
+      }
+
+      convertedEstimateIds.add(estimate.id);
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      return { ok: true };
+    },
+  });
+
+  const firstReq = {
+    method: 'POST',
+    query: { action: 'convert-to-job' },
+    body: { estimateId: 'est-1' },
+  };
+  const secondReq = {
+    method: 'POST',
+    query: { action: 'convert-to-job' },
+    body: { estimateId: 'est-1' },
+  };
+
+  const firstRes = createMockRes();
+  const secondRes = createMockRes();
+
+  await Promise.all([
+    handler(firstReq, firstRes),
+    handler(secondReq, secondRes),
+  ]);
+
+  const responses = [firstRes, secondRes];
+  const successResponses = responses.filter((response) => response.statusCode === 200);
+  const conflictResponses = responses.filter((response) => response.statusCode !== 200);
+
+  assert.equal(successResponses.length, 1);
+  assert.equal(conflictResponses.length, 1);
+  assert.equal(conflictResponses[0].statusCode, 409);
+  assert.equal(successResponses[0].body.ok, true);
+  assert.equal(conflictResponses[0].body.ok, false);
+  assert.equal(conflictResponses[0].body.error, 'Estimate already converted.');
+});

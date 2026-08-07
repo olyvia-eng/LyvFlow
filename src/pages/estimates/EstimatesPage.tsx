@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useStore } from '../../store';
 import { PageHeader, Button, Badge, Modal, Input, Select, TextArea, EmptyState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Search, Send, RefreshCw, FileText, FileDown, Mail, ChevronRight } from 'lucide-react';
@@ -13,6 +13,10 @@ import EstimateLineItemEditor from './EstimateLineItemEditor';
 import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
 
 const STATUSES: EstimateStatus[] = ['draft', 'sent', 'accepted', 'declined', 'converted'];
+
+const isEstimateStatusFilter = (value: string | null): value is EstimateStatus | 'all' => {
+  return value === 'all' || STATUSES.includes(value as EstimateStatus);
+};
 
 type EstimateFormState = Omit<Estimate, 'id' | 'createdAt' | 'updatedAt' | 'lineItems' | 'workAreas'> & {
   workAreas: EstimateWorkArea[];
@@ -147,6 +151,7 @@ const createProposalDocument = (estimate: Estimate, customerName: string, custom
 
 export default function EstimatesPage() {
   const { estimates, customers, templates, budgets, budgetRates, addEstimate, updateEstimate, deleteEstimate, sendEstimate, convertEstimateToJob } = useStore();
+  const location = useLocation();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<EstimateStatus | 'all'>('all');
   const [modalOpen, setModalOpen] = useState(false);
@@ -154,12 +159,26 @@ export default function EstimatesPage() {
   const [form, setForm] = useState(emptyEstimate());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmConvert, setConfirmConvert] = useState<string | null>(null);
+  const [convertForm, setConvertForm] = useState({
+    title: '',
+    startDate: '',
+    endDate: '',
+  });
   const [convertingEstimateId, setConvertingEstimateId] = useState<string | null>(null);
   const [proposalEstimateId, setProposalEstimateId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const status = params.get('status');
+    if (isEstimateStatusFilter(status)) {
+      setStatusFilter(status);
+    }
+  }, [location.search]);
+
   const proposalEstimate = proposalEstimateId ? estimates.find((estimate) => estimate.id === proposalEstimateId) ?? null : null;
   const proposalCustomer = proposalEstimate ? customers.find((customer) => customer.id === proposalEstimate.customerId) ?? null : null;
+  const convertEstimate = confirmConvert ? estimates.find((estimate) => estimate.id === confirmConvert) ?? null : null;
 
   const filtered = estimates.filter((e) => {
     const customer = customers.find((c) => c.id === e.customerId);
@@ -239,11 +258,23 @@ export default function EstimatesPage() {
   const set = (key: keyof typeof form, value: unknown) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  const openConvertModal = (estimate: Estimate) => {
+    setConfirmConvert(estimate.id);
+    setConvertForm({
+      title: estimate.title ?? '',
+      startDate: '',
+      endDate: '',
+    });
+  };
+
   const handleConvertEstimate = async (estimateId: string) => {
     setConvertingEstimateId(estimateId);
-    const result = await convertEstimateToJob(estimateId);
+    const result = await convertEstimateToJob(estimateId, {
+      title: convertForm.title.trim() || undefined,
+      startDate: convertForm.startDate || undefined,
+      endDate: convertForm.endDate || undefined,
+    });
     setConvertingEstimateId(null);
-    setConfirmConvert(null);
 
     if (!result.ok) {
       emitAppToast({
@@ -253,6 +284,8 @@ export default function EstimatesPage() {
       return;
     }
 
+    setConfirmConvert(null);
+    setConvertForm({ title: '', startDate: '', endDate: '' });
     emitAppToast({ tone: 'success', message: 'Estimate converted to job successfully.' });
   };
 
@@ -427,7 +460,7 @@ export default function EstimatesPage() {
                           </Link>
                         )}
                         {est.status === 'accepted' && (
-                          <Button variant="ghost" size="sm" onClick={() => setConfirmConvert(est.id)} title="Convert to Job">
+                          <Button variant="ghost" size="sm" onClick={() => openConvertModal(est)} title="Convert to Job">
                             <RefreshCw size={13} />
                           </Button>
                         )}
@@ -668,7 +701,35 @@ export default function EstimatesPage() {
             {convertingEstimateId ? 'Converting...' : 'Convert'}
           </Button>
         </>}>
-        <p className="text-gray-600">This will create a new Job from this estimate and mark the estimate as Converted.</p>
+        <div className="space-y-4">
+          <p className="text-gray-600">Create a job from this accepted estimate. Leave any field blank to use the estimate default.</p>
+          {convertEstimate ? (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+              <p><span className="font-medium text-gray-900">Estimate:</span> {convertEstimate.title}</p>
+              <p><span className="font-medium text-gray-900">Customer:</span> {customers.find((customer) => customer.id === convertEstimate.customerId)?.name ?? 'Unknown Customer'}</p>
+            </div>
+          ) : null}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              label="Job Title Override"
+              value={convertForm.title}
+              onChange={(e) => setConvertForm((current) => ({ ...current, title: e.target.value }))}
+              placeholder="Leave blank to use the estimate title"
+            />
+            <Input
+              label="Start Date Override"
+              type="date"
+              value={convertForm.startDate}
+              onChange={(e) => setConvertForm((current) => ({ ...current, startDate: e.target.value }))}
+            />
+          </div>
+          <Input
+            label="End Date Override"
+            type="date"
+            value={convertForm.endDate}
+            onChange={(e) => setConvertForm((current) => ({ ...current, endDate: e.target.value }))}
+          />
+        </div>
       </Modal>
     </div>
   );
