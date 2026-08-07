@@ -397,7 +397,7 @@ export default function Sidebar({
                 onClick={() => navigateFromProfile('/materials/catalog')}
                 className="w-full text-left px-2 py-1.5 rounded-md text-sm text-brand-700 dark:text-brand-200 hover:bg-accent-50 dark:hover:bg-brand-600"
               >
-                Material Catalog
+                Materials & Equipment Catalog
               </button>
               <button
                 onClick={() => navigateFromProfile('/estimates/templates')}

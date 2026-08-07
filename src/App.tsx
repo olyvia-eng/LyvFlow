@@ -31,7 +31,7 @@ const ModulePlaceholderPage = lazy(() => import('./pages/placeholders/ModulePlac
 const InvoicesPage = lazy(() => import('./pages/finance/InvoicesPage'));
 const ExpensesPage = lazy(() => import('./pages/finance/ExpensesPage'));
 const ProfitLossPage = lazy(() => import('./pages/finance/ProfitLossPage'));
-const EquipmentCatalogPage = lazy(() => import('./pages/data-center/EquipmentCatalogPage'));
+const MaterialsEquipmentCatalogPage = lazy(() => import('./pages/data-center/EquipmentCatalogPage'));
 const EquipmentPage = lazy(() => import('./pages/data-center/EquipmentCatalogPage'));
 const FormsPage = lazy(() => import('./pages/operations/FormsPage'));
 const DocumentsPage = lazy(() => import('./pages/data-center/DocumentsPage'));
@@ -501,13 +501,7 @@ export default function App() {
               />
               <Route
                 path="materials/catalog"
-                element={
-                  <ModulePlaceholderPage
-                    title="Material Catalog"
-                    question="What standard materials do we price and use most often?"
-                    summary="Maintain a shared list of material standards and pricing references so estimates stay consistent and fast."
-                  />
-                }
+                element={<MaterialsEquipmentCatalogPage />}
               />
               <Route
                 path="operations/purchase-orders"
@@ -565,7 +559,7 @@ export default function App() {
                   />
                 }
               />
-              <Route path="data-center/settings" element={<EquipmentCatalogPage />} />
+              <Route path="data-center/settings" element={<MaterialsEquipmentCatalogPage />} />
               <Route path="estimates" element={<EstimatesPage />} />
               <Route path="estimates/templates" element={<TemplatesPage />} />
               <Route path="jobs" element={<JobsPage />} />
