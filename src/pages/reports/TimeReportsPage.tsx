@@ -19,6 +19,7 @@ interface TimeReportsPageProps {
 
 type WorkTypeFilter = 'all' | TimeEntryWorkType;
 type JobFilter = 'all' | string;
+type UnbillableCategoryFilter = 'all' | 'uncategorized' | string;
 type PayrollPeriodPreset = 'custom' | 'this_week' | 'last_week' | 'this_month';
 
 function normalizeWorkType(entry: Partial<TimeEntry>): TimeEntryWorkType {
@@ -81,6 +82,7 @@ export default function TimeReportsPage({
     timeCorrections,
     jobs,
     employees,
+    unbillableTimeCategories,
     updateTimeEntry,
     approveTimeCorrectionRequest,
     rejectTimeCorrectionRequest,
@@ -92,6 +94,7 @@ export default function TimeReportsPage({
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [jobFilter, setJobFilter] = useState<JobFilter>('all');
+  const [unbillableCategoryFilter, setUnbillableCategoryFilter] = useState<UnbillableCategoryFilter>('all');
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillAuditEvents, setBackfillAuditEvents] = useState<AuditEvent[]>([]);
   const [loadingBackfillAudits, setLoadingBackfillAudits] = useState(false);
@@ -127,6 +130,10 @@ export default function TimeReportsPage({
 
   const employeeSearchValue = employeeSearch.trim().toLowerCase();
   const jobsSorted = useMemo(() => [...jobs].sort((a, b) => a.title.localeCompare(b.title)), [jobs]);
+  const unbillableCategoriesSorted = useMemo(
+    () => [...unbillableTimeCategories].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+    [unbillableTimeCategories]
+  );
   const isJobFocused = jobFilter !== 'all';
 
   const getEmployeeName = useCallback(
@@ -136,6 +143,16 @@ export default function TimeReportsPage({
   const getJobTitle = useCallback(
     (jobId: string) => jobs.find((job) => job.id === jobId)?.title ?? 'Unknown job',
     [jobs]
+  );
+  const getUnbillableCategoryLabel = useCallback(
+    (entry: TimeEntry) => {
+      if (normalizeWorkType(entry) !== 'non_billable') return 'Not Non-Billable';
+      if (!entry.unbillableCategoryId) return 'Uncategorized';
+
+      const current = unbillableCategoriesSorted.find((item) => item.id === entry.unbillableCategoryId);
+      return current?.name ?? entry.unbillableCategoryName ?? 'Uncategorized';
+    },
+    [unbillableCategoriesSorted]
   );
 
   useEffect(() => {
@@ -253,12 +270,23 @@ export default function TimeReportsPage({
           if (!entryJobIds.includes(jobFilter)) return false;
         }
 
+        if (unbillableCategoryFilter !== 'all') {
+          const workType = normalizeWorkType(entry);
+          if (workType !== 'non_billable') return false;
+
+          if (unbillableCategoryFilter === 'uncategorized') {
+            if (entry.unbillableCategoryId) return false;
+          } else if (entry.unbillableCategoryId !== unbillableCategoryFilter) {
+            return false;
+          }
+        }
+
         const workType = normalizeWorkType(entry);
         if (workTypeFilter !== 'all' && workType !== workTypeFilter) return false;
         return true;
       })
       .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-  }, [effectiveTimeEntries, employeeSearchValue, endDate, getEmployeeName, jobFilter, selectedEmployeeId, startDate, workTypeFilter]);
+  }, [effectiveTimeEntries, employeeSearchValue, endDate, getEmployeeName, jobFilter, selectedEmployeeId, startDate, unbillableCategoryFilter, workTypeFilter]);
 
   const recentEntries = useMemo(
     () => [...effectiveTimeEntries].sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime()).slice(0, 20),
@@ -470,6 +498,21 @@ export default function TimeReportsPage({
       .sort((a, b) => b.total - a.total);
   }, [filteredEntries, getEmployeeName]);
 
+  const nonBillableCategoryTotals = useMemo(() => {
+    const map = new Map<string, number>();
+
+    filteredEntries.forEach((entry) => {
+      if (normalizeWorkType(entry) !== 'non_billable') return;
+      const label = getUnbillableCategoryLabel(entry);
+      const hours = durationHours(entry.clockIn, entry.clockOut, entry.breakMinutes);
+      map.set(label, (map.get(label) ?? 0) + hours);
+    });
+
+    return [...map.entries()]
+      .map(([label, hours]) => ({ label, hours }))
+      .sort((a, b) => b.hours - a.hours);
+  }, [filteredEntries, getUnbillableCategoryLabel]);
+
   const handleExportSummaryCsv = () => {
     const payrollPeriodLabel =
       payrollPeriodPreset === 'this_month'
@@ -499,6 +542,7 @@ export default function TimeReportsPage({
       ['End Date', endDate],
       ['Work Type', selectedWorkTypeLabel],
       ['Job', selectedJobLabel],
+      ['Unbillable Category', unbillableCategoryFilter === 'all' ? 'All Categories' : unbillableCategoryFilter === 'uncategorized' ? 'Uncategorized' : (unbillableCategoriesSorted.find((item) => item.id === unbillableCategoryFilter)?.name ?? 'Unknown Category')],
       ['Employee Search', employeeFilterLabel],
       ['Focused Employee', selectedEmployeeId ? getEmployeeName(selectedEmployeeId) : 'None'],
       ['Matching Entries', String(filteredEntries.length)],
@@ -603,6 +647,19 @@ export default function TimeReportsPage({
             </Select>
           </div>
           <div>
+            <Select
+              label="Unbillable Category"
+              value={unbillableCategoryFilter}
+              onChange={(event) => setUnbillableCategoryFilter(event.target.value as UnbillableCategoryFilter)}
+            >
+              <option value="all">All Categories</option>
+              <option value="uncategorized">Uncategorized</option>
+              {unbillableCategoriesSorted.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </Select>
+          </div>
+          <div>
             <Input
               label="Employee Search"
               value={employeeSearch}
@@ -625,6 +682,18 @@ export default function TimeReportsPage({
             {isJobFocused && (
               <Button variant="ghost" size="sm" onClick={() => setJobFilter('all')}>
                 Clear Job
+              </Button>
+            )}
+            <p className="text-sm text-gray-500">
+              {unbillableCategoryFilter === 'all'
+                ? 'All unbillable categories'
+                : unbillableCategoryFilter === 'uncategorized'
+                  ? 'Focused Category: Uncategorized'
+                  : `Focused Category: ${unbillableCategoriesSorted.find((item) => item.id === unbillableCategoryFilter)?.name ?? 'Unknown'}`}
+            </p>
+            {unbillableCategoryFilter !== 'all' && (
+              <Button variant="ghost" size="sm" onClick={() => setUnbillableCategoryFilter('all')}>
+                Clear Category
               </Button>
             )}
           </div>
@@ -719,6 +788,27 @@ export default function TimeReportsPage({
           </div>
         </Card>
       )}
+
+      <Card className="overflow-hidden mb-6">
+        <div className="p-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-800">Non-Billable Category Breakdown</h2>
+          <p className="text-xs text-gray-500 mt-1">Hours grouped by unbillable category within current filters.</p>
+        </div>
+        {nonBillableCategoryTotals.length === 0 ? (
+          <p className="text-sm text-gray-400 p-4">No non-billable entries in this range.</p>
+        ) : (
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {nonBillableCategoryTotals.map((item) => (
+                <div key={item.label} className="rounded-lg border border-gray-100 bg-white p-3">
+                  <p className="text-sm font-semibold text-gray-800">{item.label}</p>
+                  <p className="text-xs text-gray-500 mt-1">{item.hours.toFixed(2)} hrs</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
 
       <Card className="overflow-hidden mb-6">
         <div className="p-4 border-b border-gray-100">

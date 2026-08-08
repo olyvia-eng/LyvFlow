@@ -6,6 +6,7 @@ import {
   createCustomerForBusiness,
   createEmployeeForBusiness,
   createEquipmentAssetForBusiness,
+  createUnbillableTimeCategoryForBusiness,
   createMaterialCatalogItemForBusiness,
   createEstimateForBusiness,
   createExpenseForBusiness,
@@ -28,6 +29,7 @@ import {
   deleteCustomerForBusiness,
   deleteEmployeeForBusiness,
   deleteEquipmentAssetForBusiness,
+  deleteUnbillableTimeCategoryForBusiness,
   deleteMaterialCatalogItemForBusiness,
   deleteEstimateForBusiness,
   deleteExpenseForBusiness,
@@ -49,6 +51,7 @@ import {
   getCustomerForBusiness,
   getEmployeeForBusiness,
   getEquipmentAssetForBusiness,
+  getUnbillableTimeCategoryForBusiness,
   getMaterialCatalogItemForBusiness,
   getEstimateForBusiness,
   getExpenseForBusiness,
@@ -70,6 +73,7 @@ import {
   listCustomersForBusiness,
   listEmployeesForBusiness,
   listEquipmentAssetsForBusiness,
+  listUnbillableTimeCategoriesForBusiness,
   listMaterialCatalogItemsForBusiness,
   listEstimatesForBusiness,
   listExpensesForBusiness,
@@ -91,6 +95,7 @@ import {
   updateCustomerForBusiness,
   updateEmployeeForBusiness,
   updateEquipmentAssetForBusiness,
+  updateUnbillableTimeCategoryForBusiness,
   updateMaterialCatalogItemForBusiness,
   updateEstimateForBusiness,
   updateExpenseForBusiness,
@@ -355,6 +360,19 @@ const ENTITY_CONFIG = {
     idParam: 'materialId',
     createArgKey: 'materialCatalogItem',
     updateArgKey: 'materialCatalogItem',
+  },
+  'unbillable-time-categories': {
+    readRoles: null,
+    writeRoles: ['owner', 'admin'],
+    list: listUnbillableTimeCategoriesForBusiness,
+    get: getUnbillableTimeCategoryForBusiness,
+    create: createUnbillableTimeCategoryForBusiness,
+    update: updateUnbillableTimeCategoryForBusiness,
+    remove: deleteUnbillableTimeCategoryForBusiness,
+    payloadKey: 'unbillableTimeCategory',
+    idParam: 'unbillableCategoryId',
+    createArgKey: 'category',
+    updateArgKey: 'category',
   },
   'time-entries': {
     readRoles: null,
@@ -652,6 +670,22 @@ function validateMaterialCatalogItemRecord(record) {
   return null;
 }
 
+function validateUnbillableTimeCategoryRecord(record) {
+  if (!isNonEmptyString(record.id)) return 'Category id is required.';
+  if (!isNonEmptyString(record.name)) return 'Category name is required.';
+  if (record.name.trim().length > 80) return 'Category name cannot exceed 80 characters.';
+  if (record.description !== undefined && record.description !== null && typeof record.description !== 'string') {
+    return 'Category description is invalid.';
+  }
+  if (!isFiniteNumber(record.sortOrder)) {
+    return 'Sort order must be a number.';
+  }
+  if (typeof record.active !== 'boolean') {
+    return 'Active flag is required.';
+  }
+  return null;
+}
+
 function validateBudgetRecord(record) {
   if (!isNonEmptyString(record.id)) return 'Budget id is required.';
   if (!isNonEmptyString(record.name)) return 'Budget name is required.';
@@ -934,6 +968,13 @@ export default async function handler(req, res) {
       }
     }
 
+    if (entity === 'unbillable-time-categories') {
+      const validationError = validateUnbillableTimeCategoryRecord(record);
+      if (validationError) {
+        return res.status(400).json({ ok: false, error: validationError });
+      }
+    }
+
     if (entity === 'budgets') {
       const validationError = validateBudgetRecord(record);
       if (validationError) {
@@ -1065,6 +1106,13 @@ export default async function handler(req, res) {
         }
       }
 
+      if (entity === 'unbillable-time-categories') {
+        const validationError = validateUnbillableTimeCategoryRecord(next);
+        if (validationError) {
+          return res.status(400).json({ ok: false, error: validationError });
+        }
+      }
+
       if (entity === 'budgets') {
         const validationError = validateBudgetRecord(next);
         if (validationError) {
@@ -1187,6 +1235,10 @@ export default async function handler(req, res) {
     }
 
     try {
+      if (entity === 'unbillable-time-categories') {
+        return res.status(409).json({ ok: false, error: 'Unbillable categories are archive-only. Set active=false instead.' });
+      }
+
       if (entity === 'employees') {
         const existing = await getEmployeeForBusiness(session.businessId, id);
         if (existing?.email) {

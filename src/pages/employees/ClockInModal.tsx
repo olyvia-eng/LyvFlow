@@ -14,11 +14,12 @@ interface Props {
 }
 
 export default function ClockInModal({ open, onClose }: Props) {
-  const { employees, jobs, timeEntries, clockIn, clockOut } = useStore();
+  const { employees, jobs, unbillableTimeCategories, timeEntries, clockIn, clockOut } = useStore();
   const [step, setStep] = useState<Step>('select_employee');
   const [foundEmployee, setFoundEmployee] = useState<typeof employees[0] | null>(null);
   const [clockType, setClockType] = useState<TimeEntryWorkType>('job');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
+  const [selectedUnbillableCategoryId, setSelectedUnbillableCategoryId] = useState('');
   const [jobNotes, setJobNotes] = useState('');
   const [photoAttachmentFileId, setPhotoAttachmentFileId] = useState('');
   const [photoAttachmentFileName, setPhotoAttachmentFileName] = useState('');
@@ -33,6 +34,7 @@ export default function ClockInModal({ open, onClose }: Props) {
     setFoundEmployee(null);
     setClockType('job');
     setSelectedJobIds([]);
+    setSelectedUnbillableCategoryId('');
     setJobNotes('');
     setPhotoAttachmentFileId('');
     setPhotoAttachmentFileName('');
@@ -57,6 +59,7 @@ export default function ClockInModal({ open, onClose }: Props) {
     void clockIn(foundEmployee.id, {
       workType: clockType,
       jobIds: clockType === 'job' ? selectedJobIds : [],
+      unbillableCategoryId: clockType === 'non_billable' ? selectedUnbillableCategoryId : undefined,
     }).then((result) => {
       if (!result.ok) return;
       setStep('clocked_in');
@@ -125,6 +128,10 @@ export default function ClockInModal({ open, onClose }: Props) {
   };
 
   const activeJobs = jobs.filter((j) => j.status === 'in_progress' || j.status === 'scheduled');
+  const activeUnbillableCategories = unbillableTimeCategories
+    .filter((item) => item.active)
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   const activeEmployees = employees.filter((employee) => employee.active);
 
   const toggleJobSelection = (jobId: string) => {
@@ -256,6 +263,7 @@ export default function ClockInModal({ open, onClose }: Props) {
                 const next = e.target.value as TimeEntryWorkType;
                 setClockType(next);
                 if (next !== 'job') setSelectedJobIds([]);
+                if (next !== 'non_billable') setSelectedUnbillableCategoryId('');
               }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
@@ -281,8 +289,35 @@ export default function ClockInModal({ open, onClose }: Props) {
                 )}
               </div>
             )}
+
+            {clockType === 'non_billable' && (
+              <div className="space-y-2 rounded-lg border border-brand-200 bg-white p-3">
+                <p className="text-sm font-medium text-gray-700">Unbillable Category <span className="text-accent-700">*</span></p>
+                <select
+                  value={selectedUnbillableCategoryId}
+                  onChange={(event) => setSelectedUnbillableCategoryId(event.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="">Select category</option>
+                  {activeUnbillableCategories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+                {activeUnbillableCategories.length === 0 && (
+                  <p className="text-xs text-accent-700">No active unbillable categories are configured.</p>
+                )}
+              </div>
+            )}
           </div>
-          <Button disabled={clockInSubmitting || (clockType === 'job' && selectedJobIds.length === 0)} className="w-full justify-center py-3 text-base" onClick={handleClockIn}>
+          <Button
+            disabled={
+              clockInSubmitting
+              || (clockType === 'job' && selectedJobIds.length === 0)
+              || (clockType === 'non_billable' && !selectedUnbillableCategoryId)
+            }
+            className="w-full justify-center py-3 text-base"
+            onClick={handleClockIn}
+          >
             <Clock size={18} /> {clockInSubmitting ? 'Clocking In...' : 'Clock In'}
           </Button>
           <button onClick={reset} className="text-sm text-gray-400 hover:text-gray-600 text-center">← Back</button>

@@ -117,3 +117,34 @@ test('approved wrong-job/activity corrections update effective job and work type
   assert.deepEqual(effective[0].jobIds, ['job-2']);
   assert.equal(effective[0].workType, 'drive_time');
 });
+
+test('approved non-billable correction overlays category fields and leaves source entry unchanged', () => {
+  const entries = [
+    {
+      ...baseEntry,
+      workType: 'job',
+      unbillableCategoryId: undefined,
+      unbillableCategoryName: undefined,
+    },
+  ];
+  const corrections = [
+    {
+      id: 'corr-unbillable-1',
+      timeEntryId: 'entry-1',
+      status: 'approved',
+      requestedActivityType: 'non_billable',
+      requestedUnbillableCategoryId: 'cat-training',
+      requestedUnbillableCategoryName: 'Training',
+      reviewedAt: '2026-08-07T00:30:00.000Z',
+      createdAt: '2026-08-07T00:30:00.000Z',
+      updatedAt: '2026-08-07T00:30:00.000Z',
+    },
+  ];
+
+  const effective = buildEffectiveTimeEntries(entries, corrections);
+  assert.equal(effective[0].workType, 'non_billable');
+  assert.equal(effective[0].unbillableCategoryId, 'cat-training');
+  assert.equal(effective[0].unbillableCategoryName, 'Training');
+  assert.equal(entries[0].workType, 'job');
+  assert.equal(entries[0].unbillableCategoryId, undefined);
+});

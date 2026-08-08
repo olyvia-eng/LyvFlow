@@ -65,3 +65,12 @@ test('crew members can access their own employee profile but not others', () => 
   assert.equal(authorizeRecordAccess(session, 'employees', { id: 'emp-1' }), true);
   assert.equal(authorizeRecordAccess(session, 'employees', { id: 'emp-2' }), false);
 });
+
+test('unbillable category permissions allow read to crew and write to owner/admin only', () => {
+  assert.equal(canReadEntity('unbillable-time-categories', 'crew_member'), true);
+  assert.equal(canReadEntity('unbillable-time-categories', 'foreman'), true);
+  assert.equal(canWriteEntity('unbillable-time-categories', 'owner'), true);
+  assert.equal(canWriteEntity('unbillable-time-categories', 'admin'), true);
+  assert.equal(canWriteEntity('unbillable-time-categories', 'foreman'), false);
+  assert.equal(canWriteEntity('unbillable-time-categories', 'crew_member'), false);
+});

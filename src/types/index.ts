@@ -327,6 +327,16 @@ export interface Employee {
   createdAt: string;
 }
 
+export interface UnbillableTimeCategory {
+  id: ID;
+  name: string;
+  description?: string;
+  sortOrder: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ClockStatus = 'clocked_in' | 'clocked_out';
 export type TimeEntryWorkType = 'job' | 'drive_time' | 'non_billable';
 
@@ -360,6 +370,8 @@ export interface TimeCorrectionRequest {
   requestedClockOutAt?: string;
   requestedJobId?: ID;
   requestedActivityType?: TimeEntryWorkType;
+  requestedUnbillableCategoryId?: ID;
+  requestedUnbillableCategoryName?: string;
   requestedSegments?: TimeCorrectionSegmentRequest[];
   reason: string;
   submittedByUserId: ID;
@@ -374,6 +386,8 @@ export interface TimeCorrectionRequest {
   originalJobId?: ID;
   originalJobIds?: ID[];
   originalActivityType?: TimeEntryWorkType;
+  originalUnbillableCategoryId?: ID;
+  originalUnbillableCategoryName?: string;
 }
 
 export interface TimeEntry {
@@ -382,6 +396,8 @@ export interface TimeEntry {
   jobId?: ID;
   jobIds?: ID[];
   workType: TimeEntryWorkType;
+  unbillableCategoryId?: ID;
+  unbillableCategoryName?: string;
   clockIn: string;
   clockOut?: string;
   breakMinutes: number;

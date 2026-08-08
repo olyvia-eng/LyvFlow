@@ -14,7 +14,14 @@ import {
 } from './_lib/clocking.js';
 import { ddb } from './_lib/db.js';
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
-import { getEmployeeForBusiness, getFileForBusiness, getJobForBusiness, listTimeEntriesForBusiness } from './_lib/authRepo.js';
+import {
+  getEmployeeForBusiness,
+  getFileForBusiness,
+  getJobForBusiness,
+  getUnbillableTimeCategoryForBusiness,
+  listTimeEntriesForBusiness,
+  listUnbillableTimeCategoriesForBusiness,
+} from './_lib/authRepo.js';
 import { canClockForEmployee } from './_lib/authorization.js';
 
 const VALID_WORK_TYPES = new Set(['job', 'drive_time', 'non_billable']);
@@ -82,6 +89,20 @@ function summarizeTransaction(tx) {
   });
 }
 
+async function resolveActiveUnbillableCategoryOrError({ businessId, categoryId }) {
+  const normalized = typeof categoryId === 'string' ? categoryId.trim() : '';
+  if (!normalized) {
+    return { ok: false, status: 400, error: 'Unbillable category is required.' };
+  }
+
+  const category = await getUnbillableTimeCategoryForBusiness(businessId, normalized);
+  if (!category || category.active !== true) {
+    return { ok: false, status: 400, error: 'Unbillable category is invalid or inactive.' };
+  }
+
+  return { ok: true, category };
+}
+
 export default async function handler(req, res) {
   const action = typeof req.query.action === 'string' ? req.query.action : '';
   if (['list', 'create', 'approve', 'reject', 'effective-time-entries', 'notifications'].includes(action)) {
@@ -90,6 +111,12 @@ export default async function handler(req, res) {
 
   const session = await requireSession(req, res, ['owner', 'admin', 'crew_member']);
   if (!session) return;
+
+  if (req.method === 'GET' && action === 'active-unbillable-categories') {
+    const categories = await listUnbillableTimeCategoriesForBusiness(session.businessId);
+    const activeItems = categories.filter((item) => item.active === true);
+    return res.status(200).json({ ok: true, items: activeItems });
+  }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -113,6 +140,18 @@ export default async function handler(req, res) {
       return res.status(403).json({ ok: false, error: 'Drive time is not enabled for this employee.' });
     }
 
+    let requestedUnbillableCategory;
+    if (requestedWorkType === 'non_billable') {
+      const categoryResult = await resolveActiveUnbillableCategoryOrError({
+        businessId: session.businessId,
+        categoryId: req.body?.unbillableCategoryId,
+      });
+      if (!categoryResult.ok) {
+        return res.status(categoryResult.status).json({ ok: false, error: categoryResult.error });
+      }
+      requestedUnbillableCategory = categoryResult.category;
+    }
+
     const requestId = typeof req.body?.requestId === 'string' && req.body.requestId.trim()
       ? req.body.requestId.trim()
       : `${session.id}:${nowIso()}`;
@@ -124,6 +163,9 @@ export default async function handler(req, res) {
       employeeId,
       workType: requestedWorkType,
       jobIds: Array.isArray(req.body?.jobIds) ? req.body.jobIds.filter(Boolean) : [],
+      unbillableCategoryId: requestedWorkType === 'non_billable'
+        ? requestedUnbillableCategory.id
+        : undefined,
       requestId,
       idempotencyKey,
     };
@@ -155,6 +197,12 @@ export default async function handler(req, res) {
       auditEventId: `${session.id}:${clockInAt}`,
       jobIds: Array.isArray(req.body?.jobIds) ? req.body.jobIds.filter(Boolean) : [],
       workType: requestedWorkType,
+      unbillableCategoryId: requestedWorkType === 'non_billable'
+        ? requestedUnbillableCategory.id
+        : undefined,
+      unbillableCategoryName: requestedWorkType === 'non_billable'
+        ? requestedUnbillableCategory.name
+        : undefined,
       employeeName: employee.name,
     });
 
@@ -166,6 +214,12 @@ export default async function handler(req, res) {
         jobId: Array.isArray(req.body?.jobIds) && req.body.jobIds.length > 0 ? req.body.jobIds[0] : undefined,
         jobIds: Array.isArray(req.body?.jobIds) ? req.body.jobIds.filter(Boolean) : [],
         workType: requestedWorkType,
+        unbillableCategoryId: requestedWorkType === 'non_billable'
+          ? requestedUnbillableCategory.id
+          : undefined,
+        unbillableCategoryName: requestedWorkType === 'non_billable'
+          ? requestedUnbillableCategory.name
+          : undefined,
         clockIn: clockInAt,
         breakMinutes: 0,
         notes: '',
@@ -305,6 +359,8 @@ export default async function handler(req, res) {
       photoAttachmentFileIds: attachmentValidation.fileIds ?? undefined,
       photoAttachmentFileId: attachmentValidation.fileId ?? undefined,
       photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
+      unbillableCategoryId: activeEntry.unbillableCategoryId,
+      unbillableCategoryName: activeEntry.unbillableCategoryName,
       employeeName: employee?.name ?? '',
     });
 
@@ -325,6 +381,8 @@ export default async function handler(req, res) {
         photoAttachmentFileId: attachmentValidation.fileId ?? undefined,
         clockOutPhotoFileId: attachmentValidation.fileId ?? undefined,
         photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
+        unbillableCategoryId: activeEntry.unbillableCategoryId,
+        unbillableCategoryName: activeEntry.unbillableCategoryName,
         status: 'clocked_out',
       };
       return res.status(200).json({ ok: true, timeEntry });
@@ -382,6 +440,10 @@ export default async function handler(req, res) {
 
     const nextWorkType = workTypeResult.workType;
     const nextJobIds = getNormalizedJobIds(req.body?.jobIds);
+    const requestedUnbillableCategoryId = typeof req.body?.unbillableCategoryId === 'string'
+      ? req.body.unbillableCategoryId.trim()
+      : '';
+    let requestedUnbillableCategory;
 
     if (nextWorkType === 'job' && nextJobIds.length === 0) {
       return res.status(400).json({ ok: false, error: 'At least one job is required for job work.' });
@@ -422,6 +484,7 @@ export default async function handler(req, res) {
       previousEntryId: activeShift.activeEntryId,
       workType: nextWorkType,
       jobIds: nextJobIds,
+      unbillableCategoryId: nextWorkType === 'non_billable' ? requestedUnbillableCategoryId : undefined,
       requestId,
       idempotencyKey,
     };
@@ -436,6 +499,17 @@ export default async function handler(req, res) {
     const previousEntry = allEntries.find((entry) => entry.id === activeShift.activeEntryId);
     if (!previousEntry || previousEntry.status !== 'clocked_in' || previousEntry.employeeId !== employeeId) {
       return res.status(409).json({ ok: false, error: 'No active shift found' });
+    }
+
+    if (nextWorkType === 'non_billable') {
+      const categoryResult = await resolveActiveUnbillableCategoryOrError({
+        businessId: session.businessId,
+        categoryId: requestedUnbillableCategoryId,
+      });
+      if (!categoryResult.ok) {
+        return res.status(categoryResult.status).json({ ok: false, error: categoryResult.error });
+      }
+      requestedUnbillableCategory = categoryResult.category;
     }
 
     console.info('[clocking:switch-activity:pre-transaction]', {
@@ -459,6 +533,8 @@ export default async function handler(req, res) {
         id: nextTimeEntryId,
         workType: nextWorkType,
         jobIds: nextWorkType === 'non_billable' ? [] : nextJobIds,
+        unbillableCategoryId: nextWorkType === 'non_billable' ? requestedUnbillableCategory.id : undefined,
+        unbillableCategoryName: nextWorkType === 'non_billable' ? requestedUnbillableCategory.name : undefined,
       },
       switchedAt,
       requestId,
@@ -477,6 +553,8 @@ export default async function handler(req, res) {
         jobId: nextWorkType === 'non_billable' ? undefined : (nextJobIds[0] ?? undefined),
         jobIds: nextWorkType === 'non_billable' ? [] : nextJobIds,
         workType: nextWorkType,
+        unbillableCategoryId: nextWorkType === 'non_billable' ? requestedUnbillableCategory.id : undefined,
+        unbillableCategoryName: nextWorkType === 'non_billable' ? requestedUnbillableCategory.name : undefined,
         clockIn: switchedAt,
         breakMinutes: 0,
         notes: '',

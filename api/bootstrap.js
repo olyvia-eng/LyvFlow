@@ -12,6 +12,7 @@ import {
   listCustomersForBusiness,
   listEmployeesForBusiness,
   listEquipmentAssetsForBusiness,
+  listUnbillableTimeCategoriesForBusiness,
   listMaterialCatalogItemsForBusiness,
   listEstimatesForBusiness,
   listExpensesForBusiness,
@@ -53,7 +54,7 @@ export default async function handler(req, res) {
         })
       : false;
 
-    const [forms, formFields, formSubmissions, formResponses, budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, materialCatalogItems, templates, budgetItems, budgetRates, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries, timeCorrections] = await Promise.all([
+    const [forms, formFields, formSubmissions, formResponses, budgets, customers, jobs, estimates, invoices, expenses, equipmentAssets, unbillableTimeCategories, materialCatalogItems, templates, budgetItems, budgetRates, labourBudgetPlans, labourHoursSalesGoals, revenueSalesGoals, employees, timeEntries, timeCorrections] = await Promise.all([
       listFormsForBusiness(session.businessId),
       listFormFieldsForBusiness(session.businessId),
       listFormSubmissionsForBusiness(session.businessId),
@@ -65,6 +66,7 @@ export default async function handler(req, res) {
       listInvoicesForBusiness(session.businessId),
       listExpensesForBusiness(session.businessId),
       listEquipmentAssetsForBusiness(session.businessId),
+      listUnbillableTimeCategoriesForBusiness(session.businessId),
       listMaterialCatalogItemsForBusiness(session.businessId),
       listTemplatesForBusiness(session.businessId),
       listBudgetItemsForBusiness(session.businessId),
@@ -93,6 +95,7 @@ export default async function handler(req, res) {
       invoices: filterRecordsForSession(session, 'invoices', invoices),
       expenses: filterRecordsForSession(session, 'expenses', expenses),
       equipmentAssets: filterRecordsForSession(session, 'equipment-assets', equipmentAssets),
+      unbillableTimeCategories: filterRecordsForSession(session, 'unbillable-time-categories', unbillableTimeCategories),
       materialCatalogItems: filterRecordsForSession(session, 'material-catalog-items', materialCatalogItems),
       templates: filterRecordsForSession(session, 'templates', templates),
       budgetItems: filterRecordsForSession(session, 'budget', budgetItems),

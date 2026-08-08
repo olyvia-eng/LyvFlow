@@ -29,6 +29,14 @@ export function buildEffectiveTimeEntries(
     const correction = approvedByEntryId.get(entry.id);
     if (!correction) return entry;
 
+    const nextWorkType = correction.requestedActivityType ?? entry.workType;
+    const nextUnbillableCategoryId = nextWorkType === 'non_billable'
+      ? (correction.requestedUnbillableCategoryId ?? entry.unbillableCategoryId)
+      : undefined;
+    const nextUnbillableCategoryName = nextWorkType === 'non_billable'
+      ? (correction.requestedUnbillableCategoryName ?? entry.unbillableCategoryName)
+      : undefined;
+
     const requestedJobIds = correction.requestedJobId ? [correction.requestedJobId] : undefined;
 
     return {
@@ -37,7 +45,9 @@ export function buildEffectiveTimeEntries(
       clockOut: correction.requestedClockOutAt ?? entry.clockOut,
       jobId: correction.requestedJobId ?? entry.jobId,
       jobIds: requestedJobIds ?? entry.jobIds,
-      workType: correction.requestedActivityType ?? entry.workType,
+      workType: nextWorkType,
+      unbillableCategoryId: nextUnbillableCategoryId,
+      unbillableCategoryName: nextUnbillableCategoryName,
     };
   });
 }

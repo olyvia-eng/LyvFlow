@@ -14,6 +14,7 @@ import type {
   Invoice,
   Job,
   Employee,
+  UnbillableTimeCategory,
   TimeEntry,
   TimeEntryWorkType,
   MaterialCatalogItem,
@@ -80,6 +81,7 @@ interface AppState {
   templates: EstimateTemplate[];
   expenses: Expense[];
   equipmentAssets: EquipmentAsset[];
+  unbillableTimeCategories: UnbillableTimeCategory[];
   materialCatalogItems: MaterialCatalogItem[];
   invoices: Invoice[];
   jobs: Job[];
@@ -129,6 +131,9 @@ interface AppState {
   addEquipmentAsset: (e: Omit<EquipmentAsset, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateEquipmentAsset: (id: ID, data: Partial<EquipmentAsset>) => void;
   deleteEquipmentAsset: (id: ID) => void;
+  addUnbillableTimeCategory: (category: Omit<UnbillableTimeCategory, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateUnbillableTimeCategory: (id: ID, data: Partial<UnbillableTimeCategory>) => void;
+  archiveUnbillableTimeCategory: (id: ID) => void;
   addMaterialCatalogItem: (item: Omit<MaterialCatalogItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateMaterialCatalogItem: (id: ID, data: Partial<MaterialCatalogItem>) => void;
   deleteMaterialCatalogItem: (id: ID) => void;
@@ -145,7 +150,7 @@ interface AppState {
   deleteEmployee: (id: ID) => void;
 
   // Time Entries
-  clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[] }) => Promise<{ ok: boolean; error?: string; timeEntry?: TimeEntry }>;
+  clockIn: (employeeId: ID, options: { workType: TimeEntryWorkType; jobIds?: ID[]; unbillableCategoryId?: ID }) => Promise<{ ok: boolean; error?: string; timeEntry?: TimeEntry }>;
   clockOut: (entryId: ID, breakMinutes?: number, notes?: string, photoAttachmentFileId?: string) => Promise<{ ok: boolean; error?: string }>;
   addTimeEntry: (e: Omit<TimeEntry, 'id'>) => void;
   updateTimeEntry: (id: ID, data: Partial<TimeEntry>) => void;
@@ -158,6 +163,7 @@ interface AppState {
     requestedClockOutAt?: string;
     requestedJobId?: ID;
     requestedActivityType?: TimeCorrectionRequest['requestedActivityType'];
+    requestedUnbillableCategoryId?: ID;
     requestedSegments?: TimeCorrectionRequest['requestedSegments'];
     reason: string;
   }) => Promise<{ ok: boolean; error?: string; correction?: TimeCorrectionRequest }>;
@@ -202,6 +208,7 @@ export const useStore = create<AppState>()((set, get) => ({
       templates: [],
       expenses: [],
       equipmentAssets: [],
+      unbillableTimeCategories: [],
       materialCatalogItems: [],
       invoices: [],
       jobs: [],
@@ -624,6 +631,61 @@ export const useStore = create<AppState>()((set, get) => ({
         });
       },
 
+      // ── Unbillable Categories ───────────────────────────────────────────
+      addUnbillableTimeCategory: (categoryInput) => {
+        const previous = get().unbillableTimeCategories;
+        const now = nowISO();
+        const category: UnbillableTimeCategory = {
+          ...categoryInput,
+          id: generateId(),
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        set((s) => ({
+          unbillableTimeCategories: [...s.unbillableTimeCategories, category]
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+        }));
+
+        void ensureOk(fetch(dataUrl('unbillable-time-categories'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: category }),
+        })).catch((error: unknown) => {
+          set({ unbillableTimeCategories: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Category could not be saved.') });
+        });
+      },
+      updateUnbillableTimeCategory: (id, data) => {
+        const previous = get().unbillableTimeCategories;
+        const updatedAt = nowISO();
+        set((s) => ({
+          unbillableTimeCategories: s.unbillableTimeCategories
+            .map((item) => (item.id === id ? { ...item, ...data, updatedAt } : item))
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+        }));
+
+        void ensureOk(fetch(dataUrl('unbillable-time-categories', id), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: { ...data, updatedAt } }),
+        })).catch((error: unknown) => {
+          set({ unbillableTimeCategories: previous });
+          emitAppToast({ tone: 'error', message: errorMessage(error, 'Category changes could not be saved.') });
+        });
+      },
+      archiveUnbillableTimeCategory: (id) => {
+        get().updateUnbillableTimeCategory(id, { active: false });
+      },
+
       // ── Material Catalog ─────────────────────────────────────────────────
       addMaterialCatalogItem: (item) => {
         const previous = get().materialCatalogItems;
@@ -822,6 +884,9 @@ export const useStore = create<AppState>()((set, get) => ({
         }
 
         const workType = options.workType;
+        const requestedUnbillableCategoryId = typeof options.unbillableCategoryId === 'string'
+          ? options.unbillableCategoryId.trim()
+          : '';
         const selectedJobIds = Array.isArray(options.jobIds)
           ? options.jobIds.filter((value, index, all) => !!value && all.indexOf(value) === index)
           : [];
@@ -830,6 +895,21 @@ export const useStore = create<AppState>()((set, get) => ({
           const message = 'Select at least one job to clock in.';
           emitAppToast({ tone: 'error', message });
           return { ok: false, error: message };
+        }
+
+        if (workType === 'non_billable') {
+          const activeCategories = get().unbillableTimeCategories.filter((item) => item.active);
+          if (activeCategories.length === 0) {
+            const message = 'No active unbillable categories are configured.';
+            emitAppToast({ tone: 'error', message });
+            return { ok: false, error: message };
+          }
+
+          if (!requestedUnbillableCategoryId || !activeCategories.some((item) => item.id === requestedUnbillableCategoryId)) {
+            const message = 'Select an active unbillable category to clock in.';
+            emitAppToast({ tone: 'error', message });
+            return { ok: false, error: message };
+          }
         }
 
         set((state) => ({
@@ -850,6 +930,7 @@ export const useStore = create<AppState>()((set, get) => ({
               employeeId,
               workType,
               jobIds: workType === 'job' ? selectedJobIds : [],
+              unbillableCategoryId: workType === 'non_billable' ? requestedUnbillableCategoryId : undefined,
               requestId,
               idempotencyKey,
             }),

@@ -66,6 +66,10 @@ function materialCatalogSk(materialId) {
   return `MATERIAL#${materialId}`;
 }
 
+function unbillableTimeCategorySk(categoryId) {
+  return `UNBILLABLE_CATEGORY#${categoryId}`;
+}
+
 function feedbackSk(feedbackId) {
   return `FEEDBACK#${feedbackId}`;
 }
@@ -2427,6 +2431,110 @@ export async function deleteMaterialCatalogItemForBusiness(businessId, materialI
   return { ok: true };
 }
 
+export async function listUnbillableTimeCategoriesForBusiness(businessId) {
+  const result = await ddb.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': businessPk(businessId),
+        ':prefix': 'UNBILLABLE_CATEGORY#',
+      },
+    })
+  );
+
+  return (result.Items ?? [])
+    .map((item) => ({
+      id: item.categoryId,
+      name: item.name,
+      description: item.description ?? '',
+      sortOrder: Number(item.sortOrder ?? 0),
+      active: item.active !== false,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }))
+    .sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return String(a.name ?? '').localeCompare(String(b.name ?? ''));
+    });
+}
+
+export async function createUnbillableTimeCategoryForBusiness({ businessId, category }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: unbillableTimeCategorySk(category.id),
+        entityType: 'UNBILLABLE_TIME_CATEGORY',
+        businessId,
+        categoryId: category.id,
+        ...category,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function getUnbillableTimeCategoryForBusiness(businessId, categoryId) {
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: unbillableTimeCategorySk(categoryId),
+      },
+    })
+  );
+
+  return result.Item
+    ? {
+        id: result.Item.categoryId,
+        name: result.Item.name,
+        description: result.Item.description ?? '',
+        sortOrder: Number(result.Item.sortOrder ?? 0),
+        active: result.Item.active !== false,
+        createdAt: result.Item.createdAt,
+        updatedAt: result.Item.updatedAt,
+      }
+    : null;
+}
+
+export async function updateUnbillableTimeCategoryForBusiness({ businessId, category }) {
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: businessPk(businessId),
+        SK: unbillableTimeCategorySk(category.id),
+        entityType: 'UNBILLABLE_TIME_CATEGORY',
+        businessId,
+        categoryId: category.id,
+        ...category,
+      },
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+    })
+  );
+
+  return { ok: true };
+}
+
+export async function deleteUnbillableTimeCategoryForBusiness(businessId, categoryId) {
+  await ddb.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: businessPk(businessId),
+        SK: unbillableTimeCategorySk(categoryId),
+      },
+    })
+  );
+
+  return { ok: true };
+}
+
 export async function listFeedbackForBusiness(businessId) {
   const result = await ddb.send(
     new QueryCommand({
@@ -3422,6 +3530,8 @@ export async function listTimeEntriesForBusiness(businessId) {
       ? item.jobIds
       : (item.jobId ? [item.jobId] : []),
     workType: item.workType ?? 'job',
+    unbillableCategoryId: item.unbillableCategoryId ?? undefined,
+    unbillableCategoryName: item.unbillableCategoryName ?? undefined,
     clockIn: item.clockIn,
     clockOut: item.clockOut,
     breakMinutes: item.breakMinutes ?? 0,
@@ -3484,6 +3594,8 @@ export async function getTimeEntryForBusiness(businessId, entryId) {
           ? result.Item.jobIds
           : (result.Item.jobId ? [result.Item.jobId] : []),
         workType: result.Item.workType ?? 'job',
+        unbillableCategoryId: result.Item.unbillableCategoryId ?? undefined,
+        unbillableCategoryName: result.Item.unbillableCategoryName ?? undefined,
         clockIn: result.Item.clockIn,
         clockOut: result.Item.clockOut,
         breakMinutes: result.Item.breakMinutes ?? 0,
@@ -3544,6 +3656,8 @@ function mapTimeCorrectionRecordFromItem(item) {
     requestedClockOutAt: item.requestedClockOutAt,
     requestedJobId: item.requestedJobId,
     requestedActivityType: item.requestedActivityType,
+    requestedUnbillableCategoryId: item.requestedUnbillableCategoryId,
+    requestedUnbillableCategoryName: item.requestedUnbillableCategoryName,
     requestedSegments: Array.isArray(item.requestedSegments) ? item.requestedSegments : undefined,
     reason: item.reason,
     submittedByUserId: item.submittedByUserId,
@@ -3558,6 +3672,8 @@ function mapTimeCorrectionRecordFromItem(item) {
     originalJobId: item.originalJobId,
     originalJobIds: Array.isArray(item.originalJobIds) ? item.originalJobIds : undefined,
     originalActivityType: item.originalActivityType,
+    originalUnbillableCategoryId: item.originalUnbillableCategoryId,
+    originalUnbillableCategoryName: item.originalUnbillableCategoryName,
   };
 }
 

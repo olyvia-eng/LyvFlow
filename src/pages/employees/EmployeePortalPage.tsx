@@ -17,6 +17,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const {
     employees,
     jobs,
+    unbillableTimeCategories,
     timeEntries,
     timeCorrections,
     forms,
@@ -29,6 +30,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
 
   const [clockType, setClockType] = useState<TimeEntryWorkType>('job');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
+  const [selectedUnbillableCategoryId, setSelectedUnbillableCategoryId] = useState('');
   const [jobNotes, setJobNotes] = useState('');
   const [photoAttachmentFileId, setPhotoAttachmentFileId] = useState('');
   const [photoAttachmentFileName, setPhotoAttachmentFileName] = useState('');
@@ -47,6 +49,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const [requestedClockOutAt, setRequestedClockOutAt] = useState('');
   const [requestedJobId, setRequestedJobId] = useState('');
   const [requestedActivityType, setRequestedActivityType] = useState<TimeEntryWorkType>('job');
+  const [requestedUnbillableCategoryId, setRequestedUnbillableCategoryId] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
   const [submittingCorrection, setSubmittingCorrection] = useState(false);
 
@@ -73,6 +76,13 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
   const activeJobs = jobs.filter(
     (job) => job.status === 'in_progress' || job.status === 'scheduled'
   );
+  const activeUnbillableCategories = useMemo(
+    () => unbillableTimeCategories
+      .filter((item) => item.active)
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+    [unbillableTimeCategories]
+  );
 
   const myHistoricalEntries = useMemo(() => {
     if (!employee) return [];
@@ -98,6 +108,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
 
     setClockType('job');
     setSelectedJobIds([]);
+    setSelectedUnbillableCategoryId('');
     setJobNotes('');
     setPhotoAttachmentFileId('');
     setPhotoAttachmentFileName('');
@@ -114,6 +125,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
     void clockIn(employee.id, {
       workType: clockType,
       jobIds: clockType === 'job' ? selectedJobIds : [],
+      unbillableCategoryId: clockType === 'non_billable' ? selectedUnbillableCategoryId : undefined,
     }).finally(() => {
       setClockInSubmitting(false);
     });
@@ -275,6 +287,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
       requestedClockOutAt: requestedClockOutAt ? new Date(requestedClockOutAt).toISOString() : undefined,
       requestedJobId: requestedJobId || undefined,
       requestedActivityType,
+      requestedUnbillableCategoryId: requestedActivityType === 'non_billable' ? (requestedUnbillableCategoryId || undefined) : undefined,
       reason: correctionReason.trim(),
     };
 
@@ -292,6 +305,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
     setRequestedClockOutAt('');
     setRequestedJobId('');
     setRequestedActivityType('job');
+    setRequestedUnbillableCategoryId('');
     setCorrectionReason('');
   };
 
@@ -409,6 +423,7 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                       const next = event.target.value as TimeEntryWorkType;
                       setClockType(next);
                       if (next !== 'job') setSelectedJobIds([]);
+                      if (next !== 'non_billable') setSelectedUnbillableCategoryId('');
                     }}
                   >
                     <option value="job">Job Work</option>
@@ -437,9 +452,32 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
                     </div>
                   )}
 
+                  {clockType === 'non_billable' && (
+                    <div className="space-y-2">
+                      <Select
+                        label="Unbillable Category"
+                        required
+                        value={selectedUnbillableCategoryId}
+                        onChange={(event) => setSelectedUnbillableCategoryId(event.target.value)}
+                      >
+                        <option value="">Select category</option>
+                        {activeUnbillableCategories.map((category) => (
+                          <option key={category.id} value={category.id}>{category.name}</option>
+                        ))}
+                      </Select>
+                      {activeUnbillableCategories.length === 0 && (
+                        <p className="text-sm text-accent-700">No active unbillable categories are configured. Ask an admin to add one in settings.</p>
+                      )}
+                    </div>
+                  )}
+
                   <Button
                     onClick={handleClockIn}
-                    disabled={clockInSubmitting || (clockType === 'job' && selectedJobIds.length === 0)}
+                    disabled={
+                      clockInSubmitting
+                      || (clockType === 'job' && selectedJobIds.length === 0)
+                      || (clockType === 'non_billable' && !selectedUnbillableCategoryId)
+                    }
                     className="w-full justify-center"
                   >
                     <Clock size={16} /> {clockInSubmitting ? 'Clocking In...' : 'Clock In'}
@@ -517,7 +555,14 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
         footer={(
           <>
             <Button variant="secondary" onClick={() => setCorrectionModalOpen(false)}>Cancel</Button>
-            <Button onClick={() => void submitCorrection()} disabled={submittingCorrection || !correctionReason.trim()}>
+            <Button
+              onClick={() => void submitCorrection()}
+              disabled={
+                submittingCorrection
+                || !correctionReason.trim()
+                || (requestedActivityType === 'non_billable' && !requestedUnbillableCategoryId)
+              }
+            >
               {submittingCorrection ? 'Submitting...' : 'Submit Request'}
             </Button>
           </>
@@ -558,6 +603,19 @@ export default function EmployeePortalPage({ sessionEmployeeEmail, onLogout }: E
             <option value="drive_time">Drive Time</option>
             <option value="non_billable">Non-Billable</option>
           </Select>
+          {requestedActivityType === 'non_billable' && (
+            <Select
+              label="Unbillable Category"
+              required
+              value={requestedUnbillableCategoryId}
+              onChange={(event) => setRequestedUnbillableCategoryId(event.target.value)}
+            >
+              <option value="">Select category</option>
+              {activeUnbillableCategories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </Select>
+          )}
           <Select value={requestedJobId} onChange={(event) => setRequestedJobId(event.target.value)}>
             <option value="">Requested Job (optional)</option>
             {activeJobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}

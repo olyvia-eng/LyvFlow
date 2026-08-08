@@ -37,6 +37,12 @@ export function normalizeTimeCorrectionRequest(input) {
     requestedClockOutAt: toIsoOrNull(input?.requestedClockOutAt) ?? undefined,
     requestedJobId: typeof input?.requestedJobId === 'string' && input.requestedJobId.trim() ? input.requestedJobId.trim() : undefined,
     requestedActivityType: typeof input?.requestedActivityType === 'string' ? input.requestedActivityType.trim() : undefined,
+    requestedUnbillableCategoryId: typeof input?.requestedUnbillableCategoryId === 'string' && input.requestedUnbillableCategoryId.trim()
+      ? input.requestedUnbillableCategoryId.trim()
+      : undefined,
+    requestedUnbillableCategoryName: typeof input?.requestedUnbillableCategoryName === 'string' && input.requestedUnbillableCategoryName.trim()
+      ? input.requestedUnbillableCategoryName.trim()
+      : undefined,
     requestedSegments: Array.isArray(input?.requestedSegments)
       ? input.requestedSegments
           .filter((segment) => segment && typeof segment === 'object')
@@ -82,6 +88,10 @@ export function validateTimeCorrectionRequestPayload({ request, timeEntry, isOwn
     if (Date.parse(request.requestedClockInAt) >= Date.parse(request.requestedClockOutAt)) {
       return 'Requested clock-out must be after requested clock-in.';
     }
+  }
+
+  if (request.requestedActivityType === 'non_billable' && !request.requestedUnbillableCategoryId) {
+    return 'Non-billable corrections require an unbillable category.';
   }
 
   if (request.requestType === 'split_activity') {
@@ -134,6 +144,14 @@ export function buildEffectiveTimeEntries(timeEntries, timeCorrections) {
     const correction = approvedByEntryId.get(entry.id);
     if (!correction) return entry;
 
+    const nextWorkType = correction.requestedActivityType ?? entry.workType;
+    const nextUnbillableCategoryId = nextWorkType === 'non_billable'
+      ? (correction.requestedUnbillableCategoryId ?? entry.unbillableCategoryId)
+      : undefined;
+    const nextUnbillableCategoryName = nextWorkType === 'non_billable'
+      ? (correction.requestedUnbillableCategoryName ?? entry.unbillableCategoryName)
+      : undefined;
+
     const nextJobIds = correction.requestedJobId
       ? [correction.requestedJobId]
       : (Array.isArray(entry.jobIds) ? entry.jobIds : (entry.jobId ? [entry.jobId] : []));
@@ -144,7 +162,9 @@ export function buildEffectiveTimeEntries(timeEntries, timeCorrections) {
       clockOut: correction.requestedClockOutAt ?? entry.clockOut,
       jobId: correction.requestedJobId ?? entry.jobId,
       jobIds: nextJobIds,
-      workType: correction.requestedActivityType ?? entry.workType,
+      workType: nextWorkType,
+      unbillableCategoryId: nextUnbillableCategoryId,
+      unbillableCategoryName: nextUnbillableCategoryName,
     };
   });
 }

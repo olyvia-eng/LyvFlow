@@ -5,6 +5,7 @@ import {
   generateId,
   getEmployeeForBusiness,
   getJobForBusiness,
+  getUnbillableTimeCategoryForBusiness,
   getTimeCorrectionForBusiness,
   getTimeEntryForBusiness,
   listTimeCorrectionsForBusiness,
@@ -107,6 +108,8 @@ function buildHistoricalTimeEntryFromRequest({ request, employeeId, reviewedAt }
     jobId: requestedWorkType === 'job' ? requestedJobId : undefined,
     jobIds: requestedWorkType === 'job' && requestedJobId ? [requestedJobId] : [],
     workType: requestedWorkType,
+    unbillableCategoryId: requestedWorkType === 'non_billable' ? request.requestedUnbillableCategoryId : undefined,
+    unbillableCategoryName: requestedWorkType === 'non_billable' ? request.requestedUnbillableCategoryName : undefined,
     clockIn,
     clockOut,
     breakMinutes: 0,
@@ -123,22 +126,42 @@ function ensureSameBusinessJobOrError(job, requestedJobId) {
   return null;
 }
 
-async function validateActivityAndJobRules({ session, request, employee, jobId, getJobForBusinessFn }) {
+async function validateActivityAndJobRules({
+  session,
+  request,
+  employee,
+  jobId,
+  getJobForBusinessFn,
+  getUnbillableTimeCategoryForBusinessFn,
+}) {
   if (!jobId && request.requestedActivityType === 'job') {
-    return 'Job work corrections must include a requested job.';
+    return { error: 'Job work corrections must include a requested job.' };
   }
 
   if (jobId) {
     const job = await getJobForBusinessFn(session.businessId, jobId);
     const error = ensureSameBusinessJobOrError(job, jobId);
-    if (error) return error;
+    if (error) return { error };
   }
 
   if (request.requestedActivityType === 'drive_time' && employee?.paidDriveTimeEnabled !== true) {
-    return 'Drive Time is not enabled for this employee.';
+    return { error: 'Drive Time is not enabled for this employee.' };
   }
 
-  return null;
+  if (request.requestedActivityType === 'non_billable') {
+    if (!request.requestedUnbillableCategoryId) {
+      return { error: 'Non-billable corrections require an unbillable category.' };
+    }
+
+    const category = await getUnbillableTimeCategoryForBusinessFn(session.businessId, request.requestedUnbillableCategoryId);
+    if (!category || category.active !== true) {
+      return { error: 'Unbillable category is invalid or inactive.' };
+    }
+
+    return { error: null, requestedUnbillableCategoryName: category.name };
+  }
+
+  return { error: null };
 }
 
 export function createTimeCorrectionsHandler(overrides = {}) {
@@ -149,6 +172,7 @@ export function createTimeCorrectionsHandler(overrides = {}) {
     getTimeCorrectionForBusiness,
     getTimeEntryForBusiness,
     getJobForBusiness,
+    getUnbillableTimeCategoryForBusiness,
     getEmployeeForBusiness,
     approveTimeCorrectionForBusiness,
     rejectTimeCorrectionForBusiness,
@@ -259,15 +283,16 @@ export function createTimeCorrectionsHandler(overrides = {}) {
         return res.status(400).json({ ok: false, error: 'Target employee is invalid.' });
       }
 
-      const activityValidationError = await validateActivityAndJobRules({
+      const activityValidation = await validateActivityAndJobRules({
         session,
         request: normalized,
         employee: targetEmployee,
         jobId: normalized.requestedJobId,
         getJobForBusinessFn: deps.getJobForBusiness,
+        getUnbillableTimeCategoryForBusinessFn: deps.getUnbillableTimeCategoryForBusiness,
       });
-      if (activityValidationError) {
-        return res.status(400).json({ ok: false, error: activityValidationError });
+      if (activityValidation.error) {
+        return res.status(400).json({ ok: false, error: activityValidation.error });
       }
 
       const correction = {
@@ -280,6 +305,12 @@ export function createTimeCorrectionsHandler(overrides = {}) {
         requestedClockOutAt: normalized.requestedClockOutAt,
         requestedJobId: normalized.requestedJobId,
         requestedActivityType: normalized.requestedActivityType,
+        requestedUnbillableCategoryId: normalized.requestedActivityType === 'non_billable'
+          ? normalized.requestedUnbillableCategoryId
+          : undefined,
+        requestedUnbillableCategoryName: normalized.requestedActivityType === 'non_billable'
+          ? activityValidation.requestedUnbillableCategoryName
+          : undefined,
         requestedSegments: normalized.requestedSegments,
         reason: normalized.reason,
         submittedByUserId: session.id,
@@ -291,6 +322,8 @@ export function createTimeCorrectionsHandler(overrides = {}) {
         originalJobId: timeEntry?.jobId,
         originalJobIds: Array.isArray(timeEntry?.jobIds) ? timeEntry.jobIds : undefined,
         originalActivityType: timeEntry?.workType,
+        originalUnbillableCategoryId: timeEntry?.unbillableCategoryId,
+        originalUnbillableCategoryName: timeEntry?.unbillableCategoryName,
       };
 
       await deps.createTimeCorrectionForBusiness({ businessId: session.businessId, correction });
@@ -338,15 +371,16 @@ export function createTimeCorrectionsHandler(overrides = {}) {
         return res.status(409).json({ ok: false, error: 'Target time entry no longer exists.' });
       }
 
-      const activityValidationError = await validateActivityAndJobRules({
+      const activityValidation = await validateActivityAndJobRules({
         session,
         request: correction,
         employee: targetEmployee,
         jobId: correction.requestedJobId,
         getJobForBusinessFn: deps.getJobForBusiness,
+        getUnbillableTimeCategoryForBusinessFn: deps.getUnbillableTimeCategoryForBusiness,
       });
-      if (activityValidationError) {
-        return res.status(409).json({ ok: false, error: activityValidationError });
+      if (activityValidation.error) {
+        return res.status(409).json({ ok: false, error: activityValidation.error });
       }
 
       const allCorrections = await deps.listTimeCorrectionsForBusiness(session.businessId);

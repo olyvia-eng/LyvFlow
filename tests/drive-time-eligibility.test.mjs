@@ -250,6 +250,32 @@ function seedJob(store, { businessId, jobId, title = 'Job' }) {
   );
 }
 
+function seedUnbillableCategory(store, {
+  businessId,
+  categoryId,
+  name = 'General Unbillable',
+  active = true,
+  sortOrder = 0,
+}) {
+  store.set(
+    mapKey(`BUSINESS#${businessId}`, `UNBILLABLE_CATEGORY#${categoryId}`),
+    {
+      PK: `BUSINESS#${businessId}`,
+      SK: `UNBILLABLE_CATEGORY#${categoryId}`,
+      entityType: 'UNBILLABLE_TIME_CATEGORY',
+      businessId,
+      categoryId,
+      id: categoryId,
+      name,
+      description: '',
+      sortOrder,
+      active,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+  );
+}
+
 function seedActiveShiftForEntry(store, { businessId, employeeId, entryId, clockIn, workType = 'job', jobIds = [] }) {
   store.set(
     mapKey(`BUSINESS#${businessId}`, `TIME#${entryId}`),
@@ -910,7 +936,7 @@ test('switch activity rejects job work to drive time when employee is ineligible
   assert.equal(res.body.error, 'Drive time is not enabled for this employee.');
 });
 
-test('switch activity supports job work to unbillable transition without categories', async (t) => {
+test('switch activity supports job work to unbillable transition with active category', async (t) => {
   const store = await setupSwitchContext({
     t,
     businessId: 'biz-switch-job-unbillable',
@@ -924,6 +950,11 @@ test('switch activity supports job work to unbillable transition without categor
     token: 'token-switch-job-unbillable',
   });
   seedJob(store, { businessId: 'biz-switch-job-unbillable', jobId: 'job-only' });
+  seedUnbillableCategory(store, {
+    businessId: 'biz-switch-job-unbillable',
+    categoryId: 'cat-training',
+    name: 'Training',
+  });
 
   const req = {
     method: 'POST',
@@ -931,6 +962,7 @@ test('switch activity supports job work to unbillable transition without categor
     headers: { authorization: 'Bearer token-switch-job-unbillable' },
     body: {
       workType: 'non_billable',
+      unbillableCategoryId: 'cat-training',
       requestId: 'req-switch-job-unbillable',
       idempotencyKey: 'idemp-switch-job-unbillable',
     },
@@ -942,6 +974,41 @@ test('switch activity supports job work to unbillable transition without categor
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.timeEntry.workType, 'non_billable');
   assert.deepEqual(res.body.timeEntry.jobIds, []);
+  assert.equal(res.body.timeEntry.unbillableCategoryId, 'cat-training');
+  assert.equal(res.body.timeEntry.unbillableCategoryName, 'Training');
+});
+
+test('switch activity rejects non-billable transition when category is missing', async (t) => {
+  const store = await setupSwitchContext({
+    t,
+    businessId: 'biz-switch-job-unbillable-missing-category',
+    userId: 'user-switch-job-unbillable-missing-category',
+    employeeId: 'emp-switch-job-unbillable-missing-category',
+    email: 'jobunbillablemissing@example.com',
+    paidDriveTimeEnabled: true,
+    activeEntryId: 'entry-job-unbillable-missing-category',
+    activeWorkType: 'job',
+    activeJobIds: ['job-only'],
+    token: 'token-switch-job-unbillable-missing-category',
+  });
+  seedJob(store, { businessId: 'biz-switch-job-unbillable-missing-category', jobId: 'job-only' });
+
+  const req = {
+    method: 'POST',
+    query: { action: 'switch-activity' },
+    headers: { authorization: 'Bearer token-switch-job-unbillable-missing-category' },
+    body: {
+      workType: 'non_billable',
+      requestId: 'req-switch-job-unbillable-missing-category',
+      idempotencyKey: 'idemp-switch-job-unbillable-missing-category',
+    },
+  };
+  const res = createMockRes();
+
+  await clockingHandler(req, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'Unbillable category is required.');
 });
 
 test('switch activity supports drive time to job work transition', async (t) => {

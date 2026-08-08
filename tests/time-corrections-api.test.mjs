@@ -51,6 +51,10 @@ function createHarness({ sessionRole = 'crew_member', employeePaidDriveTimeEnabl
     },
   ];
   const jobs = [{ id: 'job-1', title: 'Job 1' }, { id: 'job-2', title: 'Job 2' }];
+  const unbillableCategories = [
+    { id: 'cat-training', name: 'Training', active: true },
+    { id: 'cat-archived', name: 'Archived', active: false },
+  ];
   const employees = [
     { id: 'emp-1', paidDriveTimeEnabled: employeePaidDriveTimeEnabled },
     { id: 'emp-admin', paidDriveTimeEnabled: true },
@@ -62,6 +66,9 @@ function createHarness({ sessionRole = 'crew_member', employeePaidDriveTimeEnabl
   const getTimeEntryForBusiness = async (_businessId, entryId) => timeEntries.find((item) => item.id === entryId) ?? null;
   const getEmployeeForBusiness = async (_businessId, employeeId) => employees.find((item) => item.id === employeeId) ?? null;
   const getJobForBusiness = async (_businessId, jobId) => jobs.find((item) => item.id === jobId) ?? null;
+  const getUnbillableTimeCategoryForBusiness = async (_businessId, categoryId) => (
+    unbillableCategories.find((item) => item.id === categoryId) ?? null
+  );
   const listTimeEntriesForBusiness = async () => [...timeEntries];
 
   const createTimeCorrectionForBusiness = async ({ correction }) => {
@@ -107,6 +114,7 @@ function createHarness({ sessionRole = 'crew_member', employeePaidDriveTimeEnabl
     getTimeCorrectionForBusiness,
     getTimeEntryForBusiness,
     getJobForBusiness,
+    getUnbillableTimeCategoryForBusiness,
     getEmployeeForBusiness,
     approveTimeCorrectionForBusiness,
     rejectTimeCorrectionForBusiness,
@@ -288,6 +296,77 @@ test('drive time correction is rejected for ineligible employee and approved for
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.correction.status, 'approved');
   }
+});
+
+test('non-billable correction request requires active unbillable category', async () => {
+  {
+    const { handler } = createHarness({ sessionRole: 'crew_member' });
+    const req = {
+      method: 'POST',
+      query: { action: 'create' },
+      body: {
+        timeEntryId: 'entry-1',
+        requestType: 'wrong_activity',
+        requestedActivityType: 'non_billable',
+        reason: 'Field training',
+      },
+    };
+    const res = createMockRes();
+    await handler(req, res);
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.error, 'Non-billable corrections require an unbillable category.');
+  }
+
+  {
+    const { handler } = createHarness({ sessionRole: 'crew_member' });
+    const req = {
+      method: 'POST',
+      query: { action: 'create' },
+      body: {
+        timeEntryId: 'entry-1',
+        requestType: 'wrong_activity',
+        requestedActivityType: 'non_billable',
+        requestedUnbillableCategoryId: 'cat-archived',
+        reason: 'Field training',
+      },
+    };
+    const res = createMockRes();
+    await handler(req, res);
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.error, 'Unbillable category is invalid or inactive.');
+  }
+});
+
+test('owner approval preserves non-billable category fields on correction', async () => {
+  const { handler } = createHarness({ sessionRole: 'owner' });
+
+  const createReq = {
+    method: 'POST',
+    query: { action: 'create' },
+    body: {
+      timeEntryId: 'entry-1',
+      requestType: 'wrong_activity',
+      requestedActivityType: 'non_billable',
+      requestedUnbillableCategoryId: 'cat-training',
+      reason: 'Training time',
+    },
+  };
+  const createRes = createMockRes();
+  await handler(createReq, createRes);
+  assert.equal(createRes.statusCode, 200);
+
+  const approveReq = {
+    method: 'POST',
+    query: { action: 'approve' },
+    body: { id: createRes.body.correction.id },
+  };
+  const res = createMockRes();
+  await handler(approveReq, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.correction.status, 'approved');
+  assert.equal(res.body.correction.requestedUnbillableCategoryId, 'cat-training');
+  assert.equal(res.body.correction.requestedUnbillableCategoryName, 'Training');
 });
 
 test('forgot clock-in request without existing entry creates historical segment on approval', async () => {
