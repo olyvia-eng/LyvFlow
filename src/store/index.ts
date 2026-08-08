@@ -106,7 +106,7 @@ interface AppState {
   deleteCustomer: (id: ID) => void;
 
   // Estimates
-  addEstimate: (e: Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addEstimate: (e: Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'>) => ID;
   updateEstimate: (id: ID, data: Partial<Estimate>) => void;
   deleteEstimate: (id: ID) => void;
   sendEstimate: (id: ID) => void;
@@ -298,6 +298,8 @@ export const useStore = create<AppState>()((set, get) => ({
           set({ estimates: previous });
           emitAppToast({ tone: 'error', message: errorMessage(error, 'Estimate could not be saved.') });
         });
+
+        return estimate.id;
       },
       updateEstimate: (id, data) => {
         const previous = get().estimates;

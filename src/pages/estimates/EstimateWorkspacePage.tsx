@@ -1,0 +1,826 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ChevronRight, FileDown, Mail, Plus, RefreshCw, Send, Trash2 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { useStore } from '../../store';
+import { Badge, Button, Card, Input, Modal, PageHeader, Select, TextArea } from '../../components/ui';
+import { emitAppToast } from '../../toast';
+import { formatCurrency, formatDate, formatDateTime, generateId, statusColor } from '../../utils';
+import {
+  computeEstimateSubtotal,
+  computeEstimateTax,
+  computeEstimateTotal,
+  computeWorkAreaSubtotal,
+  flattenWorkAreaLineItems,
+  normalizeEstimateWorkAreas,
+} from '../../utils/estimateModel';
+import { formatNumericDisplayValue, parseNumericInputValue } from '../../utils/numberInput';
+import type {
+  Address,
+  Estimate,
+  EstimateLineItem,
+  EstimateStatus,
+  EstimateWorkArea,
+  ID,
+} from '../../types';
+import EstimateLineItemEditor from './EstimateLineItemEditor';
+
+type EstimateTab = 'info' | 'work-areas' | 'proposal' | 'project-management' | 'analysis';
+
+interface Props {
+  currentUserRole: string;
+}
+
+type EstimateFormState = Omit<Estimate, 'id' | 'createdAt' | 'updatedAt' | 'lineItems' | 'workAreas'> & {
+  workAreas: EstimateWorkArea[];
+};
+
+const STATUSES: EstimateStatus[] = ['draft', 'sent', 'accepted', 'declined', 'converted'];
+
+const defaultValidUntil = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 30);
+  return date.toISOString().slice(0, 10);
+};
+
+const formatPropertyAddress = (property: Address): string => {
+  const parts = [
+    property.street,
+    property.city,
+    property.province,
+    property.postalCode,
+    property.country,
+  ]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean);
+  return parts.join(', ');
+};
+
+const normalizeProperties = (properties?: Address[], legacyAddress?: Address): Address[] => {
+  if (Array.isArray(properties) && properties.length > 0) {
+    return properties;
+  }
+  if (legacyAddress) {
+    return [legacyAddress];
+  }
+  return [];
+};
+
+const sanitizeFileNamePart = (value: string): string => {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+const createProposalDocument = (estimate: Estimate, customerName: string, customerCompany?: string) => {
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const workAreas = normalizeEstimateWorkAreas(estimate);
+  const lineItems = flattenWorkAreaLineItems(workAreas);
+  const subtotal = computeEstimateSubtotal(workAreas);
+  const tax = computeEstimateTax(subtotal, estimate.taxRate);
+  const total = computeEstimateTotal(subtotal, tax);
+  const generatedAt = new Date().toLocaleString();
+
+  doc.setFontSize(18);
+  doc.text('Project Proposal', 40, 44);
+  doc.setFontSize(10);
+  const hasProposalNumber = Boolean(estimate.proposalNumber?.trim());
+  if (hasProposalNumber) {
+    doc.text(`Proposal #: ${estimate.proposalNumber?.trim()}`, 40, 64);
+  }
+  const estimateY = hasProposalNumber ? 78 : 64;
+  const customerY = hasProposalNumber ? 92 : 78;
+  const generatedY = hasProposalNumber ? 106 : 92;
+  const validUntilY = hasProposalNumber ? 120 : 106;
+  doc.text(`Estimate: ${estimate.title}`, 40, estimateY);
+  doc.text(`Customer: ${customerName}${customerCompany ? ` (${customerCompany})` : ''}`, 40, customerY);
+  doc.text(`Generated: ${generatedAt}`, 40, generatedY);
+  doc.text(`Valid Until: ${estimate.validUntil ? formatDate(estimate.validUntil) : 'Not specified'}`, 40, validUntilY);
+
+  if (estimate.description?.trim()) {
+    doc.setFontSize(11);
+    doc.text('Scope', 40, 130);
+    doc.setFontSize(10);
+    const scopeLines = doc.splitTextToSize(estimate.description.trim(), 530);
+    doc.text(scopeLines, 40, 146);
+  }
+
+  autoTable(doc, {
+    startY: 176,
+    head: [['Category', 'Description', 'Qty', 'Unit', 'Unit Cost', 'Markup', 'Line Total']],
+    body: lineItems.map((line) => [
+      line.category,
+      line.description,
+      String(line.quantity),
+      line.unit,
+      formatCurrency(line.unitCost),
+      `${line.markupPercent ?? line.markup ?? 0}%`,
+      formatCurrency(line.total),
+    ]),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [97, 110, 86] },
+  });
+
+  const tableBottomY = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 176;
+
+  autoTable(doc, {
+    startY: tableBottomY + 16,
+    head: [['Summary', 'Amount']],
+    body: [
+      ['Subtotal', formatCurrency(subtotal)],
+      [`Tax (${estimate.taxRate}%)`, formatCurrency(tax)],
+      ['Total', formatCurrency(total)],
+    ],
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [134, 143, 122] },
+  });
+
+  autoTable(doc, {
+    startY: ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? tableBottomY) + 16,
+    head: [['Work Area', 'Subtotal']],
+    body: workAreas.map((area) => [area.name, formatCurrency(computeWorkAreaSubtotal(area))]),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [180, 186, 169] },
+  });
+
+  if (estimate.notes?.trim()) {
+    const notesStartY = ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? tableBottomY) + 20;
+    doc.setFontSize(11);
+    doc.text('Notes', 40, notesStartY);
+    doc.setFontSize(10);
+    const noteLines = doc.splitTextToSize(estimate.notes.trim(), 530);
+    doc.text(noteLines, 40, notesStartY + 16);
+  }
+
+  return doc;
+};
+
+const loadFormState = (estimate: Estimate): EstimateFormState => ({
+  customerId: estimate.customerId,
+  pricingBudgetId: estimate.pricingBudgetId,
+  propertyLabel: estimate.propertyLabel ?? '',
+  propertyAddressSnapshot: estimate.propertyAddressSnapshot ?? '',
+  proposalNumber: estimate.proposalNumber ?? '',
+  title: estimate.title,
+  description: estimate.description,
+  workAreas: normalizeEstimateWorkAreas(estimate),
+  status: estimate.status,
+  taxRate: estimate.taxRate,
+  notes: estimate.notes,
+  validUntil: estimate.validUntil ? estimate.validUntil.slice(0, 10) : defaultValidUntil(),
+  convertedToJobId: estimate.convertedToJobId,
+  convertedAt: estimate.convertedAt,
+  sentAt: estimate.sentAt,
+  templateId: estimate.templateId,
+});
+
+export default function EstimateWorkspacePage({ currentUserRole }: Props) {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const {
+    estimates,
+    customers,
+    budgets,
+    budgetRates,
+    updateEstimate,
+    sendEstimate,
+    deleteEstimate,
+    convertEstimateToJob,
+  } = useStore();
+
+  const estimate = estimates.find((item) => item.id === id);
+  const customer = customers.find((item) => item.id === estimate?.customerId);
+  const canViewAnalysis = currentUserRole === 'owner' || currentUserRole === 'admin';
+
+  const [form, setForm] = useState<EstimateFormState | null>(estimate ? loadFormState(estimate) : null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmConvert, setConfirmConvert] = useState(false);
+  const [convertingEstimateId, setConvertingEstimateId] = useState<string | null>(null);
+  const [convertForm, setConvertForm] = useState({
+    title: '',
+    startDate: '',
+    endDate: '',
+  });
+
+  const activeTab = (searchParams.get('tab') ?? 'info') as EstimateTab;
+
+  useEffect(() => {
+    if (!estimate) {
+      setForm(null);
+      return;
+    }
+    setForm(loadFormState(estimate));
+  }, [estimate]);
+
+  useEffect(() => {
+    const validTabs: EstimateTab[] = ['info', 'work-areas', 'proposal', 'project-management', 'analysis'];
+    const isAllowed = canViewAnalysis || activeTab !== 'analysis';
+    if (!validTabs.includes(activeTab) || !isAllowed) {
+      setSearchParams((previous) => {
+        const next = new URLSearchParams(previous);
+        next.set('tab', 'info');
+        return next;
+      });
+    }
+  }, [activeTab, canViewAnalysis, setSearchParams]);
+
+  const setTab = (tab: EstimateTab) => {
+    if (tab === 'analysis' && !canViewAnalysis) return;
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set('tab', tab);
+      return next;
+    });
+  };
+
+  const setField = (key: keyof EstimateFormState, value: unknown) => {
+    setForm((current) => {
+      if (!current) return current;
+      return { ...current, [key]: value };
+    });
+  };
+
+  const setWorkArea = (workAreaId: ID, data: Partial<EstimateWorkArea>) => {
+    setForm((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        workAreas: current.workAreas.map((workArea) => (
+          workArea.id === workAreaId ? { ...workArea, ...data } : workArea
+        )),
+      };
+    });
+  };
+
+  const addWorkArea = () => {
+    setForm((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        workAreas: [
+          ...current.workAreas,
+          {
+            id: generateId(),
+            name: `Work Area ${current.workAreas.length + 1}`,
+            description: '',
+            sortOrder: current.workAreas.length,
+            lineItems: [],
+          },
+        ],
+      };
+    });
+  };
+
+  const deleteWorkArea = (workAreaId: ID) => {
+    setForm((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        workAreas: current.workAreas
+          .filter((workArea) => workArea.id !== workAreaId)
+          .map((workArea, index) => ({ ...workArea, sortOrder: index })),
+      };
+    });
+  };
+
+  const save = () => {
+    if (!estimate || !form) return;
+    if (!form.title.trim() || !form.customerId || !form.pricingBudgetId || !form.validUntil) {
+      emitAppToast({ tone: 'error', message: 'Title, customer, pricing budget, and valid-until date are required.' });
+      return;
+    }
+
+    const normalizedWorkAreas = form.workAreas.map((area, index) => ({
+      ...area,
+      name: area.name.trim() || `Work Area ${index + 1}`,
+      sortOrder: index,
+    }));
+
+    const payload: Omit<Estimate, 'id' | 'createdAt' | 'updatedAt'> = {
+      ...form,
+      proposalNumber: form.proposalNumber?.trim() || estimate.proposalNumber || '',
+      title: form.title.trim(),
+      description: form.description ?? '',
+      workAreas: normalizedWorkAreas,
+      lineItems: flattenWorkAreaLineItems(normalizedWorkAreas),
+      notes: form.notes ?? '',
+      validUntil: form.validUntil,
+    };
+
+    updateEstimate(estimate.id, payload);
+    emitAppToast({ tone: 'success', message: 'Estimate saved.' });
+  };
+
+  const createProposalPdf = (item: Estimate) => {
+    const proposalCustomer = customers.find((value) => value.id === item.customerId);
+    const customerName = proposalCustomer?.name?.trim() || 'Client';
+    const safeTitle = sanitizeFileNamePart(item.title) || 'estimate';
+    const safeProposalNumber = sanitizeFileNamePart(item.proposalNumber ?? '');
+    const fileName = safeProposalNumber
+      ? `proposal-${safeProposalNumber}-${safeTitle}.pdf`
+      : `proposal-${safeTitle}-${item.id.slice(0, 8)}.pdf`;
+
+    const doc = createProposalDocument(item, customerName, proposalCustomer?.company);
+    doc.save(fileName);
+    emitAppToast({ tone: 'success', message: `Proposal PDF generated: ${fileName}` });
+  };
+
+  const sendProposalToClient = (item: Estimate) => {
+    const proposalCustomer = customers.find((value) => value.id === item.customerId);
+    if (!proposalCustomer?.email?.trim()) {
+      emitAppToast({ tone: 'error', message: 'Customer email is missing. Add an email before sending.' });
+      return;
+    }
+
+    createProposalPdf(item);
+
+    const estimateWorkAreas = normalizeEstimateWorkAreas(item);
+    const subtotalValue = computeEstimateSubtotal(estimateWorkAreas);
+    const totalValue = computeEstimateTotal(subtotalValue, computeEstimateTax(subtotalValue, item.taxRate));
+    const proposalRef = item.proposalNumber?.trim();
+    const subject = encodeURIComponent(proposalRef ? `Proposal ${proposalRef}: ${item.title}` : `Proposal: ${item.title}`);
+    const body = encodeURIComponent(
+      [
+        `Hi ${proposalCustomer.name},`,
+        '',
+        `Please find attached our proposal for ${item.title}.`,
+        proposalRef ? `Proposal reference: ${proposalRef}.` : '',
+        `Total proposed amount: ${formatCurrency(totalValue)}.`,
+        item.validUntil ? `This proposal is valid until ${formatDate(item.validUntil)}.` : 'This proposal does not have an expiry date listed.',
+        '',
+        'Thank you,',
+      ].join('\n')
+    );
+
+    if (typeof window !== 'undefined') {
+      window.location.href = `mailto:${encodeURIComponent(proposalCustomer.email)}?subject=${subject}&body=${body}`;
+    }
+
+    if (item.status === 'draft') {
+      sendEstimate(item.id);
+      if (form) {
+        setForm({ ...form, status: 'sent', sentAt: new Date().toISOString() });
+      }
+    }
+    emitAppToast({ tone: 'success', message: 'Email draft opened. Attach the proposal PDF and send.' });
+  };
+
+  const openConvertModal = () => {
+    if (!estimate) return;
+    setConfirmConvert(true);
+    setConvertForm({
+      title: estimate.title ?? '',
+      startDate: '',
+      endDate: '',
+    });
+  };
+
+  const handleConvertEstimate = async () => {
+    if (!estimate) return;
+    setConvertingEstimateId(estimate.id);
+    const result = await convertEstimateToJob(estimate.id, {
+      title: convertForm.title.trim() || undefined,
+      startDate: convertForm.startDate || undefined,
+      endDate: convertForm.endDate || undefined,
+    });
+    setConvertingEstimateId(null);
+
+    if (!result.ok) {
+      emitAppToast({
+        tone: 'error',
+        message: result.error ?? 'Estimate could not be converted to a job.',
+      });
+      return;
+    }
+
+    setConfirmConvert(false);
+    setConvertForm({ title: '', startDate: '', endDate: '' });
+    emitAppToast({ tone: 'success', message: 'Estimate converted to job successfully.' });
+    if (result.jobId) {
+      navigate(`/jobs/${result.jobId}`);
+    }
+  };
+
+  const analysis = useMemo(() => {
+    if (!form) {
+      return {
+        subtotal: 0,
+        tax: 0,
+        total: 0,
+        itemCount: 0,
+        byCategory: {
+          labour: 0,
+          material: 0,
+          equipment: 0,
+          subcontractor: 0,
+        },
+      };
+    }
+
+    const subtotal = computeEstimateSubtotal(form.workAreas);
+    const tax = computeEstimateTax(subtotal, form.taxRate);
+    const total = computeEstimateTotal(subtotal, tax);
+    const items = flattenWorkAreaLineItems(form.workAreas);
+
+    const byCategory = items.reduce(
+      (acc, item) => {
+        acc[item.category] += item.total;
+        return acc;
+      },
+      {
+        labour: 0,
+        material: 0,
+        equipment: 0,
+        subcontractor: 0,
+      }
+    );
+
+    return {
+      subtotal,
+      tax,
+      total,
+      itemCount: items.length,
+      byCategory,
+    };
+  }, [form]);
+
+  if (!estimate || !form) {
+    return (
+      <div className="space-y-4">
+        <Button variant="secondary" onClick={() => navigate('/estimates')}>
+          <ArrowLeft size={15} /> Back to Estimates
+        </Button>
+        <Card className="p-6">
+          <h2 className="text-lg font-semibold text-gray-900">Estimate not found</h2>
+          <p className="mt-2 text-sm text-gray-500">This estimate may have been deleted or is still syncing.</p>
+        </Card>
+      </div>
+    );
+  }
+
+  const tabs: Array<{ key: EstimateTab; label: string; visible: boolean }> = [
+    { key: 'info', label: 'Info', visible: true },
+    { key: 'work-areas', label: 'Work Areas', visible: true },
+    { key: 'proposal', label: 'Proposal', visible: true },
+    { key: 'project-management', label: 'Project Management', visible: true },
+    { key: 'analysis', label: 'Analysis', visible: canViewAnalysis },
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        title={form.title}
+        subtitle={`Workspace for ${customer?.name ?? 'Unknown Customer'}`}
+        action={(
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => navigate('/estimates')}>
+              <ArrowLeft size={15} /> Back
+            </Button>
+            <Button variant="secondary" onClick={() => setConfirmDelete(true)}>
+              <Trash2 size={14} /> Delete
+            </Button>
+            <Button onClick={save}>Save Changes</Button>
+          </div>
+        )}
+      />
+
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+        <Badge label={form.status} className={statusColor[form.status]} />
+        {form.proposalNumber ? <Badge label={form.proposalNumber} className="bg-gray-100 text-gray-700" /> : null}
+        {form.convertedToJobId ? (
+          <Link to={`/jobs/${form.convertedToJobId}`} className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-1 font-medium text-brand-700 hover:bg-brand-100">
+            Open Job <ChevronRight size={12} />
+          </Link>
+        ) : null}
+        {form.sentAt ? <span className="text-gray-500">Sent {formatDateTime(form.sentAt)}</span> : null}
+      </div>
+
+      <div className="mb-6 overflow-x-auto">
+        <div className="inline-flex border border-gray-200 rounded-xl p-1 bg-white min-w-max" role="tablist" aria-label="Estimate workspace sections">
+          {tabs.filter((tab) => tab.visible).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              onClick={() => setTab(tab.key)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
+                activeTab === tab.key
+                  ? 'bg-brand-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === 'info' && (
+        <div className="space-y-4">
+          <Card className="p-4 space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Select
+                label="Customer"
+                value={form.customerId}
+                onChange={(event) => {
+                  const customerId = event.target.value;
+                  const selected = customers.find((item) => item.id === customerId);
+                  const properties = normalizeProperties(selected?.properties, selected?.address);
+                  const first = properties[0];
+
+                  setForm((current) => {
+                    if (!current) return current;
+                    return {
+                      ...current,
+                      customerId,
+                      propertyLabel: first?.nickname?.trim() || '',
+                      propertyAddressSnapshot: first ? formatPropertyAddress(first) : '',
+                    };
+                  });
+                }}
+              >
+                <option value="">Select customer</option>
+                {customers.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}{item.company ? ` (${item.company})` : ''}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label="Pricing Budget"
+                value={form.pricingBudgetId}
+                onChange={(event) => setField('pricingBudgetId', event.target.value)}
+              >
+                <option value="">Select budget</option>
+                {budgets.map((budget) => (
+                  <option key={budget.id} value={budget.id}>{budget.name}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input label="Proposal Number" value={form.proposalNumber ?? ''} onChange={(event) => setField('proposalNumber', event.target.value)} />
+              <Input label="Valid Until" type="date" value={form.validUntil ? form.validUntil.slice(0, 10) : ''} onChange={(event) => setField('validUntil', event.target.value)} />
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input label="Property Label" value={form.propertyLabel ?? ''} onChange={(event) => setField('propertyLabel', event.target.value)} />
+              <Input label="Property Address Snapshot" value={form.propertyAddressSnapshot ?? ''} onChange={(event) => setField('propertyAddressSnapshot', event.target.value)} />
+            </div>
+            <Input label="Title" required value={form.title} onChange={(event) => setField('title', event.target.value)} />
+            <TextArea label="Description" value={form.description} onChange={(event) => setField('description', event.target.value)} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Select label="Status" value={form.status} onChange={(event) => setField('status', event.target.value as EstimateStatus)}>
+                {STATUSES.map((status) => <option key={status} value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>)}
+              </Select>
+            </div>
+            <TextArea label="Notes" value={form.notes} onChange={(event) => setField('notes', event.target.value)} />
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'work-areas' && (
+        <div className="space-y-4">
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-900">Work Areas</h2>
+              <Button variant="secondary" size="sm" onClick={addWorkArea}>
+                <Plus size={14} /> Add Work Area
+              </Button>
+            </div>
+
+            {form.workAreas.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">No work areas yet. Add one to begin.</p>
+            ) : form.workAreas
+              .slice()
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((workArea) => (
+                <div key={workArea.id} className="rounded-lg border border-gray-200 p-3 bg-white space-y-2">
+                  <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+                    <Input
+                      label="Area Name"
+                      value={workArea.name}
+                      onChange={(event) => setWorkArea(workArea.id, { name: event.target.value })}
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => deleteWorkArea(workArea.id)}>
+                      <Trash2 size={13} />
+                    </Button>
+                  </div>
+                  <TextArea
+                    label="Area Description"
+                    value={workArea.description}
+                    onChange={(event) => setWorkArea(workArea.id, { description: event.target.value })}
+                  />
+                  <EstimateLineItemEditor
+                    items={workArea.lineItems}
+                    pricingBudgetId={form.pricingBudgetId}
+                    budgetRates={budgetRates}
+                    onChange={(lineItems: EstimateLineItem[]) => setWorkArea(workArea.id, { lineItems })}
+                  />
+                  <div className="flex justify-end text-xs text-gray-600">
+                    Area Subtotal: <span className="ml-1 font-semibold">{formatCurrency(computeWorkAreaSubtotal(workArea))}</span>
+                  </div>
+                </div>
+              ))}
+          </Card>
+
+          <Card className="p-4 text-sm space-y-2">
+            <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{formatCurrency(analysis.subtotal)}</span></div>
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-gray-500">Tax Rate (%)</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                min={0}
+                max={100}
+                value={formatNumericDisplayValue(form.taxRate)}
+                onChange={(event) => setField('taxRate', parseNumericInputValue(event.target.value))}
+                onFocus={(event) => event.currentTarget.select()}
+                className="w-20 border border-gray-300 rounded px-2 py-1 text-right text-sm"
+              />
+            </div>
+            <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>{formatCurrency(analysis.tax)}</span></div>
+            <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2 mt-2"><span>Total</span><span>{formatCurrency(analysis.total)}</span></div>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'proposal' && (
+        <Card className="p-4 space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900">Proposal</h2>
+          <p className="text-sm text-gray-600">Generate a client-ready proposal and send it using your mail client.</p>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1 text-sm text-gray-700">
+            <p><span className="font-medium text-gray-900">Proposal #:</span> {form.proposalNumber?.trim() || 'Not set'}</p>
+            <p><span className="font-medium text-gray-900">Estimate:</span> {form.title}</p>
+            <p><span className="font-medium text-gray-900">Customer:</span> {customer?.name ?? 'Unknown Customer'}</p>
+            <p><span className="font-medium text-gray-900">Valid Until:</span> {form.validUntil ? formatDate(form.validUntil) : 'Not specified'}</p>
+            <p><span className="font-medium text-gray-900">Total:</span> {formatCurrency(analysis.total)}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => createProposalPdf({ ...estimate, ...form, lineItems: flattenWorkAreaLineItems(form.workAreas) })}>
+              <FileDown size={14} /> Download PDF
+            </Button>
+            <Button onClick={() => sendProposalToClient({ ...estimate, ...form, lineItems: flattenWorkAreaLineItems(form.workAreas) })}>
+              <Mail size={14} /> Send to Client
+            </Button>
+            {form.status === 'draft' ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  sendEstimate(estimate.id);
+                  setForm({ ...form, status: 'sent', sentAt: new Date().toISOString() });
+                }}
+              >
+                <Send size={14} /> Mark as Sent
+              </Button>
+            ) : null}
+          </div>
+        </Card>
+      )}
+
+      {activeTab === 'project-management' && (
+        <div className="space-y-4">
+          <Card className="p-4">
+            <h2 className="text-lg font-semibold text-gray-900">Project Management</h2>
+            <p className="mt-1 text-sm text-gray-600">Estimates stay in sales/proposal mode until converted. Jobs remain separate operational records.</p>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 text-sm">
+              <p className="text-gray-600">Status: <span className="font-semibold text-gray-900 capitalize">{form.status}</span></p>
+              <p className="text-gray-600">Converted Job: <span className="font-semibold text-gray-900">{form.convertedToJobId ?? 'Not converted'}</span></p>
+              <p className="text-gray-600">Converted At: <span className="font-semibold text-gray-900">{form.convertedAt ? formatDateTime(form.convertedAt) : 'N/A'}</span></p>
+              <p className="text-gray-600">Work Areas: <span className="font-semibold text-gray-900">{form.workAreas.length}</span></p>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {form.status === 'accepted' ? (
+                <Button onClick={openConvertModal}>
+                  <RefreshCw size={14} /> Convert to Job
+                </Button>
+              ) : null}
+              {form.convertedToJobId ? (
+                <Link to={`/jobs/${form.convertedToJobId}`}>
+                  <Button variant="secondary">
+                    <ChevronRight size={14} /> Open Linked Job
+                  </Button>
+                </Link>
+              ) : null}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'analysis' && canViewAnalysis && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Subtotal</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(analysis.subtotal)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Tax</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(analysis.tax)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Total</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(analysis.total)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Line Items</p>
+              <p className="text-xl font-bold text-gray-900">{analysis.itemCount}</p>
+            </Card>
+          </div>
+
+          <Card className="p-4">
+            <h3 className="font-semibold text-gray-900">Category Breakdown</h3>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <p className="text-gray-700">Labour: <span className="font-semibold">{formatCurrency(analysis.byCategory.labour)}</span></p>
+              <p className="text-gray-700">Material: <span className="font-semibold">{formatCurrency(analysis.byCategory.material)}</span></p>
+              <p className="text-gray-700">Equipment: <span className="font-semibold">{formatCurrency(analysis.byCategory.equipment)}</span></p>
+              <p className="text-gray-700">Subcontractor: <span className="font-semibold">{formatCurrency(analysis.byCategory.subcontractor)}</span></p>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <h3 className="font-semibold text-gray-900">Work Area Breakdown</h3>
+            <div className="mt-3 space-y-2 text-sm">
+              {form.workAreas.length === 0 ? (
+                <p className="text-gray-500">No work areas yet.</p>
+              ) : form.workAreas
+                .slice()
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((workArea) => (
+                  <div key={workArea.id} className="flex items-center justify-between rounded border border-gray-200 p-2">
+                    <span className="text-gray-700">{workArea.name}</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(computeWorkAreaSubtotal(workArea))}</span>
+                  </div>
+                ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      <Modal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="Delete Estimate"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                deleteEstimate(estimate.id);
+                setConfirmDelete(false);
+                navigate('/estimates');
+              }}
+            >
+              Delete
+            </Button>
+          </>
+        )}
+      >
+        <p className="text-sm text-gray-600">Delete this estimate? This cannot be undone.</p>
+      </Modal>
+
+      <Modal
+        open={confirmConvert}
+        onClose={() => setConfirmConvert(false)}
+        title="Convert to Job"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setConfirmConvert(false)}>Cancel</Button>
+            <Button onClick={() => void handleConvertEstimate()}>
+              {convertingEstimateId ? 'Converting...' : 'Convert'}
+            </Button>
+          </>
+        )}
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">Create a job from this accepted estimate. Leave any field blank to use defaults.</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              label="Job Title Override"
+              value={convertForm.title}
+              onChange={(event) => setConvertForm((current) => ({ ...current, title: event.target.value }))}
+              placeholder="Leave blank to use the estimate title"
+            />
+            <Input
+              label="Start Date Override"
+              type="date"
+              value={convertForm.startDate}
+              onChange={(event) => setConvertForm((current) => ({ ...current, startDate: event.target.value }))}
+            />
+          </div>
+          <Input
+            label="End Date Override"
+            type="date"
+            value={convertForm.endDate}
+            onChange={(event) => setConvertForm((current) => ({ ...current, endDate: event.target.value }))}
+          />
+        </div>
+      </Modal>
+    </div>
+  );
+}

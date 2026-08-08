@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Card, Button, Badge, Modal, Input, Select } from '../../components/ui';
 import { statusColor, formatCurrency, formatDate, formatDateTime, durationHours } from '../../utils';
 import { resolveAttachmentUrl } from '../../utils/fileUpload';
 import { HIGH_LABOR_VARIANCE_THRESHOLD_PCT, LOW_MARGIN_THRESHOLD_PCT } from '../../config/profitability';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import type { CostEntry, LineItemCategory, JobStatus } from '../../types';
 import { classifyTrackedHoursByWorkType } from './profitability';
 import { buildEffectiveTimeEntries } from '../../utils/timeCorrections';
 
 const CATEGORIES: LineItemCategory[] = ['material', 'equipment', 'labour', 'subcontractor'];
+type JobTab = 'info' | 'work-areas' | 'proposal' | 'project-management' | 'analysis' | 'invoices';
+
+interface Props {
+  currentUserRole: string;
+}
 
 const normalizeEntryJobIds = (entry: { jobIds?: string[]; jobId?: string }): string[] => {
   return Array.isArray(entry.jobIds) && entry.jobIds.length > 0
@@ -18,12 +23,15 @@ const normalizeEntryJobIds = (entry: { jobIds?: string[]; jobId?: string }): str
     : (entry.jobId ? [entry.jobId] : []);
 };
 
-export default function JobDetailPage() {
+export default function JobDetailPage({ currentUserRole }: Props) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { jobs, customers, employees, timeEntries, timeCorrections, updateJob, addCostEntry, deleteTimeEntry } = useStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { jobs, customers, employees, invoices, timeEntries, timeCorrections, updateJob, addCostEntry, deleteTimeEntry } = useStore();
 
   const job = jobs.find((j) => j.id === id);
+  const canViewAnalysis = currentUserRole === 'owner' || currentUserRole === 'admin';
+  const activeTab = (searchParams.get('tab') ?? 'info') as JobTab;
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const [costModal, setCostModal] = useState(false);
   const [costForm, setCostForm] = useState<Omit<CostEntry, 'id'>>({
@@ -32,6 +40,31 @@ export default function JobDetailPage() {
 
   const customer = customers.find((c) => c.id === job?.customerId);
   const assignedEmployees = employees.filter((e) => job?.assignedEmployeeIds.includes(e.id));
+  const jobInvoices = useMemo(
+    () => invoices.filter((invoice) => invoice.jobId === id),
+    [id, invoices]
+  );
+
+  useEffect(() => {
+    const validTabs: JobTab[] = ['info', 'work-areas', 'proposal', 'project-management', 'analysis', 'invoices'];
+    const isAllowed = canViewAnalysis || activeTab !== 'analysis';
+    if (!validTabs.includes(activeTab) || !isAllowed) {
+      setSearchParams((previous) => {
+        const next = new URLSearchParams(previous);
+        next.set('tab', 'info');
+        return next;
+      });
+    }
+  }, [activeTab, canViewAnalysis, setSearchParams]);
+
+  const setTab = (tab: JobTab) => {
+    if (tab === 'analysis' && !canViewAnalysis) return;
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set('tab', tab);
+      return next;
+    });
+  };
 
   const effectiveTimeEntries = useMemo(
     () => buildEffectiveTimeEntries(timeEntries, timeCorrections),
@@ -182,6 +215,15 @@ export default function JobDetailPage() {
 
   if (!job) return <div className="p-8 text-gray-400">Job not found.</div>;
 
+  const tabs: Array<{ key: JobTab; label: string; visible: boolean }> = [
+    { key: 'info', label: 'Info', visible: true },
+    { key: 'work-areas', label: 'Work Areas', visible: true },
+    { key: 'proposal', label: 'Proposal', visible: true },
+    { key: 'project-management', label: 'Project Management', visible: true },
+    { key: 'analysis', label: 'Analysis', visible: canViewAnalysis },
+    { key: 'invoices', label: 'Invoices', visible: true },
+  ];
+
   return (
     <div>
       <div className="mb-4">
@@ -207,30 +249,108 @@ export default function JobDetailPage() {
         </div>
       </div>
 
-      {(job.jobNumber || job.sourceEstimateId || job.originalEstimateSnapshot) && (
+      <div className="mb-6 overflow-x-auto">
+        <div className="inline-flex min-w-max rounded-xl border border-gray-200 bg-white p-1" role="tablist" aria-label="Job workspace sections">
+          {tabs.filter((tab) => tab.visible).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              onClick={() => setTab(tab.key)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                activeTab === tab.key ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === 'info' && (
         <Card className="p-4 mb-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="font-semibold text-gray-900">Source & Baseline</h2>
-              <p className="text-sm text-gray-500">Reference details captured at conversion time.</p>
+              <h2 className="font-semibold text-gray-900">Job Information</h2>
+              <p className="text-sm text-gray-500">The current operational record for this project.</p>
             </div>
             {job.jobNumber ? <Badge label={`Job ${job.jobNumber}`} className="bg-brand-100 text-brand-700" /> : null}
           </div>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+            <p className="text-gray-600">Customer: <span className="font-medium text-gray-900">{customer?.name ?? 'N/A'}</span></p>
+            <p className="text-gray-600">Start Date: <span className="font-medium text-gray-900">{formatDate(job.startDate)}</span></p>
+            <p className="text-gray-600">End Date: <span className="font-medium text-gray-900">{job.endDate ? formatDate(job.endDate) : 'Not set'}</span></p>
+            <p className="text-gray-600">Contract Value: <span className="font-medium text-gray-900">{formatCurrency(job.contractValue)}</span></p>
             <p className="text-gray-600">Source Estimate: <span className="font-medium text-gray-900">{job.sourceEstimateId ?? 'Manual Job'}</span></p>
             <p className="text-gray-600">Converted At: <span className="font-medium text-gray-900">{job.convertedFromEstimateAt ? formatDateTime(job.convertedFromEstimateAt) : 'N/A'}</span></p>
             <p className="text-gray-600">Property: <span className="font-medium text-gray-900">{job.propertyLabel ?? 'N/A'}</span></p>
             <p className="text-gray-600">Address Snapshot: <span className="font-medium text-gray-900">{job.propertyAddressSnapshot ?? 'N/A'}</span></p>
           </div>
-          {job.originalEstimateSnapshot?.workAreas?.length ? (
-            <div className="mt-4 space-y-2">
-              <h3 className="text-sm font-semibold text-gray-900">Original Estimate Work Areas</h3>
-              <div className="space-y-2">
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-semibold text-gray-900">Description</h3>
+            <p className="mt-1 whitespace-pre-line text-sm text-gray-600">{job.description || 'No description.'}</p>
+          </div>
+        </Card>
+      )}
+
+      {activeTab === 'work-areas' && (
+        <div className="space-y-3">
+          {job.operationalWorkAreas?.length ? job.operationalWorkAreas
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((workArea) => (
+              <Card key={workArea.id} className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-semibold text-gray-900">{workArea.name}</h2>
+                    <p className="mt-1 text-sm text-gray-500">{workArea.description || 'No description.'}</p>
+                  </div>
+                  <Badge label={workArea.status.replace(/_/g, ' ')} className="bg-gray-100 text-gray-700" />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                  <p className="text-gray-500">Estimated Cost<br /><span className="font-semibold text-gray-900">{formatCurrency(workArea.estimatedCost)}</span></p>
+                  <p className="text-gray-500">Estimated Revenue<br /><span className="font-semibold text-gray-900">{formatCurrency(workArea.estimatedRevenue)}</span></p>
+                  <p className="text-gray-500">Estimated Margin<br /><span className="font-semibold text-gray-900">{formatCurrency(workArea.estimatedMargin)}</span></p>
+                  <p className="text-gray-500">Line Items<br /><span className="font-semibold text-gray-900">{workArea.lineItems.length}</span></p>
+                </div>
+              </Card>
+            )) : (
+            <Card className="p-4">
+              <h2 className="font-semibold text-gray-900">Work Areas</h2>
+              <p className="mt-2 text-sm text-gray-600">{job.workAreas?.length ? job.workAreas.join(', ') : 'No work areas.'}</p>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'proposal' && (
+        <Card className="p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-gray-900">Original Proposal Baseline</h2>
+              <p className="text-sm text-gray-500">The immutable estimate snapshot captured when this job was created.</p>
+            </div>
+            {job.sourceEstimateId ? (
+              <Link to={`/estimates/${job.sourceEstimateId}`} className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800">
+                Open Estimate <ChevronRight size={14} />
+              </Link>
+            ) : null}
+          </div>
+          {job.originalEstimateSnapshot ? (
+            <>
+              <div className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+                <p className="text-gray-500">Proposal<br /><span className="font-semibold text-gray-900">{job.originalEstimateSnapshot.proposalNumber ?? 'N/A'}</span></p>
+                <p className="text-gray-500">Subtotal<br /><span className="font-semibold text-gray-900">{formatCurrency(job.originalEstimateSnapshot.subtotal)}</span></p>
+                <p className="text-gray-500">Tax<br /><span className="font-semibold text-gray-900">{formatCurrency(job.originalEstimateSnapshot.taxAmount)}</span></p>
+                <p className="text-gray-500">Total<br /><span className="font-semibold text-gray-900">{formatCurrency(job.originalEstimateSnapshot.total)}</span></p>
+              </div>
+              <div className="mt-5 space-y-2">
                 {job.originalEstimateSnapshot.workAreas
                   .slice()
                   .sort((a, b) => a.sortOrder - b.sortOrder)
                   .map((workArea) => (
-                    <div key={workArea.id} className="rounded-lg border border-gray-200 p-3 bg-gray-50">
+                    <div key={workArea.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-medium text-gray-900">{workArea.name}</p>
                         <p className="text-xs text-gray-500">Estimated Revenue {formatCurrency(workArea.estimatedRevenue)}</p>
@@ -239,82 +359,50 @@ export default function JobDetailPage() {
                     </div>
                   ))}
               </div>
-            </div>
-          ) : null}
+            </>
+          ) : (
+            <p className="mt-4 text-sm text-gray-500">This job was created without an estimate snapshot.</p>
+          )}
         </Card>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-        <Card className="p-4">
-          <p className="text-xs text-gray-500">Contract Value</p>
-          <p className="text-xl font-bold text-gray-900">{formatCurrency(job.contractValue)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-gray-500">Actual Costs</p>
-          <p className="text-xl font-bold text-gray-900">{formatCurrency(actualCostTotal)}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-gray-500">Gross Profit</p>
-          <p className={`text-xl font-bold ${profit >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>
-            {formatCurrency(profit)}
-          </p>
-          <p className="text-xs text-gray-400">{marginPct.toFixed(1)}% margin</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs text-gray-500">Hours</p>
-          <p className="text-xl font-bold text-gray-900">{job.actualHours.toFixed(1)}/{job.estimatedHours}h</p>
-          <div className="mt-1 bg-gray-100 rounded-full h-1.5">
-            <div className={`h-1.5 rounded-full ${hoursPct >= 100 ? 'bg-accent-600' : 'bg-brand-500'}`} style={{ width: `${hoursPct}%` }} />
+      {activeTab === 'analysis' && canViewAnalysis && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Card className="p-4"><p className="text-xs text-gray-500">Contract Value</p><p className="text-xl font-bold text-gray-900">{formatCurrency(job.contractValue)}</p></Card>
+            <Card className="p-4"><p className="text-xs text-gray-500">Actual Costs</p><p className="text-xl font-bold text-gray-900">{formatCurrency(actualCostTotal)}</p></Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Gross Profit</p>
+              <p className={`text-xl font-bold ${profit >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>{formatCurrency(profit)}</p>
+              <p className="text-xs text-gray-400">{marginPct.toFixed(1)}% margin</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-gray-500">Hours</p>
+              <p className="text-xl font-bold text-gray-900">{job.actualHours.toFixed(1)}/{job.estimatedHours}h</p>
+              <div className="mt-1 h-1.5 rounded-full bg-gray-100"><div className={`h-1.5 rounded-full ${hoursPct >= 100 ? 'bg-accent-600' : 'bg-brand-500'}`} style={{ width: `${hoursPct}%` }} /></div>
+            </Card>
           </div>
-        </Card>
-      </div>
-
-      <Card className="p-4 mb-6">
-        <div className="flex items-center justify-between mb-3 gap-3">
-          <div>
-            <h2 className="font-semibold text-gray-900">Job Profitability (Tracked)</h2>
-            {profitabilityWarnings.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {profitabilityWarnings.map((warning) => (
-                  <Badge key={warning.label} label={warning.label} className={warning.className} />
-                ))}
+          <Card className="p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-gray-900">Job Profitability (Tracked)</h2>
+                {profitabilityWarnings.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{profitabilityWarnings.map((warning) => <Badge key={warning.label} label={warning.label} className={warning.className} />)}</div>}
               </div>
-            )}
-          </div>
-          <span className="text-xs text-gray-500">Uses shared hours for multi-job time entries</span>
+              <span className="text-xs text-gray-500">Uses shared hours for multi-job time entries</span>
+            </div>
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+              <div><p className="text-gray-500">Tracked Hours</p><p className="font-semibold text-gray-900">{profitability.trackedHours.toFixed(2)}h</p><p className="text-xs text-gray-400">Billable {profitability.trackedBillableHours.toFixed(2)}h · Non-billable {profitability.trackedNonBillableHours.toFixed(2)}h</p></div>
+              <div><p className="text-gray-500">Tracked Labor Cost</p><p className="font-semibold text-gray-900">{formatCurrency(profitability.trackedLaborCost)}</p><p className="text-xs text-gray-400">Recorded labor costs: {formatCurrency(profitability.recordedLaborCosts)}</p><p className={`mt-1 text-xs ${profitability.laborVariance >= 0 ? 'text-accent-700' : 'text-brand-700'}`}>Variance: {formatCurrency(profitability.laborVariance)} ({profitability.laborVariancePct.toFixed(1)}%)</p></div>
+              <div><p className="text-gray-500">Projected Cost (Tracked)</p><p className="font-semibold text-gray-900">{formatCurrency(profitability.projectedCostFromTracking)}</p><p className="text-xs text-gray-400">Includes non-labor costs: {formatCurrency(profitability.recordedNonLaborCosts)}</p></div>
+              <div><p className="text-gray-500">Projected Profit (Tracked)</p><p className={`font-semibold ${profitability.projectedProfitFromTracking >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>{formatCurrency(profitability.projectedProfitFromTracking)}</p><p className="text-xs text-gray-400">{profitability.projectedMarginFromTracking.toFixed(1)}% margin</p></div>
+            </div>
+          </Card>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">Tracked Hours</p>
-            <p className="font-semibold text-gray-900">{profitability.trackedHours.toFixed(2)}h</p>
-            <p className="text-xs text-gray-400">Billable {profitability.trackedBillableHours.toFixed(2)}h · Non-billable {profitability.trackedNonBillableHours.toFixed(2)}h</p>
-          </div>
-          <div>
-            <p className="text-gray-500">Tracked Labor Cost</p>
-            <p className="font-semibold text-gray-900">{formatCurrency(profitability.trackedLaborCost)}</p>
-            <p className="text-xs text-gray-400">Recorded labor costs: {formatCurrency(profitability.recordedLaborCosts)}</p>
-            <p className={`text-xs mt-1 ${profitability.laborVariance >= 0 ? 'text-accent-700' : 'text-brand-700'}`}>
-              Variance: {formatCurrency(profitability.laborVariance)} ({profitability.laborVariancePct.toFixed(1)}%)
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500">Projected Cost (Tracked)</p>
-            <p className="font-semibold text-gray-900">{formatCurrency(profitability.projectedCostFromTracking)}</p>
-            <p className="text-xs text-gray-400">Includes non-labor costs: {formatCurrency(profitability.recordedNonLaborCosts)}</p>
-          </div>
-          <div>
-            <p className="text-gray-500">Projected Profit (Tracked)</p>
-            <p className={`font-semibold ${profitability.projectedProfitFromTracking >= 0 ? 'text-brand-700' : 'text-accent-700'}`}>
-              {formatCurrency(profitability.projectedProfitFromTracking)}
-            </p>
-            <p className="text-xs text-gray-400">{profitability.projectedMarginFromTracking.toFixed(1)}% margin</p>
-          </div>
-        </div>
-      </Card>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Actual Costs */}
+      {activeTab === 'project-management' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <div className="p-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold">Actual Costs</h2>
@@ -352,7 +440,6 @@ export default function JobDetailPage() {
           )}
         </Card>
 
-        {/* Time Entries */}
         <Card>
           <div className="p-4 border-b border-gray-100">
             <h2 className="font-semibold">Time Entries</h2>
@@ -394,34 +481,35 @@ export default function JobDetailPage() {
             </ul>
           )}
         </Card>
-      </div>
+          </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Card className="p-4">
+              <h2 className="mb-3 font-semibold">Assigned Employees</h2>
+              {assignedEmployees.length === 0 ? <p className="text-sm text-gray-400">No employees assigned.</p> : (
+                <ul className="space-y-2">{assignedEmployees.map((employee) => <li key={employee.id} className="flex items-center justify-between text-sm"><span>{employee.name}</span><span className="text-gray-400 capitalize">{employee.role.replace('_', ' ')} · ${employee.hourlyRate}/hr</span></li>)}</ul>
+              )}
+            </Card>
+            <Card className="p-4"><h2 className="mb-3 font-semibold">Notes</h2><p className="whitespace-pre-line text-sm text-gray-600">{job.notes || 'No notes.'}</p></Card>
+          </div>
+        </div>
+      )}
 
-      {/* Assigned employees & notes */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <Card className="p-4">
-          <h2 className="font-semibold mb-3">Assigned Employees</h2>
-          {assignedEmployees.length === 0 ? (
-            <p className="text-sm text-gray-400">No employees assigned.</p>
-          ) : (
-            <ul className="space-y-2">
-              {assignedEmployees.map((emp) => (
-                <li key={emp.id} className="flex items-center justify-between text-sm">
-                  <span>{emp.name}</span>
-                  <span className="text-gray-400 capitalize">{emp.role.replace('_', ' ')} · ${emp.hourlyRate}/hr</span>
-                </li>
-              ))}
-            </ul>
+      {activeTab === 'invoices' && (
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-4">
+            <div><h2 className="font-semibold text-gray-900">Related Invoices</h2><p className="text-sm text-gray-500">{jobInvoices.length} invoice{jobInvoices.length === 1 ? '' : 's'} · {formatCurrency(jobInvoices.reduce((sum, invoice) => sum + invoice.amount, 0))} billed</p></div>
+            <Link to="/finance/invoices"><Button size="sm">Manage Invoices <ChevronRight size={13} /></Button></Link>
+          </div>
+          {jobInvoices.length === 0 ? <p className="p-4 text-sm text-gray-400">No invoices are linked to this job.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead><tr className="border-b border-gray-100 text-left text-xs text-gray-500"><th className="px-4 py-3 font-medium">Invoice</th><th className="py-3 font-medium">Issue Date</th><th className="py-3 font-medium">Due Date</th><th className="py-3 font-medium">Status</th><th className="px-4 py-3 text-right font-medium">Amount</th></tr></thead>
+                <tbody className="divide-y divide-gray-50">{jobInvoices.map((invoice) => <tr key={invoice.id}><td className="px-4 py-3 font-medium text-gray-900">{invoice.number}</td><td className="py-3 text-gray-600">{formatDate(invoice.issueDate)}</td><td className="py-3 text-gray-600">{formatDate(invoice.dueDate)}</td><td className="py-3"><Badge label={invoice.status} className="bg-gray-100 text-gray-700" /></td><td className="px-4 py-3 text-right font-semibold">{formatCurrency(invoice.amount)}</td></tr>)}</tbody>
+              </table>
+            </div>
           )}
         </Card>
-        <Card className="p-4">
-          <h2 className="font-semibold mb-3">Work Areas</h2>
-          <p className="text-sm text-gray-600 whitespace-pre-line mb-4">
-            {job.workAreas?.length ? job.workAreas.join(', ') : 'No work areas.'}
-          </p>
-          <h2 className="font-semibold mb-3">Notes</h2>
-          <p className="text-sm text-gray-600 whitespace-pre-line">{job.notes || 'No notes.'}</p>
-        </Card>
-      </div>
+      )}
 
       {/* Add Cost Modal */}
       <Modal open={costModal} onClose={() => setCostModal(false)} title="Add Cost Entry"

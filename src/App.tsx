@@ -9,6 +9,7 @@ import { APP_TOAST_EVENT, type AppToastDetail, emitAppToast } from './toast';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const CRMPage = lazy(() => import('./pages/crm/CRMPage'));
 const EstimatesPage = lazy(() => import('./pages/estimates/EstimatesPage'));
+const EstimateWorkspacePage = lazy(() => import('./pages/estimates/EstimateWorkspacePage'));
 const TemplatesPage = lazy(() => import('./pages/estimates/TemplatesPage'));
 const JobsPage = lazy(() => import('./pages/jobs/JobsPage'));
 const JobDetailPage = lazy(() => import('./pages/jobs/JobDetailPage'));
@@ -573,9 +574,13 @@ export default function App() {
                 }
               />
               <Route path="estimates" element={<EstimatesPage />} />
+              <Route
+                path="estimates/:id"
+                element={<EstimateWorkspacePage currentUserRole={sessionUser.role} />}
+              />
               <Route path="estimates/templates" element={<TemplatesPage />} />
               <Route path="jobs" element={<JobsPage />} />
-              <Route path="jobs/:id" element={<JobDetailPage />} />
+              <Route path="jobs/:id" element={<JobDetailPage currentUserRole={sessionUser.role} />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="budgets" element={<BudgetsPage />} />
               <Route path="budgets/:budgetId" element={<BudgetPage />} />

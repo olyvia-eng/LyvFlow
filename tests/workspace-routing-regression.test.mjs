@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const appSource = readFileSync('src/App.tsx', 'utf8');
+const estimatesSource = readFileSync('src/pages/estimates/EstimatesPage.tsx', 'utf8');
+const estimateWorkspaceSource = readFileSync('src/pages/estimates/EstimateWorkspacePage.tsx', 'utf8');
+const jobWorkspaceSource = readFileSync('src/pages/jobs/JobDetailPage.tsx', 'utf8');
+const storeSource = readFileSync('src/store/index.ts', 'utf8');
+
+test('estimate and job workspaces are wired with the current user role', () => {
+  assert.match(appSource, /path="estimates\/:id"/);
+  assert.match(appSource, /<EstimateWorkspacePage currentUserRole=\{sessionUser\.role\} \/>/);
+  assert.match(appSource, /<JobDetailPage currentUserRole=\{sessionUser\.role\} \/>/);
+});
+
+test('lightweight estimate creation returns an id and opens the workspace', () => {
+  assert.match(storeSource, /addEstimate: \(e: Omit<Estimate,[^\n]+\) => ID;/);
+  assert.match(estimatesSource, /const estimateId = addEstimate\(\{/);
+  assert.match(estimatesSource, /workAreas: \[\],\s+lineItems: \[\],/);
+  assert.match(estimatesSource, /navigate\(`\/estimates\/\$\{estimateId\}`\);/);
+  assert.match(estimatesSource, /Customer and pricing budget are required to start an estimate\./);
+});
+
+test('estimate list title and action both open the dedicated workspace', () => {
+  const workspaceNavigations = estimatesSource.match(/navigate\(`\/estimates\/\$\{estimate\.id\}`\)/g) ?? [];
+  assert.equal(workspaceNavigations.length, 2);
+  assert.match(estimatesSource, /title="Open Workspace"/);
+});
+
+test('estimate editing uses a URL-backed tab workspace with restricted analysis', () => {
+  for (const tab of ['info', 'work-areas', 'proposal', 'project-management', 'analysis']) {
+    assert.match(estimateWorkspaceSource, new RegExp(`key: '${tab}'`));
+  }
+  assert.match(estimateWorkspaceSource, /currentUserRole === 'owner' \|\| currentUserRole === 'admin'/);
+  assert.match(estimateWorkspaceSource, /activeTab === 'analysis' && canViewAnalysis/);
+  assert.match(estimateWorkspaceSource, /setSearchParams\(\(previous\) =>/);
+});
+
+test('job workspace preserves operational tabs and scopes related invoices to the job', () => {
+  for (const tab of ['info', 'work-areas', 'proposal', 'project-management', 'analysis', 'invoices']) {
+    assert.match(jobWorkspaceSource, new RegExp(`key: '${tab}'`));
+  }
+  assert.match(jobWorkspaceSource, /currentUserRole === 'owner' \|\| currentUserRole === 'admin'/);
+  assert.match(jobWorkspaceSource, /invoices\.filter\(\(invoice\) => invoice\.jobId === id\)/);
+  assert.match(jobWorkspaceSource, /activeTab === 'invoices'/);
+  assert.match(jobWorkspaceSource, /activeTab === 'project-management'/);
+});
