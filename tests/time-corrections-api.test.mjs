@@ -396,3 +396,226 @@ test('split activity requests can be submitted but approval is blocked in v1', a
   await handler({ method: 'POST', query: { action: 'approve' }, body: { id: createRes.body.correction.id } }, approveRes);
   assert.equal(approveRes.statusCode, 409);
 });
+
+test('notifications action returns pending correction count and newest-first items', async () => {
+  const { handler, corrections } = createHarness({ sessionRole: 'owner' });
+  corrections.push(
+    {
+      id: 'corr-notify-1',
+      employeeId: 'emp-1',
+      timeEntryId: 'entry-1',
+      requestType: 'wrong_time',
+      status: 'pending',
+      requestedClockOutAt: '2026-08-06T16:30:00.000Z',
+      originalClockOutAt: '2026-08-06T22:30:00.000Z',
+      reason: 'Left site earlier',
+      submittedByUserId: 'user-crew_member',
+      submittedAt: '2026-08-07T09:00:00.000Z',
+      createdAt: '2026-08-07T09:00:00.000Z',
+      updatedAt: '2026-08-07T09:00:00.000Z',
+    },
+    {
+      id: 'corr-notify-2',
+      employeeId: 'emp-1',
+      timeEntryId: 'entry-1',
+      requestType: 'forgot_clock_in',
+      status: 'pending',
+      requestedClockInAt: '2026-08-06T07:30:00.000Z',
+      requestedClockOutAt: '2026-08-06T16:30:00.000Z',
+      reason: 'Missed clock-in',
+      submittedByUserId: 'user-crew_member',
+      submittedAt: '2026-08-07T11:00:00.000Z',
+      createdAt: '2026-08-07T11:00:00.000Z',
+      updatedAt: '2026-08-07T11:00:00.000Z',
+    }
+  );
+
+  const res = createMockRes();
+  await handler({ method: 'GET', query: { action: 'notifications' } }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.count, 2);
+  assert.equal(res.body.items.length, 2);
+  assert.equal(res.body.items[0].id, 'corr-notify-2');
+  assert.equal(res.body.items[1].id, 'corr-notify-1');
+  assert.equal(res.body.items[0].title, 'Time correction requested');
+  assert.equal(res.body.items[0].actionable, true);
+});
+
+test('notifications exclude approved and rejected corrections', async () => {
+  const { handler, corrections } = createHarness({ sessionRole: 'owner' });
+  corrections.push(
+    {
+      id: 'corr-pending',
+      employeeId: 'emp-1',
+      requestType: 'wrong_time',
+      status: 'pending',
+      reason: 'Pending',
+      submittedByUserId: 'user-crew_member',
+      submittedAt: '2026-08-07T10:00:00.000Z',
+      createdAt: '2026-08-07T10:00:00.000Z',
+      updatedAt: '2026-08-07T10:00:00.000Z',
+    },
+    {
+      id: 'corr-approved',
+      employeeId: 'emp-1',
+      requestType: 'wrong_time',
+      status: 'approved',
+      reason: 'Approved',
+      submittedByUserId: 'user-crew_member',
+      submittedAt: '2026-08-07T09:00:00.000Z',
+      createdAt: '2026-08-07T09:00:00.000Z',
+      updatedAt: '2026-08-07T09:00:00.000Z',
+    },
+    {
+      id: 'corr-rejected',
+      employeeId: 'emp-1',
+      requestType: 'wrong_time',
+      status: 'rejected',
+      reason: 'Rejected',
+      submittedByUserId: 'user-crew_member',
+      submittedAt: '2026-08-07T08:00:00.000Z',
+      createdAt: '2026-08-07T08:00:00.000Z',
+      updatedAt: '2026-08-07T08:00:00.000Z',
+    }
+  );
+
+  const res = createMockRes();
+  await handler({ method: 'GET', query: { action: 'notifications' } }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.count, 1);
+  assert.equal(res.body.items.length, 1);
+  assert.equal(res.body.items[0].id, 'corr-pending');
+});
+
+test('notifications action is empty for unauthorized employee reviewers', async () => {
+  const { handler, corrections } = createHarness({ sessionRole: 'crew_member' });
+  corrections.push({
+    id: 'corr-crew-hidden',
+    employeeId: 'emp-1',
+    requestType: 'wrong_time',
+    status: 'pending',
+    reason: 'Hidden from crew notifications',
+    submittedByUserId: 'user-crew_member',
+    submittedAt: '2026-08-07T09:00:00.000Z',
+    createdAt: '2026-08-07T09:00:00.000Z',
+    updatedAt: '2026-08-07T09:00:00.000Z',
+  });
+
+  const res = createMockRes();
+  await handler({ method: 'GET', query: { action: 'notifications' } }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.count, 0);
+  assert.deepEqual(res.body.items, []);
+});
+
+test('notifications action returns empty payload when there are no pending corrections', async () => {
+  const { handler } = createHarness({ sessionRole: 'owner' });
+  const res = createMockRes();
+  await handler({ method: 'GET', query: { action: 'notifications' } }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.count, 0);
+  assert.deepEqual(res.body.items, []);
+});
+
+test('notifications include correction review deep link href', async () => {
+  const { handler, corrections } = createHarness({ sessionRole: 'owner' });
+  corrections.push({
+    id: 'corr-link',
+    employeeId: 'emp-1',
+    requestType: 'wrong_time',
+    status: 'pending',
+    reason: 'Deep link check',
+    submittedByUserId: 'user-crew_member',
+    submittedAt: '2026-08-07T10:15:00.000Z',
+    createdAt: '2026-08-07T10:15:00.000Z',
+    updatedAt: '2026-08-07T10:15:00.000Z',
+  });
+
+  const res = createMockRes();
+  await handler({ method: 'GET', query: { action: 'notifications' } }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.items[0].href, '/reports/time?correctionStatus=pending&correctionId=corr-link');
+});
+
+test('cross-business corrections never appear in notification list', async () => {
+  const scopedCorrections = [
+    {
+      id: 'corr-biz-visible',
+      employeeId: 'emp-1',
+      requestType: 'wrong_time',
+      status: 'pending',
+      reason: 'Visible business correction',
+      submittedByUserId: 'user-crew_member',
+      submittedAt: '2026-08-07T10:00:00.000Z',
+      createdAt: '2026-08-07T10:00:00.000Z',
+      updatedAt: '2026-08-07T10:00:00.000Z',
+    },
+  ];
+
+  const handler = createTimeCorrectionsHandler({
+    requireSession: async () => baseSession('owner'),
+    listTimeCorrectionsForBusiness: async (businessId) => (
+      businessId === 'biz-1' ? scopedCorrections : []
+    ),
+    getEmployeeForBusiness: async () => ({ id: 'emp-1', name: 'Harvey Field', paidDriveTimeEnabled: true }),
+  });
+
+  const res = createMockRes();
+  await handler({ method: 'GET', query: { action: 'notifications' } }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.count, 1);
+  assert.equal(res.body.items[0].id, 'corr-biz-visible');
+});
+
+test('notifications count updates after approval and rejection', async () => {
+  const { handler, corrections } = createHarness({ sessionRole: 'owner' });
+  corrections.push(
+    {
+      id: 'corr-action-1',
+      employeeId: 'emp-1',
+      timeEntryId: 'entry-1',
+      requestType: 'wrong_time',
+      status: 'pending',
+      reason: 'Approve me',
+      submittedByUserId: 'user-crew_member',
+      submittedAt: '2026-08-07T10:00:00.000Z',
+      createdAt: '2026-08-07T10:00:00.000Z',
+      updatedAt: '2026-08-07T10:00:00.000Z',
+    },
+    {
+      id: 'corr-action-2',
+      employeeId: 'emp-1',
+      timeEntryId: 'entry-1',
+      requestType: 'wrong_time',
+      status: 'pending',
+      reason: 'Reject me',
+      submittedByUserId: 'user-crew_member',
+      submittedAt: '2026-08-07T11:00:00.000Z',
+      createdAt: '2026-08-07T11:00:00.000Z',
+      updatedAt: '2026-08-07T11:00:00.000Z',
+    }
+  );
+
+  const before = createMockRes();
+  await handler({ method: 'GET', query: { action: 'notifications' } }, before);
+  assert.equal(before.body.count, 2);
+
+  await handler({ method: 'POST', query: { action: 'approve' }, body: { id: 'corr-action-1' } }, createMockRes());
+  const afterApprove = createMockRes();
+  await handler({ method: 'GET', query: { action: 'notifications' } }, afterApprove);
+  assert.equal(afterApprove.body.count, 1);
+  assert.equal(afterApprove.body.items[0].id, 'corr-action-2');
+
+  await handler({ method: 'POST', query: { action: 'reject' }, body: { id: 'corr-action-2' } }, createMockRes());
+  const afterReject = createMockRes();
+  await handler({ method: 'GET', query: { action: 'notifications' } }, afterReject);
+  assert.equal(afterReject.body.count, 0);
+  assert.deepEqual(afterReject.body.items, []);
+});

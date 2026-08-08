@@ -84,7 +84,7 @@ function summarizeTransaction(tx) {
 
 export default async function handler(req, res) {
   const action = typeof req.query.action === 'string' ? req.query.action : '';
-  if (['list', 'create', 'approve', 'reject', 'effective-time-entries'].includes(action)) {
+  if (['list', 'create', 'approve', 'reject', 'effective-time-entries', 'notifications'].includes(action)) {
     return createTimeCorrectionsHandler(req, res);
   }
 

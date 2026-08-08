@@ -594,6 +594,21 @@ export default function App() {
                 }
               />
               <Route
+                path="reports/time"
+                element={
+                  canViewReports ? (
+                    <TimeReportsPage
+                      currentUserRole={sessionUser.role}
+                      currentUserId={sessionUser.id}
+                      currentUserName={sessionUser.name}
+                      currentUserEmail={sessionUser.email}
+                    />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route
                 path="user-access"
                 element={
                   canManageUsers ? (

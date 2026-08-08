@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import type { BusinessUserRole } from '../../auth/types';
 import { PinnedPagesProvider, usePinnedPages } from '../../navigation/PinnedPagesContext';
 import { Button } from '../ui';
+import NotificationBell from '../notifications/NotificationBell';
 
 const DESKTOP_SIDEBAR_COLLAPSED_KEY = 'oliveops.sidebar.desktop-collapsed.v1';
 
@@ -82,7 +83,10 @@ export default function AppLayout({ userName, userEmail, businessName, userRole,
                     </Button>
                   ) : <span />}
                 </div>
-                <PinPageButton />
+                <div className="flex items-center gap-2">
+                  <NotificationBell />
+                  <PinPageButton />
+                </div>
               </div>
             </div>
           </div>

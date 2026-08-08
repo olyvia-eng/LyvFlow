@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { endOfWeek, format, startOfMonth, startOfWeek, subWeeks } from 'date-fns';
+import { useLocation } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Card, PageHeader, StatCard, Button, Select, Input } from '../../components/ui';
 import { durationHours, formatDateTime, generateId, nowISO } from '../../utils';
@@ -74,6 +75,7 @@ export default function TimeReportsPage({
   currentUserName,
   currentUserEmail,
 }: TimeReportsPageProps) {
+  const location = useLocation();
   const {
     timeEntries,
     timeCorrections,
@@ -98,6 +100,25 @@ export default function TimeReportsPage({
   const [correctionStatusFilter, setCorrectionStatusFilter] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const detailSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const correctionHighlightId = useMemo(() => {
+    const query = new URLSearchParams(location.search);
+    const id = query.get('correctionId');
+    if (!id || !id.trim()) return null;
+    return id.trim();
+  }, [location.search]);
+
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    const requestedStatus = query.get('correctionStatus');
+    if (
+      requestedStatus === 'pending'
+      || requestedStatus === 'approved'
+      || requestedStatus === 'rejected'
+    ) {
+      setCorrectionStatusFilter(requestedStatus);
+    }
+  }, [location.search]);
 
   const effectiveTimeEntries = useMemo(
     () => buildEffectiveTimeEntries(timeEntries, timeCorrections),
@@ -314,6 +335,17 @@ export default function TimeReportsPage({
       .slice()
       .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
   }, [correctionStatusFilter, timeCorrections]);
+
+  useEffect(() => {
+    if (!correctionHighlightId) return;
+
+    const row = typeof document !== 'undefined'
+      ? document.getElementById(`correction-row-${correctionHighlightId}`)
+      : null;
+    if (!row) return;
+
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [correctionHighlightId, correctionRows]);
 
   const handleApproveCorrection = async (correctionId: string) => {
     if (reviewingCorrectionId) return;
@@ -637,7 +669,12 @@ export default function TimeReportsPage({
                 {correctionRows.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-4 text-gray-400">No requests in this status.</td></tr>
                 ) : correctionRows.map((item: TimeCorrectionRequest) => (
-                  <tr key={item.id}>
+                  <tr
+                    key={item.id}
+                    id={`correction-row-${item.id}`}
+                    data-correction-id={item.id}
+                    className={item.id === correctionHighlightId ? 'bg-accent-50 ring-1 ring-inset ring-accent-200' : ''}
+                  >
                     <td className="px-4 py-2 font-medium text-gray-800">{getEmployeeName(item.employeeId)}</td>
                     <td className="py-2 text-gray-600 capitalize">{item.requestType.replaceAll('_', ' ')}</td>
                     <td className="py-2 text-xs text-gray-500">

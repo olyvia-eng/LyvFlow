@@ -24,6 +24,56 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function formatLocalTimestamp(isoValue, options) {
+  if (typeof isoValue !== 'string' || !isoValue.trim()) return null;
+  const parsed = new Date(isoValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat('en-US', options).format(parsed);
+}
+
+function formatDateLabel(isoValue) {
+  return formatLocalTimestamp(isoValue, { month: 'short', day: 'numeric' });
+}
+
+function formatTimeLabel(isoValue) {
+  return formatLocalTimestamp(isoValue, { hour: 'numeric', minute: '2-digit' });
+}
+
+function buildNotificationSummary(correction) {
+  if (correction.requestType === 'forgot_clock_in') {
+    const dateLabel = formatDateLabel(correction.requestedClockInAt ?? correction.submittedAt);
+    return dateLabel
+      ? `Reported missing time for ${dateLabel}.`
+      : 'Reported missing time that requires review.';
+  }
+
+  if (correction.requestType === 'forgot_clock_out' || correction.requestType === 'wrong_time') {
+    const fromLabel = formatTimeLabel(correction.originalClockOutAt);
+    const toLabel = formatTimeLabel(correction.requestedClockOutAt);
+    if (fromLabel && toLabel) {
+      return `Requested clock-out change from ${fromLabel} to ${toLabel}.`;
+    }
+    if (toLabel) {
+      return `Requested an updated clock-out time to ${toLabel}.`;
+    }
+    return 'Requested a time correction for this shift.';
+  }
+
+  if (correction.requestType === 'wrong_job') {
+    return 'Requested a job assignment correction.';
+  }
+
+  if (correction.requestType === 'wrong_activity') {
+    return 'Requested an activity type correction.';
+  }
+
+  if (correction.requestType === 'split_activity') {
+    return 'Requested a shift activity split review.';
+  }
+
+  return 'Requested a time correction that requires review.';
+}
+
 function normalizeRole(role) {
   if (role === 'employee') return 'crew_member';
   return role;
@@ -111,6 +161,38 @@ export function createTimeCorrectionsHandler(overrides = {}) {
     if (!session) return;
 
     const action = typeof req.query.action === 'string' ? req.query.action : '';
+
+    if (req.method === 'GET' && action === 'notifications') {
+      if (!canReviewCorrections(session)) {
+        return res.status(200).json({ ok: true, count: 0, items: [] });
+      }
+
+      const all = await deps.listTimeCorrectionsForBusiness(session.businessId);
+      const pending = all
+        .filter((item) => item.status === 'pending')
+        .slice()
+        .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
+
+      const items = await Promise.all(
+        pending.map(async (correction) => {
+          const employee = await deps.getEmployeeForBusiness(session.businessId, correction.employeeId);
+          const employeeName = employee?.name?.trim() || 'An employee';
+
+          return {
+            id: correction.id,
+            type: 'time_correction_pending_review',
+            title: 'Time correction requested',
+            employeeName,
+            summary: buildNotificationSummary(correction),
+            submittedAt: correction.submittedAt,
+            href: `/reports/time?correctionStatus=pending&correctionId=${encodeURIComponent(correction.id)}`,
+            actionable: true,
+          };
+        })
+      );
+
+      return res.status(200).json({ ok: true, count: items.length, items });
+    }
 
     if (req.method === 'GET' && action === 'list') {
       const all = await deps.listTimeCorrectionsForBusiness(session.businessId);
