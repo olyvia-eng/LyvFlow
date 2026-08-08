@@ -14,6 +14,22 @@ test('25 MB image uploads are accepted', () => {
   assert.equal(result.sizeBytes, 25 * 1024 * 1024);
 });
 
+test('HEIC and HEIF images are accepted', () => {
+  const heic = validateUploadPayload({
+    fileName: 'field-photo.heic',
+    mimeType: 'image/heic',
+    sizeBytes: 1024,
+  });
+  const heif = validateUploadPayload({
+    fileName: 'field-photo.heif',
+    mimeType: 'image/heif',
+    sizeBytes: 1024,
+  });
+
+  assert.equal(heic.valid, true);
+  assert.equal(heif.valid, true);
+});
+
 test('images above 25 MB are rejected', () => {
   const result = validateUploadPayload({
     fileName: 'photo.png',

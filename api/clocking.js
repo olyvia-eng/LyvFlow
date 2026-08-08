@@ -209,6 +209,9 @@ export default async function handler(req, res) {
       idempotencyKey,
       breakMinutes: req.body?.breakMinutes ?? 0,
       notes: req.body?.notes ?? '',
+      photoAttachmentFileIds: Array.isArray(req.body?.photoAttachmentFileIds)
+        ? req.body.photoAttachmentFileIds.filter((value) => typeof value === 'string').map((value) => value.trim()).filter(Boolean)
+        : undefined,
       photoAttachmentFileId: req.body?.photoAttachmentFileId ?? undefined,
       photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
     };
@@ -233,6 +236,7 @@ export default async function handler(req, res) {
     const attachmentValidation = await validateClockOutPhotoAttachment({
       session,
       timeEntryId: entryId,
+      photoAttachmentFileIds: req.body?.photoAttachmentFileIds,
       photoAttachmentFileId: req.body?.photoAttachmentFileId ?? undefined,
       getFileForBusiness,
     });
@@ -298,6 +302,7 @@ export default async function handler(req, res) {
       auditEventId: `${session.id}:${clockOutAt}`,
       breakMinutes: req.body?.breakMinutes ?? 0,
       notes: req.body?.notes ?? '',
+      photoAttachmentFileIds: attachmentValidation.fileIds ?? undefined,
       photoAttachmentFileId: attachmentValidation.fileId ?? undefined,
       photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
       employeeName: employee?.name ?? '',
@@ -315,7 +320,10 @@ export default async function handler(req, res) {
         clockOut: clockOutAt,
         breakMinutes: req.body?.breakMinutes ?? 0,
         notes: req.body?.notes ?? '',
+        photoAttachmentFileIds: attachmentValidation.fileIds?.length ? attachmentValidation.fileIds : undefined,
+        clockOutPhotoFileIds: attachmentValidation.fileIds?.length ? attachmentValidation.fileIds : undefined,
         photoAttachmentFileId: attachmentValidation.fileId ?? undefined,
+        clockOutPhotoFileId: attachmentValidation.fileId ?? undefined,
         photoAttachmentUrl: req.body?.photoAttachmentUrl ?? undefined,
         status: 'clocked_out',
       };

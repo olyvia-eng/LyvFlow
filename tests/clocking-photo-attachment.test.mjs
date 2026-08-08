@@ -59,7 +59,24 @@ test('client clock-out payload carries the uploaded file ID', () => {
     entryId: 'entry-1',
     breakMinutes: 0,
     notes: 'Done',
+    photoAttachmentFileIds: ['file-123'],
     photoAttachmentFileId: 'file-123',
+  });
+});
+
+test('client clock-out payload carries multiple uploaded file IDs', () => {
+  const payload = buildClockOutPayload({
+    entryId: 'entry-1',
+    notes: 'Done',
+    photoAttachmentFileIds: ['file-1', 'file-2', 'file-1'],
+  });
+
+  assert.deepEqual(payload, {
+    entryId: 'entry-1',
+    breakMinutes: 0,
+    notes: 'Done',
+    photoAttachmentFileIds: ['file-1', 'file-2'],
+    photoAttachmentFileId: 'file-1',
   });
 });
 
@@ -205,4 +222,43 @@ test('clock-out attachment validation accepts a matching uploaded file', async (
 
   assert.equal(result.ok, true);
   assert.equal(result.fileId, 'file-1');
+  assert.deepEqual(result.fileIds, ['file-1']);
+});
+
+test('clock-out attachment validation accepts multiple matching uploaded files', async () => {
+  const result = await validateClockOutPhotoAttachment({
+    session: { businessId: 'biz-1', role: 'admin' },
+    timeEntryId: 'time-1',
+    photoAttachmentFileIds: ['file-1', 'file-2'],
+    getFileForBusiness: async (_businessId, fileId) => ({
+      id: fileId,
+      businessId: 'biz-1',
+      entityType: 'time-entry',
+      entityId: 'time-1',
+      uploadStatus: 'uploaded',
+    }),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.fileId, 'file-1');
+  assert.deepEqual(result.fileIds, ['file-1', 'file-2']);
+});
+
+test('clock-out attachment validation rejects more than five files', async () => {
+  const result = await validateClockOutPhotoAttachment({
+    session: { businessId: 'biz-1', role: 'admin' },
+    timeEntryId: 'time-1',
+    photoAttachmentFileIds: ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'],
+    getFileForBusiness: async () => ({
+      id: 'f1',
+      businessId: 'biz-1',
+      entityType: 'time-entry',
+      entityId: 'time-1',
+      uploadStatus: 'uploaded',
+    }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 400);
+  assert.match(result.error, /maximum of 5 photos/i);
 });

@@ -2,7 +2,7 @@ import { PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectComm
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { requireEnv } from './env.js';
 
-const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 const DOCUMENT_MIME_TYPES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -18,6 +18,8 @@ const ALLOWED_EXTENSIONS_BY_MIME = new Map([
   ['image/jpeg', new Set(['.jpg', '.jpeg'])],
   ['image/png', new Set(['.png'])],
   ['image/webp', new Set(['.webp'])],
+  ['image/heic', new Set(['.heic'])],
+  ['image/heif', new Set(['.heif'])],
   ['application/pdf', new Set(['.pdf'])],
   ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', new Set(['.docx'])],
   ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', new Set(['.xlsx'])],

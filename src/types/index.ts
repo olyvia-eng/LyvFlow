@@ -387,8 +387,10 @@ export interface TimeEntry {
   breakMinutes: number;
   notes: string;
   photoAttachmentUrl?: string;
+  photoAttachmentFileIds?: ID[];
   photoAttachmentFileId?: string;
   clockInPhotoFileId?: string;
+  clockOutPhotoFileIds?: ID[];
   clockOutPhotoFileId?: string;
   status: ClockStatus;
 }

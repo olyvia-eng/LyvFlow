@@ -3406,7 +3406,15 @@ export async function listTimeEntriesForBusiness(businessId) {
     })
   );
 
-  return (result.Items ?? []).map((item) => ({
+  return (result.Items ?? []).map((item) => {
+    const photoAttachmentFileIds = Array.isArray(item.photoAttachmentFileIds)
+      ? item.photoAttachmentFileIds
+      : (typeof item.photoAttachmentFileId === 'string' && item.photoAttachmentFileId.trim() ? [item.photoAttachmentFileId.trim()] : []);
+    const clockOutPhotoFileIds = Array.isArray(item.clockOutPhotoFileIds)
+      ? item.clockOutPhotoFileIds
+      : (typeof item.clockOutPhotoFileId === 'string' && item.clockOutPhotoFileId.trim() ? [item.clockOutPhotoFileId.trim()] : photoAttachmentFileIds);
+
+    return {
     id: item.entryId,
     employeeId: item.employeeId,
     jobId: item.jobId ?? (Array.isArray(item.jobIds) ? item.jobIds[0] : undefined),
@@ -3419,11 +3427,14 @@ export async function listTimeEntriesForBusiness(businessId) {
     breakMinutes: item.breakMinutes ?? 0,
     notes: item.notes ?? '',
     photoAttachmentUrl: item.photoAttachmentUrl ?? undefined,
-    photoAttachmentFileId: item.photoAttachmentFileId ?? undefined,
+    photoAttachmentFileIds,
+    clockOutPhotoFileIds,
+    photoAttachmentFileId: item.photoAttachmentFileId ?? photoAttachmentFileIds[0] ?? undefined,
     clockInPhotoFileId: item.clockInPhotoFileId ?? undefined,
-    clockOutPhotoFileId: item.clockOutPhotoFileId ?? undefined,
+    clockOutPhotoFileId: item.clockOutPhotoFileId ?? clockOutPhotoFileIds[0] ?? photoAttachmentFileIds[0] ?? undefined,
     status: item.status,
-  }));
+  };
+  });
 }
 
 export async function createTimeEntryForBusiness({ businessId, timeEntry }) {
@@ -3457,7 +3468,15 @@ export async function getTimeEntryForBusiness(businessId, entryId) {
   );
 
   return result.Item
-    ? {
+    ? (() => {
+        const photoAttachmentFileIds = Array.isArray(result.Item.photoAttachmentFileIds)
+          ? result.Item.photoAttachmentFileIds
+          : (typeof result.Item.photoAttachmentFileId === 'string' && result.Item.photoAttachmentFileId.trim() ? [result.Item.photoAttachmentFileId.trim()] : []);
+        const clockOutPhotoFileIds = Array.isArray(result.Item.clockOutPhotoFileIds)
+          ? result.Item.clockOutPhotoFileIds
+          : (typeof result.Item.clockOutPhotoFileId === 'string' && result.Item.clockOutPhotoFileId.trim() ? [result.Item.clockOutPhotoFileId.trim()] : photoAttachmentFileIds);
+
+        return {
         id: result.Item.entryId,
         employeeId: result.Item.employeeId,
         jobId: result.Item.jobId ?? (Array.isArray(result.Item.jobIds) ? result.Item.jobIds[0] : undefined),
@@ -3470,11 +3489,14 @@ export async function getTimeEntryForBusiness(businessId, entryId) {
         breakMinutes: result.Item.breakMinutes ?? 0,
         notes: result.Item.notes ?? '',
         photoAttachmentUrl: result.Item.photoAttachmentUrl ?? undefined,
-        photoAttachmentFileId: result.Item.photoAttachmentFileId ?? undefined,
+        photoAttachmentFileIds,
+        clockOutPhotoFileIds,
+        photoAttachmentFileId: result.Item.photoAttachmentFileId ?? photoAttachmentFileIds[0] ?? undefined,
         clockInPhotoFileId: result.Item.clockInPhotoFileId ?? undefined,
-        clockOutPhotoFileId: result.Item.clockOutPhotoFileId ?? undefined,
+        clockOutPhotoFileId: result.Item.clockOutPhotoFileId ?? clockOutPhotoFileIds[0] ?? photoAttachmentFileIds[0] ?? undefined,
         status: result.Item.status,
-      }
+      };
+      })()
     : null;
 }
 

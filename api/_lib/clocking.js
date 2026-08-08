@@ -6,6 +6,7 @@ function nowIso() {
 }
 
 export const DEFAULT_FORGOTTEN_CLOCK_OUT_THRESHOLD_HOURS = 12;
+export const MAX_CLOCK_OUT_PHOTO_ATTACHMENTS = 5;
 
 export function isPossiblyForgottenClockOut({
   clockInAt,
@@ -175,30 +176,58 @@ export async function validateClockOutPhotoAttachment({
   session,
   timeEntryId,
   photoAttachmentFileId,
+  photoAttachmentFileIds,
   getFileForBusiness,
 }) {
-  if (typeof photoAttachmentFileId !== 'string' || photoAttachmentFileId.trim().length === 0) {
-    return { ok: true, fileId: undefined };
+  const candidateIds = [];
+  if (Array.isArray(photoAttachmentFileIds)) {
+    for (const value of photoAttachmentFileIds) {
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (trimmed) candidateIds.push(trimmed);
+    }
   }
 
-  const file = await getFileForBusiness(session.businessId, photoAttachmentFileId.trim());
-  if (!file) {
-    return { ok: false, status: 400, error: 'Attachment does not exist.' };
+  if (typeof photoAttachmentFileId === 'string' && photoAttachmentFileId.trim()) {
+    candidateIds.push(photoAttachmentFileId.trim());
   }
 
-  if (file.businessId && file.businessId !== session.businessId) {
-    return { ok: false, status: 403, error: 'Forbidden' };
+  const fileIds = [...new Set(candidateIds)];
+  if (fileIds.length === 0) {
+    return { ok: true, fileId: undefined, fileIds: [] };
   }
 
-  if (file.entityType !== 'time-entry' || file.entityId !== timeEntryId) {
-    return { ok: false, status: 400, error: 'Attachment does not match the current time entry.' };
+  if (fileIds.length > MAX_CLOCK_OUT_PHOTO_ATTACHMENTS) {
+    return {
+      ok: false,
+      status: 400,
+      error: `A maximum of ${MAX_CLOCK_OUT_PHOTO_ATTACHMENTS} photos can be attached to clock-out.`,
+    };
   }
 
-  if (file.uploadStatus !== 'uploaded') {
-    return { ok: false, status: 400, error: 'Attachment upload is not complete.' };
+  const validatedIds = [];
+  for (const fileId of fileIds) {
+    const file = await getFileForBusiness(session.businessId, fileId);
+    if (!file) {
+      return { ok: false, status: 400, error: 'Attachment does not exist.' };
+    }
+
+    if (file.businessId && file.businessId !== session.businessId) {
+      return { ok: false, status: 403, error: 'Forbidden' };
+    }
+
+    if (file.entityType !== 'time-entry' || file.entityId !== timeEntryId) {
+      return { ok: false, status: 400, error: 'Attachment does not match the current time entry.' };
+    }
+
+    if (file.uploadStatus !== 'uploaded') {
+      return { ok: false, status: 400, error: 'Attachment upload is not complete.' };
+    }
+
+    validatedIds.push(file.id);
   }
 
-  return { ok: true, fileId: file.id };
+  return { ok: true, fileId: validatedIds[0], fileIds: validatedIds };
 }
 
 export function buildClockOutTransaction({
@@ -215,11 +244,24 @@ export function buildClockOutTransaction({
   breakMinutes = 0,
   notes = '',
   photoAttachmentFileId,
+  photoAttachmentFileIds,
   photoAttachmentUrl,
   employeeName = '',
 }) {
   const now = clockOutAt ?? nowIso();
-  const hasPhotoAttachmentFileId = typeof photoAttachmentFileId === 'string' && photoAttachmentFileId.trim().length > 0;
+  const attachmentFileIds = Array.isArray(photoAttachmentFileIds)
+    ? photoAttachmentFileIds.filter((value) => typeof value === 'string').map((value) => value.trim()).filter(Boolean)
+    : [];
+  const fallbackFileId = typeof photoAttachmentFileId === 'string' && photoAttachmentFileId.trim()
+    ? photoAttachmentFileId.trim()
+    : undefined;
+  if (fallbackFileId && attachmentFileIds.length === 0) {
+    attachmentFileIds.push(fallbackFileId);
+  }
+  const normalizedAttachmentFileIds = [...new Set(attachmentFileIds)];
+  const primaryAttachmentFileId = normalizedAttachmentFileIds[0];
+  const hasPhotoAttachmentFileId = typeof primaryAttachmentFileId === 'string' && primaryAttachmentFileId.length > 0;
+  const hasPhotoAttachmentFileIds = normalizedAttachmentFileIds.length > 0;
   const hasPhotoAttachment = typeof photoAttachmentUrl === 'string' && photoAttachmentUrl.trim().length > 0;
   const idempotencyItem = {
     PK: businessPk(businessId),
@@ -237,8 +279,10 @@ export function buildClockOutTransaction({
       clockOut: now,
       breakMinutes,
       notes,
-      photoAttachmentFileId: hasPhotoAttachmentFileId ? photoAttachmentFileId : undefined,
-      clockOutPhotoFileId: hasPhotoAttachmentFileId ? photoAttachmentFileId : undefined,
+      photoAttachmentFileIds: hasPhotoAttachmentFileIds ? normalizedAttachmentFileIds : undefined,
+      clockOutPhotoFileIds: hasPhotoAttachmentFileIds ? normalizedAttachmentFileIds : undefined,
+      photoAttachmentFileId: hasPhotoAttachmentFileId ? primaryAttachmentFileId : undefined,
+      clockOutPhotoFileId: hasPhotoAttachmentFileId ? primaryAttachmentFileId : undefined,
       photoAttachmentUrl: hasPhotoAttachment ? photoAttachmentUrl : undefined,
       status: 'clocked_out',
     },
@@ -299,8 +343,17 @@ export function buildClockOutTransaction({
     updateExpressionParts.push('#clockOutPhotoFileId = :clockOutPhotoFileId');
     expressionAttributeNames['#photoAttachmentFileId'] = 'photoAttachmentFileId';
     expressionAttributeNames['#clockOutPhotoFileId'] = 'clockOutPhotoFileId';
-    expressionAttributeValues[':photoAttachmentFileId'] = photoAttachmentFileId;
-    expressionAttributeValues[':clockOutPhotoFileId'] = photoAttachmentFileId;
+    expressionAttributeValues[':photoAttachmentFileId'] = primaryAttachmentFileId;
+    expressionAttributeValues[':clockOutPhotoFileId'] = primaryAttachmentFileId;
+  }
+
+  if (hasPhotoAttachmentFileIds) {
+    updateExpressionParts.push('#photoAttachmentFileIds = :photoAttachmentFileIds');
+    updateExpressionParts.push('#clockOutPhotoFileIds = :clockOutPhotoFileIds');
+    expressionAttributeNames['#photoAttachmentFileIds'] = 'photoAttachmentFileIds';
+    expressionAttributeNames['#clockOutPhotoFileIds'] = 'clockOutPhotoFileIds';
+    expressionAttributeValues[':photoAttachmentFileIds'] = normalizedAttachmentFileIds;
+    expressionAttributeValues[':clockOutPhotoFileIds'] = normalizedAttachmentFileIds;
   }
 
   return {

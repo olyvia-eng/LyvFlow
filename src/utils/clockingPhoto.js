@@ -1,10 +1,30 @@
-export function buildClockOutPayload({ entryId, breakMinutes = 0, notes = '', photoAttachmentFileId }) {
+export function buildClockOutPayload({
+  entryId,
+  breakMinutes = 0,
+  notes = '',
+  photoAttachmentFileId,
+  photoAttachmentFileIds,
+}) {
+  const normalizedPhotoAttachmentFileIds = Array.isArray(photoAttachmentFileIds)
+    ? [...new Set(photoAttachmentFileIds.filter((value) => typeof value === 'string').map((value) => value.trim()).filter(Boolean))]
+    : [];
+  const normalizedPhotoAttachmentFileId = typeof photoAttachmentFileId === 'string' && photoAttachmentFileId.trim()
+    ? photoAttachmentFileId.trim()
+    : undefined;
+
+  if (normalizedPhotoAttachmentFileIds.length === 0 && normalizedPhotoAttachmentFileId) {
+    normalizedPhotoAttachmentFileIds.push(normalizedPhotoAttachmentFileId);
+  }
+
   return {
     entryId,
     breakMinutes,
     notes,
-    ...(typeof photoAttachmentFileId === 'string' && photoAttachmentFileId.trim().length > 0
-      ? { photoAttachmentFileId: photoAttachmentFileId.trim() }
+    ...(normalizedPhotoAttachmentFileIds.length > 0
+      ? {
+          photoAttachmentFileIds: normalizedPhotoAttachmentFileIds,
+          photoAttachmentFileId: normalizedPhotoAttachmentFileIds[0],
+        }
       : {}),
   };
 }

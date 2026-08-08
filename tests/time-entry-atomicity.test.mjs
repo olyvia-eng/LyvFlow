@@ -169,6 +169,29 @@ test('clock-out includes photo attachment updates when a photo URL is provided',
   assert.ok(Object.prototype.hasOwnProperty.call(update.Update.ExpressionAttributeValues, ':photoAttachmentUrl'));
 });
 
+test('clock-out includes multi-photo attachment file ID updates', () => {
+  const tx = buildClockOutTransaction({
+    businessId: 'biz-1',
+    employeeId: 'emp-1',
+    userId: 'user-1',
+    timeEntryId: 'entry-1',
+    clockOutAt: '2026-08-05T11:00:00.000Z',
+    requestId: 'req-2',
+    idempotencyKey: 'key-2',
+    payloadHash: 'hash-2',
+    source: 'web',
+    auditEventId: 'audit-2',
+    photoAttachmentFileIds: ['file-1', 'file-2'],
+  });
+
+  const update = tx.TransactItems.find((item) => item.Update);
+  assert.match(update.Update.UpdateExpression, /#photoAttachmentFileIds/);
+  assert.match(update.Update.UpdateExpression, /#clockOutPhotoFileIds/);
+  assert.equal(update.Update.ExpressionAttributeValues[':photoAttachmentFileId'], 'file-1');
+  assert.deepEqual(update.Update.ExpressionAttributeValues[':photoAttachmentFileIds'], ['file-1', 'file-2']);
+  assert.deepEqual(update.Update.ExpressionAttributeValues[':clockOutPhotoFileIds'], ['file-1', 'file-2']);
+});
+
 test('clock-out omits photo attachment updates when no photo URL is provided', () => {
   const tx = buildClockOutTransaction({
     businessId: 'biz-1',
